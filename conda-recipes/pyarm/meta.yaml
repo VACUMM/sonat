@@ -1,0 +1,39 @@
+{% set pyarm_version = environ.get('CONDA_PYARM',"0.0.1") %}
+{% set vacumm_version = environ.get('CONDA_VACUMM',"3.3.0")|replace(".", "") %}
+{% set pkg_buildnum = environ.get('CONDA_BUILDNUM',"0") %}
+
+
+package:
+  name: pyarm
+  version: "{{ pyarm_version }}"
+
+build:
+    script: python setup.py install
+    #number: {{ environ.get('GIT_DESCRIBE_NUMBER', 0) }}
+    #string: uvcdat{{ uvcdat_version }}_{{ pkg_buildnum }}
+
+source:
+  #git_url: https://github.com/VACUMM/pyarm.git
+  #git_rev: {{ pyarm_version }}
+  path: /home1/caparmor/sraynaud/soft/src/pyarm
+
+requirements:
+  build:
+    - uvcdat
+    - gcc >=4.8.5
+    - libsangoma_tools
+  run:
+    - uvcdat
+    - libgcc >=4.8.5
+    - libsangoma_tools
+
+test:
+  imports:
+    - pyarm
+    - pyarm._fcore
+
+about:
+  home: https://www.ifremer.fr/pyarm
+  license: CeCILL-A
+  summary: A python library for ocean sciences
+
