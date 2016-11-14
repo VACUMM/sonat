@@ -1,0 +1,20 @@
+Index: Makefile
+===================================================================
+--- Makefile	(revision 812)
++++ Makefile	(working copy)
+@@ -14,13 +14,13 @@
+ 
+ # Optimization specs for compiler
+ # and include directory
+-FFLAGS = -O3 -fdefault-real-8 -Wall #-std=f2008
++FFLAGS = -O3 -fdefault-real-8 -Wall -fexternal-blas -fPIC 
+ # Compile settings for cdflib.f90. This is a Fortran77 library with explicit
+ # specification of the kind (double precision)
+ FFLAGS_CDFLIB = -O3 -std=legacy
+ # Include fftw.f for mod_sangoma_pseudornd2d
+ # If pkg-config doesn't work, specify the path manually like '_i/sw//include'
+- FFLAGS := $(FFLAGS) -I$(shell pkg-config --variable=includedir fftw3)
++ FFLAGS := $(FFLAGS) -I$(PREFIX)/include
+ 
+ # Archiver
+ AR = ar

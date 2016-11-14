@@ -1,0 +1,23 @@
+{% set sangoma_version = "2.0.1" %}
+
+package:
+  name: libsangoma_tools
+  version: "{{ sangoma_version }}"
+    
+source:
+  svn_url: http://svn.code.sf.net/p/sangoma/code/tools/tags/V{{ sangoma_version }}/Fortran
+  svn_ignore_externals: True # (defaults to False)
+  patches: all.patch
+  
+requirements:
+  build:
+    - gcc >=4.8.5
+    - fftw
+  run:
+    - fftw
+    - libgcc >=4.8.5
+    
+about:
+  home: http://www.data-assimilation.net
+  license: LGPL
+  summary: The data assimilation fortran library of the SANGOMA project
