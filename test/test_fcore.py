@@ -42,7 +42,7 @@ def test_fcore_arm():
     rho_mu_true = N.array([N.loadtxt(os.path.join(thisdir,
             'sangoma_example_arm_output--modrep{:04d}'.format(i+1)), usecols=[1])
         for i in xrange(ssamples.shape[0])]).T
-        
+
     # Checks
     assert_allclose(status, 0)
     assert_allclose(spect, spect_true)
@@ -88,7 +88,7 @@ def test_fcore_eofcovar():
     assert_allclose(svals[:nfiles-1], svals_true)
     assert_allclose(svec[:, :nfiles-1], svec_true)
     assert_allclose(meanstate, meanstate_true)
-    
+
 def test_fcore_sampleens():
     """Test the :func:`pyarm._fcore.f_sampleens` function"""
 
@@ -109,7 +109,7 @@ def test_fcore_sampleens():
 
     # Generate ensemble
     ens = f_sampleens(svecs, svals, meanstate, flag)
-    
+
     # True values
     ens_true = N.array([N.loadtxt(os.path.join(thisdir, outfile_ens.format(i+1)))
         for i in xrange(ens.shape[1])]).T
@@ -127,7 +127,7 @@ def test_fcore_computeensstats():
     infile = 'fieldA_{it}.txt'
     states = N.zeros((nstate, nfiles), order='f')
     element = 0
-    
+
     # Read states
     for it in range(1, nfiles+1):
         states[:, it-1] = N.loadtxt(os.path.join(thisdir, inpath, infile).format(**locals()))
@@ -142,10 +142,9 @@ def test_fcore_computeensstats():
     # Checks
     assert_allclose(status, 0)
     assert_allclose([skewness, kurtosis], [-1.2529E+00, -1.3728E+00], rtol=1e-4)
-        
+
 if __name__=='__main__':
     test_fcore_arm()
     test_fcore_eofcovar()
     test_fcore_sampleens()
     test_fcore_computeensstats()
-    

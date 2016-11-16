@@ -1,4 +1,40 @@
-"""Compress and scale data"""
+"""Compress and scale data
+
+Inspired from the spanlib library
+"""
+#
+# Copyright IFREMER (2016-2017)
+#
+# This software is a computer program whose purpose is to provide
+# utilities for handling oceanographic and atmospheric data,
+# with the ultimate goal of validating the MARS model from IFREMER.
+#
+# This software is governed by the CeCILL license under French law and
+# abiding by the rules of distribution of free software.  You can  use,
+# modify and/ or redistribute the software under the terms of the CeCILL
+# license as circulated by CEA, CNRS and INRIA at the following URL
+# "http://www.cecill.info".
+#
+# As a counterpart to the access to the source code and  rights to copy,
+# modify and redistribute granted by the license, users are provided only
+# with a limited warranty  and the software's author,  the holder of the
+# economic rights,  and the successive licensors  have only  limited
+# liability.
+#
+# In this respect, the user's attention is drawn to the risks associated
+# with loading,  using,  modifying and/or developing or reproducing the
+# software by the user in light of its specific status of free software,
+# that may mean  that it is complicated to manipulate,  and  that  also
+# therefore means  that it is reserved for developers  and  experienced
+# professionals having in-depth computer knowledge. Users are therefore
+# encouraged to load and test the software's suitability as regards their
+# requirements in conditions enabling the security of their systems and/or
+# data to be ensured and,  more generally, to use and operate it in the
+# same conditions as regards security.
+#
+# The fact that you are presently reading this means that you have had
+# knowledge of the CeCILL license and that you accept its terms.
+#
 import numpy
 import cdms2
 from vcmq import dict_filter, broadcast
@@ -53,9 +89,9 @@ class Packer(_Base_):
         self.dtype = data.dtype
         data = data.astype('d')
 
-         # Shape
-         if record is None:
-             self.logger.warning("Can't guess if data has a record axis "
+        # Shape
+        if record is None:
+            self.logger.warning("Can't guess if data has a record axis "
                  "(like time). Please specify the record parameter. "
                  "Assumed without record axis.")
             record = False
@@ -121,7 +157,7 @@ class Packer(_Base_):
 
         # Mask
         self.good = ~npy.ma.getmaskarray(data)
-        if self.record:            
+        if self.record:
             self.good = self.good.all(axis=0)
         self.ns = self.good.sum()
         self.compress = ns != self.good.size
@@ -166,16 +202,16 @@ class Packer(_Base_):
         # Check shape
         if data_num.shape[-self.nsdim:] != self.shape:
             raise PyARMError("Data to pack has a wrong shape: {}".format(data_num.shape))
-        
+
         # Remove bad channels ?
         nxdim = data_num.ndim-self.nsdim # dims other than space
         if self.compress: # Pack
-        
+
             sl = [slice(None)]*nxdim+[self.good]
             pdata = data_num[sl].T
-            
+
         else: # Don't pack, just reshape
-        
+
             if nxdim+self.nsdim > 2:
                 data_num.shape = data_num.shape[:nxdim]+(-1, )
             pdata = data_num.T
@@ -254,16 +290,16 @@ class Packer(_Base_):
 
     def _get_firstdims_(self, firstdims, firstaxes):
         shape = self.sshape
-        
+
         if firstdims is not None:
-            
+
             if not firstdims:
                 firstdims = False
             elif not isinstance(firstdims, tuple):
                 firstdims = (firstdims, )
-                
+
         if firstdims is not False:
-            
+
             if firstaxes is None and self.record:
                 firstaxes = [self.raxis]
             elif isinstance(firstaxes, tuple):
@@ -272,17 +308,17 @@ class Packer(_Base_):
                 firstaxes = [firstaxes]
             else:
                 firstaxes = []
-                
+
             if firstdims is None and firstaxes:
                 firstdims = tuple([(isinstance(a, (int, long))  and a or len(a)) for a in firstaxes])
             shape = firstdims + shape
             if firstaxes and isinstance(firstaxes[0], int): # real axes, not ints
                 firstaxes = None
-                
+
         elif len(shape)==0:
-            
+
             shape = (1, )
-            
+
         return shape, firstdims, firstaxes
 
     def create_array(self, firstdims=None, format=1, firstaxes=None):

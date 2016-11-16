@@ -1,5 +1,41 @@
+#!/usr/bin/env python
+# -*- coding: utf8 -*-
 """PyARM
 """
+#
+# Copyright IFREMER (2016-2017)
+#
+# This software is a computer program whose purpose is to provide
+# utilities for handling oceanographic and atmospheric data,
+# with the ultimate goal of validating the MARS model from IFREMER.
+#
+# This software is governed by the CeCILL license under French law and
+# abiding by the rules of distribution of free software.  You can  use,
+# modify and/ or redistribute the software under the terms of the CeCILL
+# license as circulated by CEA, CNRS and INRIA at the following URL
+# "http://www.cecill.info".
+#
+# As a counterpart to the access to the source code and  rights to copy,
+# modify and redistribute granted by the license, users are provided only
+# with a limited warranty  and the software's author,  the holder of the
+# economic rights,  and the successive licensors  have only  limited
+# liability.
+#
+# In this respect, the user's attention is drawn to the risks associated
+# with loading,  using,  modifying and/or developing or reproducing the
+# software by the user in light of its specific status of free software,
+# that may mean  that it is complicated to manipulate,  and  that  also
+# therefore means  that it is reserved for developers  and  experienced
+# professionals having in-depth computer knowledge. Users are therefore
+# encouraged to load and test the software's suitability as regards their
+# requirements in conditions enabling the security of their systems and/or
+# data to be ensured and,  more generally, to use and operate it in the
+# same conditions as regards security.
+#
+# The fact that you are presently reading this means that you have had
+# knowledge of the CeCILL license and that you accept its terms.
+#
+
 
 __author__ = 'Stephane Raynaud, Guillaume Charria, Pierre De Mey'
 __email__ = "raynaud@actimar.fr, charria@actimar.fr"
@@ -8,7 +44,9 @@ __date__ = '2016-11-01'
 __url__ = 'http://www.ifremer.fr/pyarm'
 __coryright__ = 'IFREMER'
 
+import os
 from warnings import warn
+from matplotlib import rcParams, rc_params_from_file
 from vcmq import (ConfigManager, cfgargparse, Logger, GENERIC_VAR_NAMES,
     adatetime, get_cmap, kwfilter)
 
@@ -28,7 +66,7 @@ PYARM_DEFAULT_MATPLOTLIBRC =  os.path.join(os.path.dirname(__file__), 'matplotli
 PYARM_USER_MATPLOTLIBRC =  'matplotlibrc'
 
 
-class PyARMError(exception):
+class PyARMError(Exception):
     pass
 
 class PyARMWarning(UserWarning):
@@ -119,7 +157,7 @@ def help(text=None, url=None):
 
 def get_cfg_cmap(cfg, param):
     """Get the config colormap for a given parameter"""
-    
+
     # Default
     default_cmap = cfg['cmaps']['default']
     if default_cmap.lower()=='none':
@@ -131,7 +169,7 @@ def get_cfg_cmap(cfg, param):
         return get_cmap(default_cmap)
     except:
         return get_cmap()
-        
+
 
 def load_mplrc(userfile=None):
     """Load a matplotlib or default user configuration file"""
@@ -150,9 +188,8 @@ def load_mplrc(userfile=None):
         return
     rcParams.update(rc_params_from_file(userfile, use_default_template=False))
 
-load_mplrc()
+#load_mplrc()
 
-import .plot # register cmaps
 
 class _Base_(object):
 
@@ -161,4 +198,5 @@ class _Base_(object):
         self.logger = get_logger(logger, **kwfilter(kwargs, 'logger_'))
 
         self.debug('Instantiate '+self.__class__.__name__)
-        
+
+import plot # register cmaps

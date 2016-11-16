@@ -98,7 +98,7 @@ test-install: clean-build clean-test-install
 	PYTHONPATH=$(TEST_SETUP_INST_DIR)/lib/python$(PYTHON_VERSION)/site-packages python -c "import "$(PYTHON_PACKAGE_NAME)"; "$(PYTHON_PACKAGE_NAME)".info()"
 
 test-unittests:
-    nosetests
+	nosetests
 
 test: test-unittests test-install
 

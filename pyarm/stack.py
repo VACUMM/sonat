@@ -1,3 +1,43 @@
+"""Stacking module
+
+Inspired from the spanlib library.
+"""
+#
+# Copyright IFREMER (2016-2017)
+#
+# This software is a computer program whose purpose is to provide
+# utilities for handling oceanographic and atmospheric data,
+# with the ultimate goal of validating the MARS model from IFREMER.
+#
+# This software is governed by the CeCILL license under French law and
+# abiding by the rules of distribution of free software.  You can  use,
+# modify and/ or redistribute the software under the terms of the CeCILL
+# license as circulated by CEA, CNRS and INRIA at the following URL
+# "http://www.cecill.info".
+#
+# As a counterpart to the access to the source code and  rights to copy,
+# modify and redistribute granted by the license, users are provided only
+# with a limited warranty  and the software's author,  the holder of the
+# economic rights,  and the successive licensors  have only  limited
+# liability.
+#
+# In this respect, the user's attention is drawn to the risks associated
+# with loading,  using,  modifying and/or developing or reproducing the
+# software by the user in light of its specific status of free software,
+# that may mean  that it is complicated to manipulate,  and  that  also
+# therefore means  that it is reserved for developers  and  experienced
+# professionals having in-depth computer knowledge. Users are therefore
+# encouraged to load and test the software's suitability as regards their
+# requirements in conditions enabling the security of their systems and/or
+# data to be ensured and,  more generally, to use and operate it in the
+# same conditions as regards security.
+#
+# The fact that you are presently reading this means that you have had
+# knowledge of the CeCILL license and that you accept its terms.
+#
+
+from vcmq import dict_filter
+
 class Dataset(_Base__):
     """Class to handle one variable or a list of variables
 
@@ -16,13 +56,10 @@ class Dataset(_Base__):
         - *weights*: Associated weights.
     """
 
-    def __init__(self, dataset, weights=None, norms=None,
-        keep_invalids=False, minvalid=None, clean_weights=True,
-        logger=None, loglevel=None, zerofill=False, **kwargs):
+    def __init__(self, dataset, norms=None, **kwargs):
 
         # Logger
-        Logger.__init__(self, logger=logger, loglevel=loglevel,
-            **dict_filter(kwargs, 'log_'))
+        _Base_.__init__(self, logger=logger, **dict_filter(kwargs, 'logger_'))
 
         # Input shape
         if isinstance(dataset, (list, tuple)):
@@ -36,36 +73,32 @@ class Dataset(_Base__):
 
         # Other inits
         self.data = []
-        self.nt = None
-        weights = self.remap(weights, reshape=True)
+        self.nr = None
         norms = self.remap(norms, reshape=True)
         if self.ndataset==1 and norms[0] is None: norms = [False]
-        self._invalids = []
         self.masked = False
 
         # Loop on datasets
         for idata,data in enumerate(dataset):
 
             # Create the Data instance and pack array
-            dd = Data(data, norm=norms[idata], weights=weights[idata],
-                keep_invalids=keep_invalids, minvalid=minvalid, clean_weights=clean_weights,
+            dd = Data(data, norm=norms[idata],
+                keep_invalids=keep_invalids, minvalid=minvalid,
                 zerofill=zerofill)
             self.data.append(dd)
-            self._invalids.append(dd.invalids)
             self.masked |= dd.masked
 
-            # Check nt
-            if self.nt is None:
-                self.nt = dd.nt
-            elif self.nt != dd.nt:
-                self.error('Time dimension of variable %i must have length %i (not %i)'%(idata, self.nt, dd.nt))
+            # Check nr
+            if self.nr is None:
+                self.nr = dd.nr
+            elif self.nr != dd.nr:
+                self.error('Record dimension of variable %i must have length %i (not %i)'%(idata, self.nr, dd.nr))
 
         # Merge
         self.stacked_data = npy.asfortranarray(npy.vstack([d.packed_data for d in self.data]))
         self.splits = npy.cumsum([d.packed_data.shape[0] for d in self.data[:-1]])
-        self.stacked_weights = npy.hstack([d.packed_weights for d in self.data])
         self.ns = self.stacked_data.shape[0]
-        self.ntv = (self.stacked_data!=default_missing_value).any(axis=0).sum()
+        self.nrv = (self.stacked_data!=default_missing_value).any(axis=0).sum()
 
     def get_norms(self, idata=None):
         """Get :attr:`norms` for one or all input variables"""
@@ -73,12 +106,6 @@ class Dataset(_Base__):
             return [d.norm for d in self.dataset.data]
         return self[idata].norm
     norms = property(get_norms, doc="Normalization factors")
-
-    def get_invalids(self, stacked=True):
-        if self._invalids[0] is None: return
-        if not stacked: return self._invalids
-        return self.restack(self._invalids, scale=False)
-    invalids = property(fget=get_invalids, doc='Final mask of stacked data')
 
     def restack(self, dataset, scale=True):
         """Stack new variables as a fortran array
@@ -91,7 +118,7 @@ class Dataset(_Base__):
             - **scale**, optional: Scale the variable (mean and norm), and optionally
               remove spatial mean if == 2.
 
-        :Seel also: :meth:`Data.repack`
+        :Seel also: :meth:`Pack.repack`
         """
 
         # Check input data
@@ -108,20 +135,20 @@ class Dataset(_Base__):
         packs = [self[idata].repack(data, scale=scale, force2d=True)
             for idata, data in enumerate(dataset)]
 
-        # Check time length (first axis)
-        nt1 = dataset[0].size/self[0].nstot
+        # Check record length (first axis)
+        nr1 = dataset[0].size/self[0].nstot
         if len(dataset)>1:
             for i, d in enumerate(dataset[1:]):
                 i += 1
-                nt2 = d.size/self[i].nstot
+                nr2 = d.size/self[i].nstot
                 if packs[0].ndim!= packs[i].ndim:
                     if packs[0].ndim==1:
                         SpanlibError('Variable %i must not have a time dimension '% (i+1, ))
                     else:
                         SpanlibError('Variable %i must have a time dimension '% (i+1, ))
-                elif nt1!=nt2:
+                elif nr1!=nr2:
                     self.error('Time length of variable %i (%i) different from that of first variable (%i)'
-                        % (i+1, nt2, nt1))
+                        % (i+1, nr2, nr1))
 
         # Stack
         stacker = npy.vstack if packs[0].ndim==2 else npy.hstack
@@ -156,82 +183,6 @@ class Dataset(_Base__):
         return [self[i].unpack(pdata, rescale=rescale, format=format,
             firstdims=firstdims, firstaxes=firstaxes)
             for i, pdata in enumerate(packs)]
-
-    def fill_invalids(self, dataref, datafill, raw=False,  copy=False, unmap=True,
-        missing=False):
-        """Fill ``dataref`` with ``datafill`` at registered invalid points
-        or current missing points
-
-
-        :Params:
-
-            - **dataref**: Reference dataset than must be filled.
-            - **datafill**: Dataset used to fill reference.
-            - **raw**, optional: Input data (and mask through missing) are aleardy packed.
-            - **missing**, optional: If True, gaps are defined by ``dataref``
-              missing values. If False, gaps are those of original data. If an array,
-              it is used as the mask to define gaps.
-        """
-#        if self.invalids is None:
-#            return dataref.clone() if copy else dataref # FIXME:
-
-        # Re stack to have raw data
-        if not raw:
-            if dataref!='stacked_data':
-                dataref = self.restack(dataref)
-            datafill = self.restack(datafill)
-            copy = False
-        if dataref=='stacked_data':
-             dataref = self.stacked_data
-
-        # Check raw shape
-        if dataref.shape!=datafill.shape:
-            self.error("Can't replace with raw data because of wrong shape (%s!=%s)"%
-                (data.shape, datafill.shape))
-
-        # Copy for safety
-        if copy: dataref = dataref.copy()
-
-        # Put it at invalid points
-        if missing is not False and missing is not True:
-            if raw:
-                mask = missing
-            else:
-                mask = self.restack(missing)
-        elif missing:
-            mask = npy.ma.masked_values(dataref, default_missing_value, shrink=False).mask
-        else:
-            mask = self.invalids
-        dataref[:] = npy.where(mask, datafill, dataref)
-        del mask
-
-        # Unstack ?
-        if int(raw)>0:
-            data = npy.asfortranarray(dataref)
-        else:
-            data = self.unstack(dataref)
-            if unmap: data = self.unmap(data)
-
-        return data
-
-
-    def replace_invalids(self, datafill, raw=False, copy=False):
-        if self.invalids is None: return
-
-        # Re stack to have raw data if needed
-        if not raw:
-            datafill = self.restack(datafill)
-
-        # Fill
-        return self.fill_invalids(self.stacked_data, datafill, raw=True, copy=False)
-
-
-
-
-#    def get_time(self, idata=0):
-#        """Get time axis"""
-#        return self.data[idata].get_time()
-
 
 
     def __len__(self):
@@ -286,12 +237,12 @@ class Dataset(_Base__):
             if d.has_cdat(): return True
         return False
 
-    def get_time(self, nt=None, offset=0, idata=0):
+    def get_time(self, nr=None, offset=0, idata=0):
         """Get the time axis of an input variable
 
         If CDAT is not used, length of axis is returned.
         """
-        return self[idata].get_time(nt, offset)
+        return self[idata].get_time(nr, offset)
 
 
 
