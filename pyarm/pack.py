@@ -113,8 +113,10 @@ class Packer(_Base_):
                 self.raxis = input.shape[0]
             else:
                 self.raxis = input.getAxis(0)
+            self.rshape = input.shape[:1]
         else:
             self.raxis = None
+            self.rshape = ()
 
         # - others axes and attributes
         if self.ismv2: # cdms -> ids
@@ -311,40 +313,33 @@ class Packer(_Base_):
         # Pack it
         return self.core_pack(data, force2d=force2d)
 
-    def _get_firstdims_(self, firstdims, firstaxes):
-        shape = self.sshape
+    def _get_firstdims_(self, firstdims):
+        """Get consistant first dims and axes"""
 
-        if firstdims is not None:
+        # No first dims, only space
+        if firstdims is False:
+            return (), []
 
-            if not firstdims:
-                firstdims = False
-            elif not isinstance(firstdims, tuple):
-                firstdims = (firstdims, )
+        # From input
+        if firstdims is None:
+            return self.rshape, [self.raxis] if self.withrdim else []
 
-        if firstdims is not False:
-
-            if firstaxes is None and self.withrdim:
-                firstaxes = [self.raxis]
-            elif isinstance(firstaxes, tuple):
-                firstaxes = list(firstaxes)
-            elif not isinstance(firstaxes, list):
-                firstaxes = [firstaxes]
+        # Specified
+        if N.iscalar(firstdims):
+            firstdims = (firstdims, )
+        firstdims = ()
+        firstaxes = []
+        for dim in firstdims:
+            if isinstance(dim, int):
+                firstdims += dim,
+                firstaxes.append(None)
             else:
-                firstaxes = []
+                firstdims += len(dim)
+                firstaxes.append(dim)
 
-            if firstdims is None and firstaxes:
-                firstdims = tuple([(isinstance(a, (int, long))  and a or len(a)) for a in firstaxes])
-            shape = firstdims + shape
-            if firstaxes and isinstance(firstaxes[0], int): # real axes, not ints
-                firstaxes = None
+        return firstdims, firstaxes
 
-        elif len(shape)==0:
-
-            shape = (1, )
-
-        return shape, firstdims, firstaxes
-
-    def create_array(self, firstdims=None, format=1, firstaxes=None):
+    def create_array(self, firstdims=None, format=1):
         """Initialize an array similar to input array
 
         Type of array is guessed from attribute :attr:`array_type`.
@@ -374,10 +369,10 @@ class Packer(_Base_):
         """
         # Get base array
         # - shape
-        shape, firstdims, firstaxes = self._get_firstdims_(firstdims, firstaxes)
+        firstdims, firstaxes = self._get_firstdims_(firstdims)
         # - create
         MM = eval(self.array_type)
-        data = MM.zeros(shape, self.dtype)
+        data = MM.zeros(firstdims + self.sshape, self.dtype)
         # - missing values
         if self.isnumpy:
             data[:] = npy.ma.masked
@@ -388,26 +383,27 @@ class Packer(_Base_):
         # Format CDAT variables
         if self.ismv2 and format:
 
-            # Axes
-            if not firstdims:
-                firstdims = ()
-            for i, axis in enumerate(self.saxes):
-                data.setAxis(i+len(firstdims), axis)
-            if firstdims is not False and firstaxes is not None:
+            # - record or other first dims
+            if firstdims:
                 for i, a in enumerate(firstaxes):
-                    if not isinstance(a, (int, long)):
+                    if a is not None:
                         try:
                             data.setAxis(i, a)
                         except:
                             pass
 
+            # - space
+            for i, axis in enumerate(self.saxes):
+                data.setAxis(i+len(firstdims), axis)
+
             # Attributes
             if format=='full' or format>1:
                 set_atts(data, self.atts)
+
         return data
 
 
-    def unpack(self, pdata, rescale=True, format=1, firstdims=None, firstaxes=None):
+    def unpack(self, pdata, rescale=True, format=1, firstdims=None):
         """Unpack data along space, reshape, and optionally unnormalize and remean.
 
         Input is sub_space:other, output is other:split_space.
@@ -429,11 +425,12 @@ class Packer(_Base_):
         # - space is last
         pdata = npy.ascontiguousarray(pdata.T).copy()
         # - first dimensions
-        if firstdims is None and firstaxes is None:
-            firstdims = 0 if pdata.ndim==1 and not self.withrdim else pdata.shape[0]
-        shape, firstdims, firstaxes = self._get_firstdims_(firstdims, firstaxes) #FIXME:remove _get_firstdims_?
+#        firstdims, firstaxes = self._get_firstdims_(firstdims)
+#        if firstdims is None and firstaxes is None:
+#            firstdims = 0 if pdata.ndim==1 and not self.withrdim else pdata.shape[0]
+#        shape, firstdims, firstaxes = self._get_firstdims_(firstdims)#, firstaxes) #FIXME:remove _get_firstdims_?
         # - create variable
-        data = self.create_array(firstdims=firstdims, format=format, firstaxes=firstaxes)
+        data = self.create_array(firstdims=firstdims, format=format)
         # - check packed data shape
         firstdims = data.shape[:len(data.shape)-self.nsdim]
         if len(firstdims) > 1:
