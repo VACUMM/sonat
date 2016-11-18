@@ -40,7 +40,7 @@ from .__init__ import _Base_
 
 class ObsPlatform(_Base_):
 
-    nc_error_prefix = 'error_'
+    nc_error_suffix = '_error'
     nc_flag = 'flag'
 
     def __init__(self, ncfile, ncvars=None, logger=None,
@@ -63,20 +63,32 @@ class ObsPlatform(_Base_):
     def load(self):
         pass
 
-    def _load_variables_(self, f, **kwargs):
-        """Read flag and errors in opened netcdf file"""
+    def _load_variables_and_zt_(self, f, **kwargs):
+        """Read flag, errors, depth and time in opened netcdf file"""
 
+        # Flag
         self.flag = f(self.nc_flag, **kwargs)
 
+        # Variables
         if self.ncvars is None:
             self.ncvars = [vname for vname in f.listvariables()
-                if vname.startswith(nc_error_prefix)]
-        self.ncvars = [vname.lstrip(nc_error_prefix) for vname in self.ncvars]
+                if vname.endswith(nc_error_suffix)]
+        self.ncvars = [vname.lstrip(nc_error_suffix) for vname in self.ncvars]
         if not self.ncvars:
             self.warning('No valid error variable in: '+self.ncfile)
         else:
             for vname in self.ncvars:
-                self.errors[vname] = f(nc_error_prefix+vname, **kwargs)
+                self.errors[vname] = f(vname + nc_error_suffix, **kwargs)
+
+        # Depth and time
+        self.depth = self.flag.getLevel()
+        self.time = self.flag.getTime()
+        if self.depth is None and hasattr(self.flag, 'depth'):
+            self.depth = self.flag.depth
+            if not isinstance(self.depth, basestring):
+                self.depth = N.atleast_1d(self.depth)
+
+
 
     def get_seldict(self, axes='xy', bounds='cce'):
         sel = {}
@@ -107,7 +119,7 @@ class ObsPlatform(_Base_):
     def interp_model(self, var):
         pass
 
-class Unstruct(object):
+class Scattered(object):
 
     nc_lon = 'lon'
     nc_lat = 'lat'
@@ -124,14 +136,16 @@ class Unstruct(object):
         f.close()
 
         # Mask
+        mask = (self.flag.filled(0)==0)
         if self.lon is not None or self.lat is not None:
-            mask = self.lons.mask | self.lats.mask
+            mask |= self.lons.mask | self.lats.mask
             if self.lon is not None:
                 mask |= self.lons < self.lon[0]
             if self.lat is not None:
                 mask |= self.lats < self.lat[0]
             for var in self.errors.values() + [self.flag]:
                 var[:] = MV2.masked_where(mask, var, copy=False)
+        self.mask = mask
 
 
 
