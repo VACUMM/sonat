@@ -1,6 +1,6 @@
 """Compress and scale data
 
-Inspired from the spanlib library
+Inspired from the spanlib library (http://www.github.com/stefraynaud/spanlib)
 """
 #
 # Copyright IFREMER (2016-2017)
@@ -36,8 +36,10 @@ Inspired from the spanlib library
 # knowledge of the CeCILL license and that you accept its terms.
 #
 import numpy
+import MV2
 import cdms2
-from vcmq import dict_filter, broadcast
+from vcmq import dict_filter, broadcast, get_atts, set_atts
+
 from .__init__ import _Base_, PyARMError
 
 npy = numpy
@@ -58,89 +60,88 @@ class Packer(_Base_):
     data: numpy or masked array
         An array whose first dimension is not compressible, like time
         or member.
-    weight:
-        Weights to be flatten also
     norm:
         Normalisation coefficients
     mask:
         Integer mask where valid data = 1
     """
-    def __init__(self, data, norm=None, logger=None, norecord=None, **kwargs):
+    def __init__(self, data, norm=None, mean=None, nordim=None, logger=None, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
 
         # Guess data type and copy
+        self.input = input = data
         if cdms2.isVariable(data):
             self.array_type = 'MV2'
             self.array_mod = MV2
-            data = data.clone()
-            if norecord is None:
-                norecord = data.getTime() is None
+            if nordim is None:
+                nordim = data.getTime() is None
+            data = data.asma()
         elif npy.ma.isMA(data):
             self.array_type = 'numpy.ma'
             self.array_mod = numpy.ma
-            data = data.copy()
         else:
             self.array_type = 'numpy'
-            data = data.copy()
             self.array_mod = numpy
-        self.data = data
+        self.data = data = data.copy().astype('d')
         self.dtype = data.dtype
-        data = data.astype('d')
 
         # Shape
-        if record is None:
+        if nordim is None:
             self.logger.warning("Can't guess if data has a record axis "
                  "(like time). Please specify the record parameter. "
                  "Assumed without record axis.")
-            record = False
-        self.record = record
+            nordim = True
+        self.nordim = nordim
         self.shape = data.shape
         self.ndim = data.ndim
-        if self.record:
+        if not self.nordim:
             self.nr = self.shape[0]
             self.nstot = data.size/self.nr
         else:
             self.nr = 0
             self.nstot = data.size
-        self.nsdim = data.ndim - int(self.record)
-        self.sshape = self.shape[int(self.record):]
-
+        self.nsdim = data.ndim - self.nrdim
+        self.sshape = self.shape[self.nrdim:]
 
         # Store some info
+
         # - record
-        if self.record:
-            if not cdms2.isVariable(data):
-                self.raxis = data.shape[0]
+        if not self.nordim:
+            if self.ismv2:
+                self.raxis = input.shape[0]
             else:
-                self.raxis = data.getAxis(0)
+                self.raxis = input.getAxis(0)
         else:
             self.raxis = None
+
         # - others axes and attributes
-        if cdms2.isVariable(data): # cdms -> ids
-            self.saxes = data.getAxisList()[int(self.record):]
-            self.id = data.id
+        if self.ismv2: # cdms -> ids
+
+            self.saxes = input.getAxisList()[self.nrdim:]
+            self.id = input.id
             self.atts =  {}
-            for att in data.listattributes():
-                self.atts[att] = data.attributes[att]
-            self.grid = data.getGrid()
-            data = data.asma()
+            for att in input.listattributes() + ['id']:
+                val = getattr(input, att, att)
+                self.atts[att] = val
+                if att in ['units', 'long_name', 'id']:
+                    setattr(self, att, val)
+            self.grid = input.getGrid()
+
         else: # numpy/ma -> length
-            self.saxes = data.shape[int(self.record):]
+
+            self.saxes = data.shape[self.nrdim:]
             self.id = None
             self.atts = None
             self.grid = None
+
         # - missing value
-        if npy.ma.isMA(data):
+        if self.isma:
             self.missing_value = data.get_fill_value()
         else:
             self.missing_value = default_missing_value
-            data = N.ma.masked_values(data, default_missing_value)
-        # - special cases
-        for att in 'long_name', 'units':
-            if hasattr(data, att):
-                setattr(self, att, data.attributes[att])
+            data = numpy.ma.masked_values(data, default_missing_value)
 
 
         # Masking nans
@@ -150,18 +151,16 @@ class Packer(_Base_):
             if self.array_type == 'numpy':
                 self.array_type = 'numpy.ma'
                 self.array_mod = numpy.ma
-                data = npy.ma.array(data, mask=nans, copy=False)
+                self.data = data = npy.ma.masked_where(nans, data, copy=False)
             else:
                 data[nans] = npy.ma.masked
-            self.data = data
 
         # Mask
         self.good = ~npy.ma.getmaskarray(data)
-        if self.record:
+        if self.withrdim:
             self.good = self.good.all(axis=0)
         self.ns = self.good.sum()
-        self.compress = ns != self.good.size
-        self.minvalid = self.nvalid = minvalid
+        self.compress = self.ns != self.good.size
 
         # Scale unpacked data
         self.masked = not self.good.any()
@@ -171,13 +170,18 @@ class Packer(_Base_):
             self.mean = 0
         else:
             # - mean
-            self.mean = data.mean(axis=0)
+            if not self.withrdim:
+                self.mean = 0
+            elif mean is not None:
+                self.mean = mean
+            else:
+                self.mean = data.mean(axis=0)
             # - normalisation factor
             if norm is True or norm is None:
-                norm = self.data.std() # Standard norm
+                norm = data.std() # Standard norm
             elif norm is not False:
                 if norm <0: # Relative norm, else strict norm
-                    norm = abs(norm)*self.data.std()
+                    norm = abs(norm)*data.std()
             else:
                 norm = 1.
             self.norm = norm
@@ -185,12 +189,30 @@ class Packer(_Base_):
             self.scale(data)
 
         # Fill data
-        data_num = data.filled(self.missing)
+        data_num = data.filled(self.missing_value)
 
         # Pack
-        self.packed_data = self.core_pack(data_num, force2d=True)
+        self.packed_data = self.core_pack(data_num, force2d=False)
 
+    @property
+    def withrdim(self):
+        return not self.nordim
 
+    @property
+    def nrdim(self):
+        return int(not self.nordim)
+
+    @property
+    def ismv2(self):
+        return self.array_type=='MV2'
+
+    @property
+    def isma(self):
+        return  self.array_type=='numpy.ma'
+
+    @property
+    def isnumpy(self):
+        return  self.array_type=='numpy'
 
     def core_pack(self, data_num, force2d=False):
         """Compress data along space if needed
@@ -200,7 +222,7 @@ class Packer(_Base_):
         *data_num**: Pure numpy array.
         """
         # Check shape
-        if data_num.shape[-self.nsdim:] != self.shape:
+        if data_num.shape[-self.nsdim:] != self.sshape:
             raise PyARMError("Data to pack has a wrong shape: {}".format(data_num.shape))
 
         # Remove bad channels ?
@@ -225,6 +247,7 @@ class Packer(_Base_):
                 pdata = npy.atleast_2d(pdata)
             else:
                 pdata.shape = pdata.size, 1
+
         return npy.asfortranarray(pdata)
 
     def scale(self, data, copy=False, mean=None, norm=None, mode=None):
@@ -300,7 +323,7 @@ class Packer(_Base_):
 
         if firstdims is not False:
 
-            if firstaxes is None and self.record:
+            if firstaxes is None and self.withrdim:
                 firstaxes = [self.raxis]
             elif isinstance(firstaxes, tuple):
                 firstaxes = list(firstaxes)
@@ -356,16 +379,18 @@ class Packer(_Base_):
         MM = eval(self.array_type)
         data = MM.zeros(shape, self.dtype)
         # - missing values
-        if self.array_type != 'numpy':
+        if self.isnumpy:
             data[:] = npy.ma.masked
             data.set_fill_value(self.missing_value)
         else:
             data[:] = self.missing_value
 
         # Format CDAT variables
-        if self.array_type=='MV2' and format:
+        if self.ismv2 and format:
 
             # Axes
+            if not firstdims:
+                firstdims = ()
             for i, axis in enumerate(self.saxes):
                 data.setAxis(i+len(firstdims), axis)
             if firstdims is not False and firstaxes is not None:
@@ -378,9 +403,7 @@ class Packer(_Base_):
 
             # Attributes
             if format=='full' or format>1:
-                data.id = self.id
-                for att, val in self.atts.items():
-                    setattr(data, att, val)
+                set_atts(data, self.atts)
         return data
 
 
@@ -407,10 +430,10 @@ class Packer(_Base_):
         pdata = npy.ascontiguousarray(pdata.T).copy()
         # - first dimensions
         if firstdims is None and firstaxes is None:
-            firstdims = 0 if pdata.ndim==1 and self.record else pdata.shape[0]
+            firstdims = 0 if pdata.ndim==1 and not self.withrdim else pdata.shape[0]
         shape, firstdims, firstaxes = self._get_firstdims_(firstdims, firstaxes) #FIXME:remove _get_firstdims_?
         # - create variable
-        data = self.create_array(firstdims=firstdims,  format=format, firstaxes=firstaxes)
+        data = self.create_array(firstdims=firstdims, format=format, firstaxes=firstaxes)
         # - check packed data shape
         firstdims = data.shape[:len(data.shape)-self.nsdim]
         if len(firstdims) > 1:
@@ -418,7 +441,7 @@ class Packer(_Base_):
         # - uncompress
         first_slices = (slice(None), )*len(firstdims) # max(1, len(firstdims)) fix for notime case
         if self.compress:
-            mdata = data.asma() if self.array_type=='MV2' else data
+            mdata = data.asma() if self.ismv2 else data
             slices = first_slices+(self.good, )
             mdata[slices] = pdata # here?
             data[:] = mdata # just to be sure
@@ -436,16 +459,12 @@ class Packer(_Base_):
 
         return data
 
-    def has_cdat(self):
-        """Was input array of CDAT type (:mod:`MV2`)?"""
-        return self.array_type == "MV2"
-
     def get_record_axis(self, nr=None, offset=0):
         """Get the time axis or dimension of an input variable
 
         If CDAT is not used, length of axis is returned or nr if different.
         """
-        if not self.record:
+        if not self.withrdim:
             return
         axis = self.raxis
         if not isinstance(axis, int) and nr is not None and nr!=self.nr:

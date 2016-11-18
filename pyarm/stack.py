@@ -1,6 +1,6 @@
 """Stacking module
 
-Inspired from the spanlib library.
+Inspired from the spanlib library (http://www.github.com/stefraynaud/spanlib)
 """
 #
 # Copyright IFREMER (2016-2017)
@@ -36,9 +36,13 @@ Inspired from the spanlib library.
 # knowledge of the CeCILL license and that you accept its terms.
 #
 
-from vcmq import dict_filter
+import numpy as npy
+from vcmq import broadcast
 
-class Dataset(_Base__):
+from .__init__ import _Base_, PyARMError
+from .pack import Packer, default_missing_value
+
+class Stacker(_Base_):
     """Class to handle one variable or a list of variables
 
     This fonction concatenates several dataset that have the
@@ -56,12 +60,13 @@ class Dataset(_Base__):
         - *weights*: Associated weights.
     """
 
-    def __init__(self, dataset, norms=None, **kwargs):
+    def __init__(self, dataset, norms=None, means=None, nordim=None, logger=None, **kwargs):
 
         # Logger
-        _Base_.__init__(self, logger=logger, **dict_filter(kwargs, 'logger_'))
+        _Base_.__init__(self, logger=logger, **kwargs)
 
         # Input shape
+        self.input = dataset
         if isinstance(dataset, (list, tuple)):
             dataset = list(dataset)
             self.map = len(dataset)
@@ -75,16 +80,16 @@ class Dataset(_Base__):
         self.data = []
         self.nr = None
         norms = self.remap(norms, reshape=True)
+        means = self.remap(means, reshape=True)
         if self.ndataset==1 and norms[0] is None: norms = [False]
         self.masked = False
+        self.nordim = nordim
 
         # Loop on datasets
-        for idata,data in enumerate(dataset):
+        for idata, data in enumerate(dataset):
 
-            # Create the Data instance and pack array
-            dd = Data(data, norm=norms[idata],
-                keep_invalids=keep_invalids, minvalid=minvalid,
-                zerofill=zerofill)
+            # Create the Packer instance and pack array
+            dd = Packer(data, norm=norms[idata], mean=means[idata], nordim=nordim)
             self.data.append(dd)
             self.masked |= dd.masked
 
@@ -92,10 +97,11 @@ class Dataset(_Base__):
             if self.nr is None:
                 self.nr = dd.nr
             elif self.nr != dd.nr:
-                self.error('Record dimension of variable %i must have length %i (not %i)'%(idata, self.nr, dd.nr))
+                self.error('Record dimension of variable %i must be %i (not %i)'%(idata, self.nr, dd.nr))
 
         # Merge
-        self.stacked_data = npy.asfortranarray(npy.vstack([d.packed_data for d in self.data]))
+        self.stacked_data = npy.asfortranarray(
+            npy.concatenate([d.packed_data for d in self.data], axis=0))
         self.splits = npy.cumsum([d.packed_data.shape[0] for d in self.data[:-1]])
         self.ns = self.stacked_data.shape[0]
         self.nrv = (self.stacked_data!=default_missing_value).any(axis=0).sum()
@@ -106,6 +112,13 @@ class Dataset(_Base__):
             return [d.norm for d in self.dataset.data]
         return self[idata].norm
     norms = property(get_norms, doc="Normalization factors")
+
+    def get_means(self, idata=None):
+        """Get :attr:`means` for one or all input variables"""
+        if idata is None:
+            return [d.mean for d in self.dataset.data]
+        return self[idata].mean
+    means = property(get_means, doc="Record averages")
 
     def restack(self, dataset, scale=True):
         """Stack new variables as a fortran array
@@ -151,8 +164,8 @@ class Dataset(_Base__):
                         % (i+1, nr2, nr1))
 
         # Stack
-        stacker = npy.vstack if packs[0].ndim==2 else npy.hstack
-        sdata = npy.asfortranarray(stacker(packs))
+#        stacker = npy.vstack if packs[0].ndim==2 else npy.hstack
+        sdata = npy.asfortranarray(npy.concatenate(packs, axis=0))
 
         return sdata
 
@@ -176,8 +189,8 @@ class Dataset(_Base__):
         """
 
         # Unstack
-        spliter = npy.hsplit if sdata.ndim==1 else npy.vsplit
-        packs = spliter(sdata, self.splits)
+#        spliter = npy.hsplit if sdata.ndim==1 else npy.vsplit
+        packs = npy.split(sdata, self.splits, axis=0)
 
         # Unpack
         return [self[i].unpack(pdata, rescale=rescale, format=format,
