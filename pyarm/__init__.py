@@ -88,8 +88,14 @@ def get_logger(name=None, cfg=None, **kwargs):
     kwargs.setdefault('redirect_stdout', 'debug')
     import pyarm
     if cfg is not None:
-        kwargs.setdefault('level', cfg['logger']['level'])
-        kwargs.setdefault('logfile', cfg['logger']['file'])
+        level = cfg['logger']['level']
+        file = cfg['logger']['file']
+    else:
+        level = 'info'
+        file = None
+    kwargs.setdefault('level', level)
+    kwargs.setdefault('logfile', file)
+
     if name is None:
 
         if pyarm.LOGGER: # Use existing logger
@@ -197,6 +203,6 @@ class _Base_(object):
 
         self.logger = get_logger(logger, **kwfilter(kwargs, 'logger_'))
 
-        self.debug('Instantiate '+self.__class__.__name__)
+        self.logger.debug('Instantiate '+self.__class__.__name__)
 
 import plot # register cmaps
