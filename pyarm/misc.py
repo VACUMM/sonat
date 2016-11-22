@@ -33,10 +33,14 @@
 # knowledge of the CeCILL license and that you accept its terms.
 #
 
+import os
+import codecs
+import string
 from string import Formatter
 from glob import has_magic, glob
 from collections import OrderedDict
-from vcmq import ncget_time, itv_intersect
+from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
+    comptime, add_time, pat2glob)
 
 from .__init__ import pyarm_warn, PyARMError
 
@@ -61,9 +65,11 @@ def scan_format_string(format_string):
     fields = {}
     props = {'with_time': [], 'positional':[], 'keyword':[]}
     f = Formatter()
-    for literal_text, field_name, format_spec, conversion in f.parse(s):
+    for literal_text, field_name, format_spec, conversion in f.parse(format_string):
+        if field_name is None:
+            continue
+        first, _ = type(field_name)._formatter_field_name_split(field_name)
 
-        first, _ = str._formatter_field_name_split(field_name)
         scan = dict(field_name=field_name, format_spec=format_spec, conversion=conversion)
         fields[first] = scan
 
@@ -72,54 +78,114 @@ def scan_format_string(format_string):
         else:
             props['keyword'].append(first)
         if '%' in format_spec:
-            props['has_time'].append(first)
+            props['with_time'].append(first)
 
     return fields, props
 
+#class Pat2GlobFormatter(string.Formatter):
+#    def get_field(self, field_name, args, kwargs):
+#        try:
+#            val = super(GlobFormatter, self).get_field(field_name, args, kwargs)
+#        except (IndexError, KeyError, AttributeError):
+#            first, _ = str._formatter_field_name_split(field_name)
+#            val = '*', first
+#        return val
 
-def list_needed_files(ncpat, time=None, dtfile=None, sort=True, **subst):
-    """List files possibly with file and date patterns"""
+class DatePat2GlobFormatter(string.Formatter):
+    def _vformat(self, format_string, args, kwargs, used_args, recursion_depth):
+        if recursion_depth < 0:
+            raise ValueError('Max string recursion exceeded')
+        result = []
+        for literal_text, field_name, format_spec, conversion in \
+                self.parse(format_string):
+
+            # output the literal text
+            if literal_text:
+                result.append(literal_text)
+
+            # if there's a field, output it
+            if field_name is not None:
+                # this is some markup, find the object and do
+                #  the formatting
+#                print 'list', literal_text, '|', field_name, '|', format_spec, '|', conversion
+                # given the field_name, find the object it references
+                #  and the argument it came from
+                try:
+                    obj, arg_used = self.get_field(field_name, args, kwargs)
+                except:
+                    if format_spec is not None and '%' in format_spec:
+                        result.append(pat2glob(format_spec))
+                        continue
+                used_args.add(arg_used)
+
+                # do any conversion on the resulting object
+                obj = self.convert_field(obj, conversion)
+
+                # expand the format spec, if needed
+                format_spec = self._vformat(format_spec, args, kwargs,
+                                            used_args, recursion_depth-1)
+
+                # format the object and append to the result
+                result.append(self.format_field(obj, format_spec))
+
+        return ''.join(result)
+
+
+
+def list_files_from_pattern(ncpat, time=None, dtfile=None, sort=True, **subst):
+    """List files possibly with glob and date patterns"""
 
     # List all files
     if isinstance(ncpat, list): # A list of file
 
         files = []
         for filepat in ncpat:
-            files.extend(list_needed_files(filepat, time=time, dtfile=dtfile, **subst))
+            files.extend(list_files_from_pattern(filepat, time=time, dtfile=dtfile, **subst))
 
     else: # A single string
 
         with_magic = has_magic(ncpat)
 
         scan_fields, scan_props = scan_format_string(ncpat)
-        if scan_props['has_time']: # With time pattern
+        if scan_props['with_time']: # With time pattern
 
-            # Time is needed
-            if time is None:
-                raise PyARMError("Time interval is required with a date pattern in file name")
+            # With time
+            if time is None: # without
 
-            # Guess pattern and frequency
-            date_format = scan_fields[['has_time'][0]]['format_spec']
-            freq = pat2freq(date_format)
-            if dtfile is None:
-                dtfile = 1, freq
-                pyarm_warn('Time steps between files not explicitly specified. Set to: {}'.format(dtfile))
-            elif not isinstance(dtfile, tuple):
-                dtfile = dtfile, freq
+                pyarm_warn("You should better provide a time interval "
+                    "with a date pattern in file name")
+                ncfile = DatePat2GlobFormatter().format(ncpat, **subst)
+                files = glob(ncfile)
 
-            # Generate dates
-            files = []
-            for date in lindates(time[0], time[-1], dtfile[0], dtfile[1]):
-                date = adatetime(date)
-                ncfile = ncpat.format(date, **subst)
-                if with_magic:
-                    files.extend(glob(ncfile))
-                else:
-                    files.append(ncfile)
+            else: # with
+
+                # Guess pattern and frequency
+                date_format = scan_fields[scan_props['with_time'][0]]['format_spec']
+                freq = pat2freq(date_format)
+                if dtfile is None:
+                    dtfile = 1, freq
+                    pyarm_warn('Time steps between files not explicitly specified. '
+                        'Set to {}. You may miss first files!'.format(dtfile))
+                elif not isinstance(dtfile, tuple):
+                    dtfile = dtfile, freq
+
+                # Generate dates or glob patterns
+                files = []
+                ct0 = add_time(time[0], -dtfile[0], dtfile[1])
+                ct1 = time[-1]
+                for date in lindates(ct0, ct1, 1, dtfile[1]):
+                    date = adatetime(date)
+                    ss = subst.copy()
+                    ss['date'] = date
+                    ncfile = ncpat.format(**ss)
+                    if with_magic:
+                        files.extend(glob(ncfile))
+                    elif os.path.exists(ncfile):
+                        files.append(ncfile)
 
         elif has_magic(ncpat): # Just glob pattern
 
-                files = glob(ncfpat)
+                files = glob(ncpat)
 
         else: # Just a file
 
@@ -150,12 +216,13 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False):
     ncfdict = OrderedDict()
     duplicate_dates = []
     for i, ncfile in enumerate(ncfiles):
+        print ncfile
 
         # Get file times
         if i<2: # Read time
 
             taxis = ncget_time(ncfile, ro=True)
-            if taxis0 is None:
+            if taxis is None:
                 PyARMError("Can't read time axis in file: " + ncfile)
             ctimes = taxis.asComponentTime()
 
@@ -179,6 +246,7 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False):
 
         # Loop on dates
         for i, date in enumerate(list(dates)):
+            print i
 
             # Get index
             ijk = taxis.mapIntervalExt((date, date), 'cob')
@@ -189,13 +257,18 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False):
             it = ijk[0]
             if ncfile not in ncfdict: # Init
 
-                ncfdict[ncfile] = it
+                ncfdict[ncfile] = [it]
 
             elif it in ncfdict[ncfile]: # Time step already used
 
                 duplicate_dates.append(date)
-                del dates[i]
                 continue
+
+            else:
+
+                ncfdict[ncfile].append(it)
+
+            del dates[i]
 
     if not getinfo:
         return ncfdict
