@@ -40,7 +40,7 @@ from string import Formatter
 from glob import has_magic, glob
 from collections import OrderedDict
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
-    comptime, add_time, pat2glob)
+    comptime, add_time, pat2glob, are_same_units)
 
 from .__init__ import pyarm_warn, PyARMError
 
@@ -82,14 +82,6 @@ def scan_format_string(format_string):
 
     return fields, props
 
-#class Pat2GlobFormatter(string.Formatter):
-#    def get_field(self, field_name, args, kwargs):
-#        try:
-#            val = super(GlobFormatter, self).get_field(field_name, args, kwargs)
-#        except (IndexError, KeyError, AttributeError):
-#            first, _ = str._formatter_field_name_split(field_name)
-#            val = '*', first
-#        return val
 
 class DatePat2GlobFormatter(string.Formatter):
     def _vformat(self, format_string, args, kwargs, used_args, recursion_depth):
@@ -204,11 +196,22 @@ def list_files_from_pattern(ncpat, time=None, dtfile=None, sort=True, **subst):
     return files
 
 def ncfiles_time_indices(ncfiles, dates, getinfo=False):
-    """Get time indices corresponding to each dates for each files"""
+    """Get time indices corresponding to each dates for each files
+
+    The time axis is read only for the first two files.
+    All files must be obey the following rules:
+
+    - Be in chronological order.
+    - Have the same time step.
+    - Have the same number of time steps.
+
+    Dates are sorted chronologically before processing.
+
+    """
 
     # Dates
     dates = comptime(dates)
-
+    dates.sort()
 
     # Select needed files
     if not ncfiles:
@@ -216,7 +219,6 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False):
     ncfdict = OrderedDict()
     duplicate_dates = []
     for i, ncfile in enumerate(ncfiles):
-        print ncfile
 
         # Get file times
         if i<2: # Read time
@@ -243,10 +245,8 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False):
             taxis = taxis0.clone()
             taxis[:] += dt * i
 
-
         # Loop on dates
-        for i, date in enumerate(list(dates)):
-            print i
+        for date in list(dates): #enumerate(list(dates)):
 
             # Get index
             ijk = taxis.mapIntervalExt((date, date), 'cob')
@@ -256,20 +256,13 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False):
                 continue
             it = ijk[0]
             if ncfile not in ncfdict: # Init
-
                 ncfdict[ncfile] = [it]
-
             elif it in ncfdict[ncfile]: # Time step already used
-
                 duplicate_dates.append(date)
-                continue
-
             else:
-
                 ncfdict[ncfile].append(it)
-
-            del dates[i]
+            dates.remove(date)
 
     if not getinfo:
         return ncfdict
-    return ncfdict, {'missed':dates, 'duplicate':duplicate_dates}
+    return ncfdict, {'missed':dates, 'duplicates':duplicate_dates}
