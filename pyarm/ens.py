@@ -36,21 +36,22 @@
 
 from collections import OrderedDict
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates,
-    MV2_concatenate)
+    MV2_concatenate, create_axis, N, kwfilter)
 
 from .__init__ import _Base_, get_logger, pyarm_warn, PyARMError
-from .misc import list_needed_files
+from .misc import list_files_from_pattern, ncfiles_time_indices
 from .stack import Stacker
+from ._fcore import f_eofcovar, f_sampleens
 
 
-def load_model_at_dates(ncpat, ncvars=None, time=None, lat=None, lon=None,
-       levels=None,  modeltype='mars', nt=50, dtfile=None, sort=True):
+def load_model_at_regular_dates(ncpat, ncvars=None, time=None, lat=None, lon=None,
+       level=None,  modeltype='mars', nt=50, dtfile=None, sort=True, asdict=False):
     """Read model output at nearest unique dates with optional linear interpolation
 
     """
 
     # Get file list
-    ncfiles = list_needed_files(ncpat, time, dtfile=dtfile, sort=True)
+    ncfiles = list_files_from_pattern(ncpat, time, dtfile=dtfile, sort=True)
     if not ncfiles:
         raise PyARMError('No file found')
 
@@ -84,15 +85,18 @@ def load_model_at_dates(ncpat, ncvars=None, time=None, lat=None, lon=None,
     if iiinfo['missed'] or iiinfo['duplicates']:
         msg = ("You must provide at least {nt} model time steps to read "
             "independant dates")
-        if reqdate:
+        if reqtime:
             msg = msg + (", and your requested time range must be enclosed "
                 "by model time range.")
         raise PyARMError(msg)
 
     # Read
+    single = isinstance(ncvars, basestring)
+    if single:
+        ncvars = [ncvars]
     out = OrderedDict()
     vlevels = {}
-    for ncfile, slices in iidict.items():
+    for ncfile, tslices in iidict.items():
 
         # Dataset instance
         ds = DS(ncfile, modeltype)
@@ -116,16 +120,26 @@ def load_model_at_dates(ncpat, ncvars=None, time=None, lat=None, lon=None,
 
             # Read and aggregate
             vout = out.setdefault(vname, [])
-            for sl in slices:
-                vout.append(ds(vname, time=sl, lat=lat, lon=lon, level=vlevel))
+            for tslice in tslices:
+                vout.append(ds(vname, time=tslice, lat=lat, lon=lon, level=vlevel,
+                    verbose=False, bestestimate=False))
 
     # Concatenate
-    for vname, vlist in vout.items():
-        vout[vname] = MV2_concatenate(vlist)
+    for vname, vout in out.items():
+        out[vname] = MV2_concatenate(vout)
 
-    return vout
+    # Dict
+    if asdict:
+        return out
 
-def generate_speudo_ensemble(ncpat, nrens=50, enrich=2., norms=None, **kwargs):
+    # Single
+    out = out.values()
+    if single:
+        return out[0]
+    return out
+
+def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
+        getmodes=False, logger=None, **kwargs):
     """Generate a static pseudo-ensemble from a single simulation
 
 
@@ -137,38 +151,73 @@ def generate_speudo_ensemble(ncpat, nrens=50, enrich=2., norms=None, **kwargs):
         Ensemble size
     enrich: float
         Enrichment factor
+    getmodes: bool
+        Get also EOFs end eigen values
     **kwargs:
         Extra parameters are passed to :func:`load_model_at_dates`
 
     Return
     ------
-    dict: variables with their name as keys
+    dict of arrays:
+        variables with their name as keys
+    dict of arrays: (nmodes, ...), optional
+        EOFs
+    array: (nmodes), optiona
+        Eigen values
 
     """
+    # Logger
+    kwlog = kwfilter(kwargs, 'logger_')
+    if logger is None:
+        logger = get_logger(**kwlog)
 
     # Ensembe size
     enrich = max(enrich, 1.)
     nt = int(nrens * enrich)
 
     # Read variables
-    data = load_model_at_dates(ncpat, nt=nt, **kwargs)
+    data = load_model_at_regular_dates(ncpat, nt=nt, **kwargs)
+    single = not isinstance(data, list)
 
     # Enrichment
     if nrens!=nt:
 
         # Stack packed variables together
-        staker = Stacker(data, norms=norms)
+        stacker = Stacker(data, norms=norms, logger=logger)
         meanstate = N.zeros(stacker.ns)
 
         # Compute EOFs
         stddev, svals, svecs, status = f_eofcovar(dim_fields=stacker.ns, offsets=1, remove_mstate=0,
-            do_mv=0, states=staker.stacked_data, meanstate=meanstate)
+            do_mv=0, states=stacker.stacked_data, meanstate=meanstate)
         if status!=0:
            raise PyARMError('Error while calling fortran eofcovar routine')
+        svals = svals[:nrens]
+        svecs = svecs[:, :nrens]
 
         # Generate ensemble
-        sens = f_sampleens(svecs, svals, meanstate, flag)
+        sens = f_sampleens(svecs, svals, meanstate, flag=0)
 
         # Unstack
-        eofs = stacker.unstack(svecs)
-        ens = stacker.unstack(sens)
+        mode_axis = create_axis(N.arange(nrens, dtype='i'), id='mode')
+        eofs = stacker.unstack(svecs, firstdims=mode_axis, id='eof_{id}', format=1)
+        ens = stacker.unstack(sens, format=2)
+        svals = MV2.array(svals, axes=[mode_axis], id='ev',
+            attributes={'long_name':'Eigen values'})
+
+        # To dict?
+        if not single:
+            eofs = OrderedDict([(var.id, var) for var in eofs])
+            ens = OrderedDict([(var.id, var) for var in ens])
+
+    # Finalize
+    member_axis = create_axis(N.arange(nrens, dtype='i'), id='member')
+    if single:
+        ens.setAxis(0, member_axis)
+    else:
+        for var in ens.values():
+            var.setAxis(0, member_axis)
+
+    if not nrens!=nt or not getmodes:
+        return ens
+    return ens, eofs, svals
+
