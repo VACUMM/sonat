@@ -40,7 +40,7 @@ from string import Formatter
 from glob import has_magic, glob
 from collections import OrderedDict
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
-    comptime, add_time, pat2glob, are_same_units)
+    comptime, add_time, pat2glob, are_same_units, indices2slices)
 
 from .__init__ import pyarm_warn, PyARMError
 
@@ -195,7 +195,7 @@ def list_files_from_pattern(ncpat, time=None, dtfile=None, sort=True, **subst):
 
     return files
 
-def ncfiles_time_indices(ncfiles, dates, getinfo=False):
+def ncfiles_time_indices(ncfiles, dates, getinfo=False, asslices=False):
     """Get time indices corresponding to each dates for each files
 
     The time axis is read only for the first two files.
@@ -262,6 +262,10 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False):
             else:
                 ncfdict[ncfile].append(it)
             dates.remove(date)
+
+        # As sclices
+        if asslices and ncfile in ncfdict:
+            ncfdict[ncfile] = indices2slices(ncfdict[ncfile])
 
     if not getinfo:
         return ncfdict
