@@ -5,22 +5,17 @@ import sys
 import numpy as N
 import MV2
 
-assert_allclose = N.testing.assert_allclose
+from util import (LOGGER, assert_allclose, create_mv2_gridder_xyzt,
+    create_mv2_scattered_xyzt)
 
-thisdir = os.path.dirname(__file__)
-libdir = os.path.abspath(os.path.join('..', 'pyarm'))
-if os.path.exists(os.path.join(libdir, '__init__.py')):
-    sys.path.insert(0, os.path.dirname(libdir))
-from pyarm import get_logger
 from pyarm.pack import Packer
-from util import create_mv2_gridder_xyzt, create_mv2_scattered_xyzt
 
-logger = get_logger(level="debug")
 
 def test_pack_mv2_curved_with_record():
 
     # Fake data
-    data = create_mv2_gridder_xyzt(rotate=30)
+    nt = 5
+    data = create_mv2_gridder_xyzt(nt=nt, rotate=30)
     data[:, :, 3:5, 2:4] = MV2.masked
     raxis = data.getTime()
     del raxis.axis
@@ -28,10 +23,11 @@ def test_pack_mv2_curved_with_record():
     raxis.id = 'member'
 
     # Pack
-    packer = Packer(data, nordim=False, logger=logger)
+    packer = Packer(data, nordim=False, logger=LOGGER)
 
     # Unpacked
     unpacked = packer.unpack(packer.packed_data)
+    unpacked2 = packer.unpack(packer.packed_data[:, :nt/2])
 
     # Repack
     repacked = packer.repack(data)
@@ -49,6 +45,7 @@ def test_pack_mv2_curved_with_record():
     assert_allclose(packer.packed_data.shape, (svalid.sum(), data.shape[0]))
     assert_allclose(packer.packed_data, cdata.T)
     assert_allclose(unpacked, data)
+    assert_allclose(unpacked2, unpacked[:nt/2])
     assert_allclose(repacked, packer.packed_data)
 
     return packer
@@ -62,7 +59,7 @@ def test_pack_mv2_scattered_without_record_fixed_norm():
     norm = data.std()*2.
 
     # Pack
-    packer = Packer(data, nordim=True, logger=logger, mean=False, norm=norm)
+    packer = Packer(data, nordim=True, logger=LOGGER, mean=False, norm=norm)
 
     # Unpacked
     unpacked = packer.unpack(packer.packed_data)

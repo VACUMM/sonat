@@ -38,11 +38,11 @@ Inspired from the spanlib library (http://www.github.com/stefraynaud/spanlib)
 import numpy
 import MV2
 import cdms2
-from vcmq import dict_filter, broadcast, get_atts, set_atts
+from vcmq import dict_filter, broadcast, get_atts, set_atts, isaxis
 
 from .__init__ import _Base_, PyARMError
 
-npy = numpy
+N = npy = numpy
 default_missing_value = npy.ma.default_fill_value(0.)
 
 
@@ -114,9 +114,11 @@ class Packer(_Base_):
             else:
                 self.raxis = input.getAxis(0)
             self.rshape = input.shape[:1]
+            self.rsize = N.multiply.reduce(self.rshape)
         else:
             self.raxis = None
             self.rshape = ()
+            self.rsize = 0
 
         # - others axes and attributes
         if self.ismv2: # cdms -> ids
@@ -313,33 +315,64 @@ class Packer(_Base_):
         # Pack it
         return self.core_pack(data, force2d=force2d)
 
-    def _get_firstdims_(self, firstdims):
-        """Get consistant first dims and axes"""
+    def _get_firstdims_(self, firstdims, pshape=None):
+        """Get consistent first dims and axes
+
+        Parameters
+        ----------
+        firstdims: int, tuple, None, True, False
+            Dimension sizes or axes
+        pshape: None, tuple
+            Packed shape with spatial dimension in last position
+
+        """
+
+        # With record dim?
+        if pshape is not None:
+            if len(pshape)==1:
+                firstdims = False
 
         # No first dims, only space
-        if firstdims is False:
+        if firstdims is False: # no record dim
             return (), []
 
         # From input
-        if firstdims is None:
-            return self.rshape, [self.raxis] if self.withrdim else []
+        if firstdims is None or firstdims is True:
 
-        # Specified
-        if N.iscalar(firstdims):
-            firstdims = (firstdims, )
-        firstdims = ()
-        firstaxes = []
-        for dim in firstdims:
-            if isinstance(dim, int):
-                firstdims += dim,
-                firstaxes.append(None)
-            else:
-                firstdims += len(dim)
-                firstaxes.append(dim)
+            # We really want it as the input so we check
+            if pshape is not None and firstdims is True and self.rsize!=pshape[0]:
+                raise PyARMError("Wrong requested shape")
 
-        return firstdims, firstaxes
+            # Ok, no chek or valid -> like input
+            if pshape is None or self.rsize==pshape[0]:
+                return self.rshape, [self.raxis] if self.withrdim else []
 
-    def create_array(self, firstdims=None, format=1):
+        # Explicit first dims?
+        if firstdims is not None:
+
+            # Transform to pure axes and dims
+            if not isinstance(firstdims, tuple):
+                firstdims = (firstdims, )
+            firstdims_ = ()
+            firstaxes = []
+            for dim in firstdims:
+                if isinstance(dim, int):
+                    firstdims_ += dim,
+                    firstaxes.append(None)
+                else:
+                    firstdims_ += len(dim),
+                    firstaxes.append(dim)
+
+            # Check
+            if pshape is not None and N.multiply.reduce(firstdims_)!=pshape[0]:
+                raise PyARMError("Wrong requested shape")
+
+            return firstdims_, firstaxes
+
+        # From pshape only
+        return pshape[:1], [None]
+
+    def create_array(self, firstdims=None, format=1, pshape=None, id=None):
         """Initialize an array similar to input array
 
         Type of array is guessed from attribute :attr:`array_type`.
@@ -369,7 +402,7 @@ class Packer(_Base_):
         """
         # Get base array
         # - shape
-        firstdims, firstaxes = self._get_firstdims_(firstdims)
+        firstdims, firstaxes = self._get_firstdims_(firstdims, pshape=pshape)
         # - create
         MM = eval(self.array_type)
         data = MM.zeros(firstdims + self.sshape, self.dtype)
@@ -379,6 +412,16 @@ class Packer(_Base_):
             data.set_fill_value(self.missing_value)
         else:
             data[:] = self.missing_value
+
+        # Id
+        if id is True:
+            id = atts['id']
+        elif isinstance(id, basestring):
+            id = id.format(**self.atts)
+        else:
+            id = None
+        atts = self.atts.copy()
+        del atts['id']
 
         # Format CDAT variables
         if self.ismv2 and format:
@@ -397,13 +440,15 @@ class Packer(_Base_):
                 data.setAxis(i+len(firstdims), axis)
 
             # Attributes
+
             if format=='full' or format>1:
                 set_atts(data, self.atts)
+
 
         return data
 
 
-    def unpack(self, pdata, rescale=True, format=1, firstdims=None):
+    def unpack(self, pdata, rescale=True, format=1, firstdims=None, id=None):
         """Unpack data along space, reshape, and optionally unnormalize and remean.
 
         Input is sub_space:other, output is other:split_space.
@@ -411,7 +456,7 @@ class Packer(_Base_):
         Params
         ------
         pdata: 2D array
-            Packed data.
+            Packed data with space dim as first.
         rescale: boolean, string
             Rescale (mean and norm) using :meth:`rescale`?
         format: int, "full"
@@ -424,13 +469,9 @@ class Packer(_Base_):
         # Unpack
         # - space is last
         pdata = npy.ascontiguousarray(pdata.T).copy()
-        # - first dimensions
-#        firstdims, firstaxes = self._get_firstdims_(firstdims)
-#        if firstdims is None and firstaxes is None:
-#            firstdims = 0 if pdata.ndim==1 and not self.withrdim else pdata.shape[0]
-#        shape, firstdims, firstaxes = self._get_firstdims_(firstdims)#, firstaxes) #FIXME:remove _get_firstdims_?
         # - create variable
-        data = self.create_array(firstdims=firstdims, format=format)
+        data = self.create_array(firstdims=firstdims, format=format,
+            pshape=pdata.shape, id=id)
         # - check packed data shape
         firstdims = data.shape[:len(data.shape)-self.nsdim]
         if len(firstdims) > 1:

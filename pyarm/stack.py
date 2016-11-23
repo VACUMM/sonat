@@ -170,7 +170,7 @@ class Stacker(_Base_):
         return sdata
 
 
-    def unstack(self, sdata, rescale=True, format=1, firstdims=None, firstaxes=None):
+    def unstack(self, sdata, rescale=True, format=1, firstdims=None, **kwargs):
         """Unstack and unpack data
 
         It has the opposite effect of :meth:`restack`.
@@ -182,7 +182,7 @@ class Stacker(_Base_):
             - **rescale**, optional: Rescale the variable (mean and norm) and
               add spatial mean if == 2.
             - **format**, optional: Format the variable (see :meth:`Data.create_array`).
-            - **firstaxes**, optional: First axis (see :meth:`Data.create_array`).
+            - **firsdims**, optional: First axis (see :meth:`Data.create_array`).
 
 
         :Seel also: :meth:`Data.unpack`
@@ -194,8 +194,7 @@ class Stacker(_Base_):
 
         # Unpack
         return [self[i].unpack(pdata, rescale=rescale, format=format,
-            firstdims=firstdims, firstaxes=firstaxes)
-            for i, pdata in enumerate(packs)]
+            firstdims=firstdims, **kwargs) for i, pdata in enumerate(packs)]
 
 
     def __len__(self):

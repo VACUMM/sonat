@@ -5,23 +5,18 @@ import sys
 import numpy as N
 import MV2
 
-assert_allclose = N.testing.assert_allclose
+from util import (LOGGER, assert_allclose, create_mv2_gridder_xyzt,
+    create_mv2_scattered_xyzt)
 
-thisdir = os.path.dirname(__file__)
-libdir = os.path.abspath(os.path.join('..', 'pyarm'))
-if os.path.exists(os.path.join(libdir, '__init__.py')):
-    sys.path.insert(0, os.path.dirname(libdir))
-from pyarm import get_logger
 from pyarm.stack import Stacker
-from util import create_mv2_gridder_xyzt, create_mv2_scattered_xyzt
 
-logger = get_logger(level="debug")
 
 def test_stack_mv2_with_record():
 
     # Fake data
     # - first array
-    data0 = create_mv2_gridder_xyzt(rotate=30)
+    nt = 5
+    data0 = create_mv2_gridder_xyzt(nt=nt, rotate=30)
     data0[:, :, 3:5, 2:4] = MV2.masked
     raxis = data0.getTime()
     del raxis.axis
@@ -33,10 +28,11 @@ def test_stack_mv2_with_record():
     data1.setAxis(0, raxis)
 
     # Stack
-    stacker = Stacker([data0, data1], nordim=False, logger=logger)
+    stacker = Stacker([data0, data1], nordim=False, logger=LOGGER)
 
     # Unstack
     unstacked0, unstacked1 = stacker.unstack(stacker.stacked_data)
+    unstacked0b, unstacked1b = stacker.unstack(stacker.stacked_data[:, :nt/2])
 
     # Restack
     restacked = stacker.restack([data0, data1])
@@ -46,6 +42,8 @@ def test_stack_mv2_with_record():
         ((~data0[0].mask).sum()+(~data1[0].mask).sum(), data0.shape[0]))
     assert_allclose(unstacked0, data0)
     assert_allclose(unstacked1, data1)
+    assert_allclose(unstacked0[:nt/2], unstacked0b)
+    assert_allclose(unstacked1[:nt/2], unstacked1b)
     assert_allclose(restacked, stacker.stacked_data)
 
     return stacker
