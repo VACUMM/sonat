@@ -1,6 +1,7 @@
 """Test script for module :mod:`pyarm.misc`"""
 
 from vcmq import adatetime, comptime
+
 from util import (THISDIR, NCPAT_MANGA, NCFILE_MANGA0, NCFILE_MANGA1,
     NCGLOB_MANGA, NCPATGLOB_MANGA,
     assert_allclose, assert_raises, N, cdms2, cdtime)

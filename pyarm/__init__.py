@@ -90,9 +90,15 @@ def get_logger(name=None, cfg=None, **kwargs):
     if cfg is not None:
         level = cfg['logger']['level']
         file = cfg['logger']['file']
+        redirect_warnings = cfg['logger']['redirect_warnings']
+        redirect_stdout = cfg['logger']['redirect_stdout']
+        if str(redirect_stdout).lower()=='false':
+            redirect_stdout = False
     else:
         level = 'info'
         file = None
+        redirect_warnings = True
+        redirect_stdout = 'debug'
     kwargs.setdefault('level', level)
     kwargs.setdefault('logfile', file)
 

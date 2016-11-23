@@ -6,12 +6,8 @@ import os
 import sys
 import numpy as N
 
-assert_allclose = N.testing.assert_allclose
+from util import THISDIR, assert_allclose
 
-thisdir = os.path.dirname(__file__)
-libdir = os.path.abspath(os.path.join('..', 'pyarm'))
-if os.path.exists(os.path.join(libdir, '__init__.py')):
-    sys.path.insert(0, os.path.dirname(libdir))
 from pyarm._fcore import f_arm, f_eofcovar, f_sampleens, f_computeensstats
 
 def test_fcore_arm():
