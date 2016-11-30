@@ -37,7 +37,7 @@
 from collections import OrderedDict
 import re
 from vcmq import (cdms2, MV2, grid2xy, regrid2d, ncget_lon, ncget_lat,
-    ncget_lat, ncget_dep, ArgList)
+    ncget_lat, ncget_dep, ArgList, ncfind_obj)
 
 from .__init__ import _Base_
 from stack import Stacker
@@ -83,17 +83,27 @@ class NcObsPlatform(Stacker):
             norms=norms)
 
 
-    def load(self, f, **kwargs):
+    def load(self, **kwargs):
         """Read flag, errors, depth and time in opened netcdf file"""
         # Open
         f = cdms2.open(self.ncfile)
 
-        # Flag specs
-        fs = f[self.nc_flag_name]
+        # List of error variables
+        if self.ncvars is None:
+            self.ncvars = [vname for vname in f.listvariables()
+                if vname.endswith(nc_error_suffix)]
+        else:
+            self.ncvars = [vname.lstrip(nc_error_suffix) for vname in self.ncvars]
+        if not self.ncvars:
+            raise PyARMError(('No valid error variable with suffix "{self.nc_error_suffix}"'
+                ' in file: {self.ncfile}').format(self))
+
+        # Reference variable
+        fs = f[self.ncvars[0]]
 
         # Inspect
-        self.order = fs.getOrder()
         grid = fs.getGrid()
+        order = fs.getOrder()
         if grid and len(grid.shape)==2: # Structured grid
 
             self.pshape = 'gridded'
@@ -107,7 +117,7 @@ class NcObsPlatform(Stacker):
 
             mask = N.ma.nomask #zeros(fs.shape[-1], '?')
             self.pshape = 'xy'
-            self.axes1d = ''
+            self.axes1d = []
 
             # Lon/lat selection
             if grid:
@@ -131,23 +141,31 @@ class NcObsPlatform(Stacker):
             # Vertical dimension
             if 'z' in self.order:
                 order.remove('z')
-                self.axes1d = 'z'
-            elif nfind_dep(f):
-                raise PyARMError("Scattered Z dimension not yet supported")
-#                self.pshape = self.pshape+'z'
+                self.depths = fs.getLevel().clone()
+                self.axes1d.append(self.depths)
+            else:
+                self.depths = ncget_dep(f)
+                if self.depths is not None:
+                    raise PyARMError("Scattered Z dimension not yet supported")
+                    self.pshape = self.pshape+'z'
+                elif hasattr(fs, 'depth'): # depth from attribute
+                    self.depths = fs.depth
+                    if not isinstance(self.depths, basestring):
+                        raise PyARMError("Depth must be a string if specified as an attribute")
 
             # Time selection
             if 't' in self.order: # 1D axis
                 kwread = dict(time=time)
                 order.remove('t')
-                self.axes1d = 't' + self.axes1d
+                self.times = fs.getTime().clone()
+                self.axes1d.append(self.times)
             else: # Aux axis
-                times = ncget_time(f)
-                if self.time:
-                    self.p
-                    times = create_time(times[:], times.units)[:]
-                    mask |= times < reltime(self.time[0], times.units)
-                    mask |= times > reltime(self.time[1], times.units)
+                self.times = ncget_time(f)
+                if self.times is not None:
+                    if self.time:
+                        times = create_time(times[:], times.units)[:]
+                        mask |= times < reltime(self.time[0], times.units)
+                        mask |= times > reltime(self.time[1], times.units)
                 self.pshape = self.pshape + 't'
 
             # Check mask
@@ -161,15 +179,8 @@ class NcObsPlatform(Stacker):
 
         # Read
         # - errors
-        if self.ncvars is None:
-            self.ncvars = [vname for vname in f.listvariables()
-                if vname.endswith(nc_error_suffix)]
-        self.ncvars = [vname.lstrip(nc_error_suffix) for vname in self.ncvars]
-        if not self.ncvars:
-            pyarm_warn('No valid error variable in: '+self.ncfile)
-        else:
-            for vname in self.ncvars:
-                self.errors[vname] = f(vname + nc_error_suffix, **kwread)
+        for vname in self.ncvars:
+            self.errors[vname] = f(vname + nc_error_suffix, **kwread)
         sample = self.errors[vname]
         # - lon/lat
         if grid:
@@ -194,22 +205,12 @@ class NcObsPlatform(Stacker):
             self.lats = xycompress(valid, self.lats)
             for vname, var in self.errors.item():
                 self.errors[vname] = xycompress(valid, var)
+            if self.times is not None and self.times not in self.axes1d:
+                self.times = xycompress(valid, self.times)
+            if self.depths is not None and self.depths not in self.axes1d:
+                self.depths = xycompress(valid, self.depths)
 
-        # Depth
-        self.depth = sample.getLevel()
-        if self.depth is None:
-            self.depth = ncget_dep(f)
-        if self.depth is None and (hasattr(self.flag, 'depth') or
-                hasattr(sample, 'depth')):
-            var = self.flag if hasattr(self.flag, 'depth') else sample
-            self.depth = var.depth
-            if not isinstance(self.depth, basestring):
-                raise PyARMError("Depth must be a string if specified as an attribute")
 
-        # Time
-        self.time = sample.getTime()
-        if self.time is None:
-            self.time = ncget_time(f)
 
     @property
     def ndim(self):
