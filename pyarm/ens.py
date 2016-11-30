@@ -34,21 +34,30 @@
 # knowledge of the CeCILL license and that you accept its terms.
 #
 
+import re
 from collections import OrderedDict
+import scipy.stats as SS
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates,
-    MV2_concatenate, create_axis, N, kwfilter)
+    MV2_concatenate, create_axis, N, kwfilter, check_case)
 
 from .__init__ import _Base_, get_logger, pyarm_warn, PyARMError
-from .misc import list_files_from_pattern, ncfiles_time_indices
+from .misc import list_files_from_pattern, ncfiles_time_indices, asma, NcReader
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
 
 
 def load_model_at_regular_dates(ncpat, ncvars=None, time=None, lat=None, lon=None,
-       level=None,  modeltype='mars', nt=50, dtfile=None, sort=True, asdict=False):
+       level=None,  modeltype='mars', nt=50, dtfile=None, sort=True, asdict=False,
+       logger=None, **kwargs):
     """Read model output at nearest unique dates with optional linear interpolation
 
     """
+    # Logger
+    kwlog = kwfilter(kwargs, 'logger_')
+    if logger is None:
+        logger = get_logger(**kwlog)
+    logger.debug('Loading model at regular dates')
+
 
     # Get file list
     ncfiles = list_files_from_pattern(ncpat, time, dtfile=dtfile, sort=True)
@@ -99,7 +108,7 @@ def load_model_at_regular_dates(ncpat, ncvars=None, time=None, lat=None, lon=Non
     for ncfile, tslices in iidict.items():
 
         # Dataset instance
-        ds = DS(ncfile, modeltype)
+        ds = DS(ncfile, modeltype, logger=logger)
 
         # List of variables
         if ncvars is None:
@@ -139,7 +148,7 @@ def load_model_at_regular_dates(ncpat, ncvars=None, time=None, lat=None, lon=Non
     return out
 
 def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
-        getmodes=False, logger=None, **kwargs):
+        getmodes=False, logger=None, asdicts=False, anomaly=True, **kwargs):
     """Generate a static pseudo-ensemble from a single simulation
 
 
@@ -158,12 +167,15 @@ def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
 
     Return
     ------
-    dict of arrays:
+    list (or dict) of arrays:
         variables with their name as keys
-    dict of arrays: (nmodes, ...), optional
-        EOFs
-    array: (nmodes), optiona
-        Eigen values
+    dict: eofs, ev and variance, optional
+        eofs: list (or dict) of arrays(nmodes, ...), optional
+            EOFs
+        ev: array(nmodes), optional
+            Eigen values
+        var: array
+            Variance
 
     """
     # Logger
@@ -176,48 +188,278 @@ def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
     nt = int(nrens * enrich)
 
     # Read variables
-    data = load_model_at_regular_dates(ncpat, nt=nt, **kwargs)
+    data = load_model_at_regular_dates(ncpat, nt=nt, asdict=False, **kwargs)
     single = not isinstance(data, list)
 
     # Enrichment
-    if nrens!=nt:
+    witheofs = nrens!=nt
+    if witheofs:
 
         # Stack packed variables together
         stacker = Stacker(data, norms=norms, logger=logger)
         meanstate = N.zeros(stacker.ns)
+        states = N.asfortranarray(stacker.stacked_data.copy())
 
         # Compute EOFs
-        stddev, svals, svecs, status = f_eofcovar(dim_fields=stacker.ns, offsets=1, remove_mstate=0,
-            do_mv=0, states=stacker.stacked_data, meanstate=meanstate)
+        stddev, svals, svecs, status = f_eofcovar(dim_fields=stacker.ns, offsets=1,
+            remove_mstate=0, do_mv=0, states=states, meanstate=meanstate)
         if status!=0:
            raise PyARMError('Error while calling fortran eofcovar routine')
-        svals = svals[:nrens]
-        svecs = svecs[:, :nrens]
+        neof = svals.size # computed
+        neofr = nrens - 1 # retained
+        svals = svals[:neofr] * N.sqrt((neof-1.) / neof) # to be consistent with total variance
+        svecs = svecs[:, :neofr]
 
         # Generate ensemble
         sens = f_sampleens(svecs, svals, meanstate, flag=0)
 
         # Unstack
-        mode_axis = create_axis(N.arange(nrens, dtype='i'), id='mode')
-        eofs = stacker.unstack(svecs, firstdims=mode_axis, id='eof_{id}', format=1)
-        ens = stacker.unstack(sens, format=2)
-        svals = MV2.array(svals, axes=[mode_axis], id='ev',
-            attributes={'long_name':'Eigen values'})
+        ens = stacker.unstack(sens, format=2, rescale='norm' if anomaly else True)
+        if getmodes:
 
-        # To dict?
-        if not single:
-            eofs = OrderedDict([(var.id, var) for var in eofs])
-            ens = OrderedDict([(var.id, var) for var in ens])
+            # Modes
+            mode_axis = create_axis(N.arange(neofr, dtype='i'), id='mode')
+            eofs = stacker.unstack(svecs, firstdims=mode_axis, id='{id}_eof',
+                rescale=False, format=1)
+            svals = MV2.array(svals, axes=[mode_axis], id='ev',
+                attributes={'long_name':'Eigen values'})
+            svals.total_variance = float(stacker.ns)
+
+            # Variance
+            vv = stacker.format_arrays([d.var(axis=0) for d in stacker.datas],
+                id='{id}_variance', mode=1)
+            variance = stacker.unmap(vv)
+
+    else: # No enrichment -> take the anomaly if requested
+
+        ens = data
+
+        if anomaly:
+            if single:
+                ens[:] = ens.asma()-ens.asma().mean(axis=0)
+            else:
+                for i, e in enumerate(ens):
+                    ens[i][:] = e.asma()-e.asma().mean(axis=0)
+
 
     # Finalize
+    getmodes = getmodes and witheofs
     member_axis = create_axis(N.arange(nrens, dtype='i'), id='member')
     if single:
         ens.setAxis(0, member_axis)
     else:
-        for var in ens.values():
+        for var in ens:
             var.setAxis(0, member_axis)
+    if asdicts:
+        if single:
+            ens = OrderedDict([(ens.id, ens)])
+            if getmodes:
+                eofs = OrderedDict([(eofs.id, eofs)])
+        else:
+            ens = OrderedDict([(var.id, var) for var in ens])
+            if getmodes:
+                eofs = OrderedDict([(var.id, var) for var in eofs])
 
-    if not nrens!=nt or not getmodes:
+    # Return
+    if not getmodes:
         return ens
-    return ens, eofs, svals
+    return ens, dict(eofs=eofs, eigenvalues=svals, variance=variance)
+
+
+class Ensemble(Stacker):
+    """Class for exploiting an ensemble"""
+
+    def __init__(self, data, ev=None, variance=None, logger=None, norms=None,
+            means=None, **kwargs):
+
+        # Init base
+        kwargs['nordim'] = False
+        Stacker.__init__(self, data, logger=logger, norms=norms, means=means, **kwargs)
+
+        # Add more variables
+        self.ev = ev
+        self.variance = variance
+
+    @classmethod
+    def from_file(cls, ncfile, ncvars=None, ncreader='mars3d',
+            exclude=['.*_eof$', 'bounds_.*'],
+            include=None, evname='ev', varpat='{vname}_variance',
+            lon=None, lat=None, level=None, time=None,
+            **kwargs):
+        """Init the class with a netcdf file"""
+        # open
+        f = NcReader(ncfile, readdertype)
+        allvars = f.get_variables()
+
+        # List of variables
+        if ncvars is None: # guess
+
+            # Basic list
+            single = False
+            ncvars = list(allvars)
+
+            # Filter
+            if exclude is None:
+                exclude = []
+            elif isinstance(exclude, basestring):
+                exclude = [exclude]
+            if include is None:
+                include = []
+            elif isinstance(include, basestring):
+                    include = [include]
+            exclude.append(evname + '$')
+            exclude.append('^' + varpat.format(vname='.*') + '$')
+            exclude = [re.compile(e, re.I).match for e in exclude]
+            include = [re.compile(e, re.I).match for e in include]
+            for vname in list(ncvars):
+
+                if (exclude and any([e(vname) for e in exclude]) or
+                        (include and not any([e(vname) for e in include]))):
+
+                    ncvars.remove(vname) # Remove from state variables
+
+                elif varpat: # ok, now check variance
+
+                    varname = varpat.format(vname=vname)
+                    if varname in allvars:
+                        varnames.append(varname)
+
+            # We need at least one
+            if not ncvars:
+                raise PyARMError('No valid variable found in file {ncfile}'.format(
+                    **locals()))
+
+        else: # provided
+
+            single = isinstance(ncvars, N.ndarray)
+            if single:
+                ncvars = [ncvars]
+
+            # State variables
+            for vname in ncvars:
+                if vname not in allvars:
+                    raise PyARMError('Variable {vname} not found in file {ncfile}'.format(
+                        **locals()))
+
+            # Variance of state variables
+            varnames = []
+            if varpat:
+                notfound = []
+                for vname in ncvars:
+                    varname = varpat.format(vname=vname)
+                    if varname in allvars:
+                        varnames.append(varname)
+                    else:
+                        notfound.append(varname)
+                if notfound:
+                    raise PyARMError('Variance variables not found: '+' '.join(notfound))
+
+        # Eigen values
+        if evname not in allvars:
+            evname = None
+
+
+        # Read
+        kwsel = dict(time=time, level=level, lat=lat, lon=lon)
+        data = []
+        for vname in ncvars:
+            data.append(f(vname, **kwsel))
+        if evname:
+            kwargs['ev'] = f('ev', **kwsel)
+        if varnames:
+            kwargs['variance'] = [f(varname, **kwsel) for varname in varnames]
+        f.close()
+
+        if single:
+            data = data[0]
+        return cls(data, **kwargs)
+
+
+    def _ss_diag_(self, diag_name, diag_dict, index=None, format=1, **kwargs):
+        """Compute a scipy.stats diagnostic are store it in diags"""
+        ss_func = getattr(SS, diag_name)
+        if index is not None:
+            ss_func_ = ss_func
+            ss_func = lambda *args, **kwargs: ss_func_(*args, **kwargs)[index]
+        dds = [ss_func(self.datas[i], axis=0, **kwargs) for i in range(self.nvar)]
+        dds = self.format_arrays(dds, firstdims=False,
+            id='{id}_'+diag_name, mode=format)
+        diag_dict[diag_name] = self.unmap(dds)
+
+
+    def get_diags(self, mean=True, variance=True, kurtosis=True, skew=True,
+            skewtest=True, kurtosistest=True, normaltest=True):
+        """Get ensemble diagnostics as a dict
+
+
+        Sea also
+        --------
+        :func:`scipy.stats.kurtosis` :func:`scipy.stats.kurtosistest`
+        :func:`scipy.stats.skew` :func:`scipy.stats.skewtest`
+        :func:`scipy.stats.normaltest`
+        """
+        if (not mean and not variance and not kurtosis and not skewness and
+                not skewtest and not kurtosistest and not normaltest):
+            return {}
+        diags = {}
+
+        # Inputs
+        mmeans = self.get_means()
+        manoms = [(self.datas[i]-mmeans[i]) for i in range(len(self))]
+
+        # Mean
+        if mean is True:
+            means = self.fill_arrays(mmeans, firstdims=False,
+                id='{id}_mean', format=2)
+            diags['mean'] = self.unmap(means)
+
+        # Variance
+        if variance is True:
+
+            # Local variance
+            vars = [v.var(axis=0) for v in manoms]
+            vars = self.fill_arrays(vars, firstdims=False,
+                id='{id}_variance', format=2)
+            diags['variance'] = self.unmap(vars)
+
+            # Explained variance
+            if self.ev is not None and hasattr(self.ev, 'total_variance'):
+                diags['explained_variance'] = (self.ev**2).sum()/self.ev.total_variance
+
+            # Local explained variance
+            if self.variance is not None:
+                lvars = self.remap(self.variance)
+                evars = []
+                for lvar, var in zip(self.remap(self.variance), vars):
+                    if cdms2.isVariable(lvar):
+                        evar = lvar.clone()
+                        evar.id = var.id.replace('_variance', '_expl_variance')
+                    else:
+                        evar = lvar.copy()
+                    evar[:] /= var
+
+
+
+        # Skew
+        if skew:
+            self._ss_diag_('skew', diags)
+
+        # Kurtosis
+        if kurtosis:
+            self._ss_diag_('kurtosis', diags)
+
+        # Skew test
+        if skewtest:
+            self._ss_diag_('skewtest', diags, 0)
+
+        # Kurtosis test
+        if kurtosistest:
+            self._ss_diag_('kurtosistest', diags, 0)
+
+        # Normal test
+        if normaltest:
+            self._ss_diag_('normaltest', diags, 0)
+
+        return diags
+
 
