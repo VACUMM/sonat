@@ -34,17 +34,32 @@
 # knowledge of the CeCILL license and that you accept its terms.
 #
 
-from vcmq import cdms2, MV2, grid2xy, regrid2d
+from collections import OrderedDict
+import re
+from vcmq import (cdms2, MV2, grid2xy, regrid2d, ncget_lon, ncget_lat,
+    ncget_lat, ncget_dep, ArgList)
 
 from .__init__ import _Base_
+from stack import Stacker
 
-class ObsPlatform(_Base_):
+
+RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
+
+class NcObsPlatform(Stacker):
+    """Generic observation platform class
+
+
+    Attributes
+    ----------
+    pshape: string
+        Plateform shape
+    """
 
     nc_error_suffix = '_error'
-    nc_flag = 'flag'
+    nc_flag_name = 'flag'
 
-    def __init__(self, ncfile, ncvars=None, logger=None,
-            lon=None, lat=None, levels=None, **kwargs):
+    def __init__(self, ncfile, ncvars=None, logger=None, norms=None,
+            time=None, lon=None, lat=None, levels=None, pert=1e-2, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -52,103 +67,289 @@ class ObsPlatform(_Base_):
         # Init parameters
         self.ncfile = ncfile
         self.ncvars = ncvars
+        self.time = time
         self.lon = lon
         self.lat = lat
         self.levels = levels
-        self.errors = {}
+        self.errors = OrderedDict()
+        self.pert = pert
+        self._orig = {}
 
         # Load positions and variables
         self.load()
 
-    def load(self):
-        pass
+        # Init stacker
+        Stacker.__init__(self.errors.values(), logger=False, mean=False,
+            norms=norms)
 
-    def _load_variables_and_zt_(self, f, **kwargs):
+
+    def load(self, f, **kwargs):
         """Read flag, errors, depth and time in opened netcdf file"""
+        # Open
+        f = cdms2.open(self.ncfile)
 
-        # Flag
-        self.flag = f(self.nc_flag, **kwargs)
+        # Flag specs
+        fs = f[self.nc_flag_name]
 
-        # Variables
+        # Inspect
+        self.order = fs.getOrder()
+        grid = fs.getGrid()
+        if grid and len(grid.shape)==2: # Structured grid
+
+            self.pshape = 'gridded'
+            kwread = dict(time=self.time, lat=self.lat, lon=self.lon)
+            if '-' in self.order:
+                raise PyARMError("There are unkown dimensions in your gridded variable. "
+                    "Current order: "+self.order)
+            self.axes1d = self.order[:-2]
+
+        else: # Unstructured grid
+
+            mask = N.ma.nomask #zeros(fs.shape[-1], '?')
+            self.pshape = 'xy'
+            self.axes1d = ''
+
+            # Lon/lat selection
+            if grid:
+                kwread = dict(lat=self.lat, lon=self.lon)
+#                lons = grid.getLongitude()
+#                lats = grid.getLatitude()
+            else:
+                lons = ncget_lon(f)
+                if lons is None:
+                    raise PyARMError("Longitudes not found")
+                lons = ncread_lon(f, id=lons)
+                lats = ncget_lat(f)
+                if lats is None:
+                    raise PyARMError("Latitudes not found")
+                if self.lon:
+                    mask |= lons < self.lons[0]
+                if self.lat:
+                    mask |= lats < self.lats[1]
+            order = order[:-1]
+
+            # Vertical dimension
+            if 'z' in self.order:
+                order.remove('z')
+                self.axes1d = 'z'
+            elif nfind_dep(f):
+                raise PyARMError("Scattered Z dimension not yet supported")
+#                self.pshape = self.pshape+'z'
+
+            # Time selection
+            if 't' in self.order: # 1D axis
+                kwread = dict(time=time)
+                order.remove('t')
+                self.axes1d = 't' + self.axes1d
+            else: # Aux axis
+                times = ncget_time(f)
+                if self.time:
+                    self.p
+                    times = create_time(times[:], times.units)[:]
+                    mask |= times < reltime(self.time[0], times.units)
+                    mask |= times > reltime(self.time[1], times.units)
+                self.pshape = self.pshape + 't'
+
+            # Check mask
+            if mask.all():
+                PyARMError("All your observation data are masked")
+
+            # Check remaining dims
+            if order:
+                PyARMError("There are unkown dimensions in your scattered obs variable")
+
+
+        # Read
+        # - errors
         if self.ncvars is None:
             self.ncvars = [vname for vname in f.listvariables()
                 if vname.endswith(nc_error_suffix)]
         self.ncvars = [vname.lstrip(nc_error_suffix) for vname in self.ncvars]
         if not self.ncvars:
-            self.warning('No valid error variable in: '+self.ncfile)
+            pyarm_warn('No valid error variable in: '+self.ncfile)
         else:
             for vname in self.ncvars:
-                self.errors[vname] = f(vname + nc_error_suffix, **kwargs)
+                self.errors[vname] = f(vname + nc_error_suffix, **kwread)
+        sample = self.errors[vname]
+        # - lon/lat
+        if grid:
+            self.lons = sample.getLongitude()[:]
+            self.lats = sample.getLatitude()[:]
+        else:
+            self.lons = lons
+            self.lats = lats
+        # - flag
+        if self.nc_flag_name in f.listvariables():
+            self.flag = f(self.nc_flag_name, **kwread)
+        else:
+            pyarm_warn('No flag variable found in obs file. '
+                'Setting it to 1 everywhere.')
+            shape = grid.shape if grid else lons.shape
+            self.flag = MV2.ones(shape, 'i')
 
-        # Depth and time
-        self.depth = self.flag.getLevel()
-        self.time = self.flag.getTime()
-        if self.depth is None and hasattr(self.flag, 'depth'):
-            self.depth = self.flag.depth
+        # Compression to remove masked point
+        if self.pshape != 'gridded' and mask.any():
+            valid = ~mask
+            self.lons = xycompress(valid, self.lons)
+            self.lats = xycompress(valid, self.lats)
+            for vname, var in self.errors.item():
+                self.errors[vname] = xycompress(valid, var)
+
+        # Depth
+        self.depth = sample.getLevel()
+        if self.depth is None:
+            self.depth = ncget_dep(f)
+        if self.depth is None and (hasattr(self.flag, 'depth') or
+                hasattr(sample, 'depth')):
+            var = self.flag if hasattr(self.flag, 'depth') else sample
+            self.depth = var.depth
             if not isinstance(self.depth, basestring):
-                self.depth = N.atleast_1d(self.depth)
+                raise PyARMError("Depth must be a string if specified as an attribute")
 
+        # Time
+        self.time = sample.getTime()
+        if self.time is None:
+            self.time = ncget_time(f)
 
+    @property
+    def ndim(self):
+        return self.flag.ndim
 
-    def get_seldict(self, axes='xy', bounds='cce'):
+    @property
+    def shape(self):
+        return self.flag.shape
+
+    @property
+    def grid(self):
+        return self.flag.getGrid()
+
+    def get_seldict(self, axes='xyt', xybounds='cce', tbounds='cce'):
         sel = {}
         if 'x' in axes:
-            sel['lon'] = (self.lons.min(), self.lons.max(), xyb)
+            sel['lon'] = (self.lons.min(), self.lons.max(), xybounds)
         if 'y' in axes:
-            sel['lat'] = (self.lats.min(), self.lats.max(), xyb)
+            sel['lat'] = (self.lats.min(), self.lats.max(), xybounds)
+        if 't' in axes and self.ctimes:
+            sel['lat'] = (self.times.min(), self.times.max(), tbounds)
         return sel
 
 
     def get_error(vname):
         return self.errors[vname]
 
+    def activate_xy_pert(self, direction, index, mres):
+        """
+
+        Parameters
+        ----------
+        direction: string
+            Direction of perturbation in the form {+|-}{x|y}"
+        mgrid: cdms2 grid
+            Model grid
+        """
+        if self.rshape=='gridded':
+            return
+
+        if direction:
+
+            # Parse
+            direction = str(direction).lower()
+            if not RE_PERTDIR_MATCH(direction):
+                raise PyARMError("The direction of perturbation argument must"
+                    " be of the form: '{+|-}{x|y}'")
+            isx = direction[1]=='x'
+            sign = 1 if direction[0]=='-' else -1
+
+            # X and Y perturbation values
+            if not N.isscalar(mres): # grid
+                mres = min(resol(mres, meters=False))
+            base_pert = self.pert * mres * sign
+            if isx:
+                pert = base_pert / N.radians(self.lats).mean()
+                cname = 'lons'
+            else:
+                pert = base_pert
+                cname = 'lats'
+            coords = getattr(self, cname) # array of coordinates
+
+            # Reset
+            self.deactivate_pert()
+
+            # Save original coordinates values
+            self._orig[cname] = coords.copy()
+
+            # Change coordinates in place
+            if coord.ndim==2:
+                index = N.unreavel_index(coords.shape)
+            coords[index] += pert
+
+        elif self._orig: # back to orig
+
+            self.deactivate_pert()
+
+
+    def deactivate_xy_pert(self):
+
+        for cname in 'lons', 'lats':
+            if cname in self._orig:
+                getattr(sel, cname)[:] = self._orig[cname]
+                del self._orig[cname]
+
+    @property
+    def xy_pert_indices(self):
+        if hasattr(self, '_xy_pert_indices'):
+            return self.xy_pert_indices
+        self.xy_pert_indices = N.where(self.flag>=1)[0]
+        return self.xy_pert_indices
+
+
+    def interp_model(self, var):
+
+        # List of variables
+        al = ArgList(var)
+
+        # Loop on variables
+        out = []
+        for var in al.get():
+
+            # Order
+            order = var.getOrder()
+
+            # Gridded and scattered
+            if self.rtype=='gridded':
+                var = regrid2d(var, self.grid, method='bilinear')
+            else:
+                kw = {}
+                if 't' in self.pshape:
+                    if 't' not in order:
+                        raise PyARMError("Model variables must have a time axis")
+                    kw['times'] = self.times
+                if 'z' in self.pshape:
+                    if 'z' not in order:
+                        raise PyARMError("Model variables must have a depth axis")
+                    kw['depths'] = self.depths
+                var = transect(var, lons=lons, lats=lats, **kw)
+
+            # Auxilary axes
+            for axis in self.axes1d:
+                var = regrid1d(var, axis, method='linear')
+
+            out.append(var)
+
+        return al.put(out)
+
     def plot(self):
         pass
 
-    def stack(self, var):
-        if isinstance(var, basestring):
-            var = self[var]
-        pass
+def xycompress(valid, vari):
+    """Keep valid spatial points"""
+    # Init
+    nv = valid.sum()
+    ax = vari.getAxis(-1)
+    vari = vari[:nv].clone()
 
-    def unstack(self, arr):
-        pass
+    # Fill
+    vari.getAxis(-1)[:] = N.compress(valid, ax[:])
+    vari[:] = N.compress(valid, vari.asma(), axis=-1)
 
-    def get_xy_perturbation(self):
-        pass
-
-    def interp_model(self, var):
-        pass
-
-class Scattered(object):
-
-    nc_lon = 'lon'
-    nc_lat = 'lat'
-
-    def load(self):
-
-        logger.debug('Loading file: ' + self.ncfile)
-
-        # Read
-        f = cdms2.open(self.ncfile)
-        self.lons = f(self.nc_lon, raw=True)
-        self.lats = f(self.nc_lat, raw=True)
-        self._load_variables_(f)
-        f.close()
-
-        # Mask
-        mask = (self.flag.filled(0)==0)
-        if self.lon is not None or self.lat is not None:
-            mask |= self.lons.mask | self.lats.mask
-            if self.lon is not None:
-                mask |= self.lons < self.lon[0]
-            if self.lat is not None:
-                mask |= self.lats < self.lat[0]
-            for var in self.errors.values() + [self.flag]:
-                var[:] = MV2.masked_where(mask, var, copy=False)
-        self.mask = mask
-
-
-
-
-
-
+    return vari
