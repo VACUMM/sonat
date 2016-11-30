@@ -270,3 +270,74 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False, asslices=False):
     if not getinfo:
         return ncfdict
     return ncfdict, {'missed':dates, 'duplicates':duplicate_dates}
+
+def asma(*args):
+    """Return pure numpy or numpy.ma arrays"""
+    if not args: return
+    single = len(args)==1
+    out = []
+    for arg in args:
+        if cdms2.isVariable(arg):
+            arg = arg.asma()
+        out.append(arg)
+    if len(args)==1:
+        return out[0]
+    return out
+
+class NcReader(object):
+    """A generic interface to open and read a netcdf file
+
+    Examples
+    --------
+
+    >>> f = NcReader(ncfile, 'mars3d') # VACUMM Mars3D reader
+    >>> u = f('u', lon=(10, 12))    # generic var name
+    >>> u = f('+sst', lon=(10, 12)) # netcdf var name
+    >>> f.close()
+
+    >>> f = NcReader(ncfile, 'cdms2') # direct cdms2 reader
+    >>> u = f('u', lon=(10, 12)) # netcdf var name
+    >>> f.close()
+
+    >>> f = NcReader(ncfile, 'netcdf'') # python netcdf4 reader
+    >>> u = f('u', slice(0, 10)) # <=> f['u'][:10]
+    >>> f.close()
+
+    """
+
+    def __init__(self, ncfile, readertype='generic',  **kwargs):
+
+        if not isinstance(readertype, basestring):
+            self.f = readertype(ncfile,  **kwargs)
+            self.type = 'callable'
+        elif readertype=='cdms2':
+            self.f = cdms2.open(ncfile,  **kwargs)
+            self.type = readertype
+        elif readertype=='netcdf4':
+            import netcdf4
+            self.f = netcdf4.Dataset(ncfile,  **kwargs)
+            self.type = readertype
+        else:
+            self.f = DS(readertype, ncfile,  **kwargs)
+            self.type = 'dataset'
+
+
+    def __call__(self, vname, *args, **kwargs):
+
+        if self.type=='netcdf4':
+
+            args = tuple(filter(lambda x: isinstance(x, slice), args))
+
+            return self.f[vname][args]
+        else:
+            return self.f(*args, **kwargs)
+
+    def get_variables(self):
+        if self.type=='netcdf4' or self.type=='cdms2':
+            return self.variables.keys()
+        if self.type=='dataset':
+            return self.f.dataset[0].variables.keys()
+        raise PyARMError('Method yet not implemented for read type "{}"'.format(self.type))
+
+    def close(self):
+        self.f.close()
