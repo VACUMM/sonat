@@ -46,88 +46,156 @@ class Stacker(_Base_):
     """Class to handle one variable or a list of variables
 
     This fonction concatenates several dataset that have the
-    same time axis. It is useful for analysing for example
-    several variables at the same time.
+    same record axis. It is useful for analysing for example
+    several variables at the same record.
     It takes into account weights, masks and axes.
 
-    :Params:
-
-        - *dataset*: A list of data objects.
-            They must all have the same time length.
-
-    :Options:
-
-        - *weights*: Associated weights.
+    Parameters
+    ----------
+    input: single or list of arrays
+        They must all have the same record length if any.
     """
 
-    def __init__(self, dataset, norms=None, means=None, nordim=None, logger=None, **kwargs):
+    def __init__(self, input, norms=None, means=None, nordim=None, logger=None, **kwargs):
 
         # Logger
         _Base_.__init__(self, logger=logger, **kwargs)
 
         # Input shape
-        self.input = dataset
-        if isinstance(dataset, (list, tuple)):
-            dataset = list(dataset)
-            self.map = len(dataset)
+        self.input = input
+        if isinstance(input, (list, tuple)):
+            inputs = list(input)
+            self.map = len(input)
         else:
-            dataset = [dataset]
+            inputs = [input]
             self.map = 0
-        self.ndataset = self.nd = len(dataset)
-        self.dataset = dataset
+        self.nvar = self.nd = len(inputs)
+        self.inputs = inputs
 
         # Other inits
-        self.data = []
+        self.packers = []
+        self.datas = []
         self.nr = None
         norms = self.remap(norms, reshape=True)
         means = self.remap(means, reshape=True)
-        if self.ndataset==1 and norms[0] is None: norms = [False]
+        if self.nvar==1 and norms[0] is None: norms = [False]
         self.masked = False
         self.nordim = nordim
 
-        # Loop on datasets
-        for idata, data in enumerate(dataset):
+        # Loop on inputs
+        for idata, data in enumerate(inputs):
 
             # Create the Packer instance and pack array
-            dd = Packer(data, norm=norms[idata], mean=means[idata], nordim=nordim)
-            self.data.append(dd)
-            self.masked |= dd.masked
+            packer = Packer(data, norm=norms[idata], mean=means[idata], nordim=nordim)
+            self.packers.append(packer)
+            self.masked |= packer.masked
+            self.datas.append(packer.data)
 
             # Check nr
             if self.nr is None:
-                self.nr = dd.nr
-            elif self.nr != dd.nr:
-                self.error('Record dimension of variable %i must be %i (not %i)'%(idata, self.nr, dd.nr))
+                self.nr = packer.nr
+            elif self.nr != packer.nr:
+                raise PyARMError(('Record dimension of variable {idata} must '
+                    'be {self.nr} (not {packer.nr})').format(**locals()))
 
         # Merge
         self.stacked_data = npy.asfortranarray(
-            npy.concatenate([d.packed_data for d in self.data], axis=0))
-        self.splits = npy.cumsum([d.packed_data.shape[0] for d in self.data[:-1]])
+            npy.concatenate([p.packed_data for p in self.packers], axis=0))
+        self.splits = npy.cumsum([p.packed_data.shape[0] for p in self.packers[:-1]])
         self.ns = self.stacked_data.shape[0]
         self.nrv = (self.stacked_data!=default_missing_value).any(axis=0).sum()
+
+    def __len__(self):
+        return self.nvar
+
+    def __getitem__(self, i):
+        return self.packers[i]
+
+    @property
+    def data(self):
+        return self.unmap(self.datas)
+
+    def unmap(self, out):
+        """Remap out so as to be in the same form as input data
+
+        It has the opposite effect of :meth:`remap`.
+        """
+        if self.map==0:
+            return out[0]
+        return out
+
+    def remap(self, values, reshape=True, fill_value=None):
+        """Makes sure that values is a list (or tuple) of length :attr:`nvar`
+
+        :func:`broadcast` is called when reshaping.
+
+        It has the opposite effect of :meth:`unmap`.
+        """
+        # We always need a list
+        if not isinstance(values, (list, tuple)):
+            values = [values]
+
+        # Check length
+        n = len(self)
+        if len(values)!=n:
+            if not reshape:
+                self.error('Wrong number of input items (%i instead of %i)'
+                    %(len(values), n))
+            values = broadcast(values, n, fill_value)
+        return values
+
+    def has_cdat(self, idata=None):
+        """Check if there were at least one input array of CDAT type (:mod:`MV2`)
+
+        :Sea also: :meth:`Data.has_cdat`
+        """
+        # Single var
+        if idata is not None:
+            return self[idata].has_cdat()
+
+        # At least one
+        for d in self.packers:
+            if d.has_cdat(): return True
+        return False
+
+    def get_record_axis(self, nr=None, offset=0, idata=0):
+        """Get the record axis of an input variable
+
+        If CDAT is not used, length of axis is returned.
+        """
+        return self[idata].get_record_axis(nr, offset)
+
 
     def get_norms(self, idata=None):
         """Get :attr:`norms` for one or all input variables"""
         if idata is None:
-            return [d.norm for d in self.dataset.data]
+            return [p.norm for p in self.packers]
         return self[idata].norm
     norms = property(get_norms, doc="Normalization factors")
 
     def get_means(self, idata=None):
         """Get :attr:`means` for one or all input variables"""
         if idata is None:
-            return [d.mean for d in self.dataset.data]
+            return [p.mean for p in self.packers]
         return self[idata].mean
     means = property(get_means, doc="Record averages")
 
-    def restack(self, dataset, scale=True):
+    @property
+    def norm(self):
+        self.unmap(self.norms)
+
+    @property
+    def mean(self):
+        self.unmap(self.means)
+
+    def restack(self, input, scale=True):
         """Stack new variables as a fortran array
 
         It has the opposite effect of :meth:`unstack`.
 
         :Params:
 
-            - **dataset**: Argument in the same form as initialization data.
+            - **input**: Argument in the same form as initialization data.
             - **scale**, optional: Scale the variable (mean and norm), and optionally
               remove spatial mean if == 2.
 
@@ -135,36 +203,35 @@ class Stacker(_Base_):
         """
 
         # Check input data
-        if isinstance(dataset, (list, tuple)):
-            dataset = list(dataset)
-            dmap = len(dataset)
+        if isinstance(input, (list, tuple)):
+            inputs = list(input)
+            dmap = len(input)
         else:
-            dataset = [dataset]
+            inputs = [input]
             dmap = 0
-        if  len(dataset)!=self.ndataset:
-            self.error('You must provide %i variable(s) to stack'%len(dataset))
+        if  len(inputs)!=len(self):
+            self.error('You must provide %i variable(s) to stack'%len(inputs))
 
         # Pack
-        packs = [self[idata].repack(data, scale=scale, force2d=True)
-            for idata, data in enumerate(dataset)]
+        packs = [self[idata].repack(data, scale=scale)
+            for idata, data in enumerate(inputs)]
 
         # Check record length (first axis)
-        nr1 = dataset[0].size/self[0].nstot
-        if len(dataset)>1:
-            for i, d in enumerate(dataset[1:]):
+        nr1 = inputs[0].size / self[0].nstot
+        if len(inputs)>1:
+            for i, d in enumerate(inputs[1:]):
                 i += 1
                 nr2 = d.size/self[i].nstot
-                if packs[0].ndim!= packs[i].ndim:
+                if packs[0].ndim != packs[i].ndim:
                     if packs[0].ndim==1:
-                        SpanlibError('Variable %i must not have a time dimension '% (i+1, ))
+                        PyARMError('Variable {} must not have a record dimension '.format(i))
                     else:
-                        SpanlibError('Variable %i must have a time dimension '% (i+1, ))
+                        PyARMError('Variable {} must have a record dimension '.format(i))
                 elif nr1!=nr2:
-                    self.error('Time length of variable %i (%i) different from that of first variable (%i)'
-                        % (i+1, nr2, nr1))
+                    raise PyARMError(('Record length of variable {i} ({nr2}) '
+                        'different from that of first variable ({nr1})').format(**locals()))
 
         # Stack
-#        stacker = npy.vstack if packs[0].ndim==2 else npy.hstack
         sdata = npy.asfortranarray(npy.concatenate(packs, axis=0))
 
         return sdata
@@ -189,7 +256,6 @@ class Stacker(_Base_):
         """
 
         # Unstack
-#        spliter = npy.hsplit if sdata.ndim==1 else npy.vsplit
         packs = npy.split(sdata, self.splits, axis=0)
 
         # Unpack
@@ -197,64 +263,19 @@ class Stacker(_Base_):
             firstdims=firstdims, **kwargs) for i, pdata in enumerate(packs)]
 
 
-    def __len__(self):
-        return self.ndataset
+    def create_arrays(self, **kwargs):
+        """Create arrays similar to input arrays"""
+        return [p.create_array(**kwargs) for p in self.packers]
 
-    def __getitem__(self, i):
-        return self.data[i]
+    def format_arrays(self, data, **kwargs):
+        """Format an array as input"""
+        data = self.remap(data)
+        return [self[i].format_array(d, **kwargs) for i, d in enumerate(data)]
 
-    def unmap(self, out):
-        """Remap out so as to be in the same form as input data
-
-        It has the opposite effect of :meth:`remap`.
-        """
-        if self.map==0:
-            return out[0]
-        return out
-
-    def remap(self, values, reshape=True, fill_value=None):
-        """Makes sure that values is a list (or tuple) of length :attr:`ndataset`
-
-        :func:`broadcast` is called when reshaping.
-
-        It has the opposite effect of :meth:`unmap`.
-        """
-        # We always need a list
-        if not isinstance(values, (list, tuple)):
-            values = [values]
-
-        # Check length
-        n = len(self)
-        if len(values)!=n:
-            if not reshape:
-                self.error('Wrong number of input items (%i instead of %i)'
-                    %(len(values), n))
-            values = broadcast(values, n, fill_value)
-        return values
-
-    def has_cdat(self, idata=None):
-        """Check if there were at least one input array of CDAT type (:mod:`MV2`)
-
-        :Sea also: :meth:`Data.has_cdat`
-        """
-        # Not at all
-        if not has_cdat_support: return False
-
-        # Single var
-        if idata is not None:
-            return self[idata].has_cdat()
-
-        # At least one
-        for d in self.data:
-            if d.has_cdat(): return True
-        return False
-
-    def get_time(self, nr=None, offset=0, idata=0):
-        """Get the time axis of an input variable
-
-        If CDAT is not used, length of axis is returned.
-        """
-        return self[idata].get_time(nr, offset)
-
-
-
+    def fill_arrays(self, data, **kwargs):
+        """Fill arrays similar to input arrays with data"""
+        data = self.remap(data)
+        arrs = self.create_arrays(**kwargs)
+        for i, d in enumerate(data):
+            arrs[i][:] = d
+        return arrs

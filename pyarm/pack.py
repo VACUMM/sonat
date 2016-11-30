@@ -182,10 +182,10 @@ class Packer(_Base_):
                 self.mean = data.mean(axis=0)
             # - normalisation factor
             if norm is True or norm is None:
-                norm = data.std() # Standard norm
+                norm = (data-self.mean).std() # Standard norm
             elif norm is not False:
                 if norm <0: # Relative norm, else strict norm
-                    norm = abs(norm)*data.std()
+                    norm = abs(norm)*(data-self.mean).std()
             else:
                 norm = 1.
             self.norm = norm
@@ -227,7 +227,8 @@ class Packer(_Base_):
         """
         # Check shape
         if data_num.shape[-self.nsdim:] != self.sshape:
-            raise PyARMError("Data to pack has a wrong shape: {}".format(data_num.shape))
+            raise PyARMError("Data to pack has a wrong spatial shape: {} (!= {})".format(
+                data_num.shape[-self.nsdim:], self.sshape))
 
         # Remove bad channels ?
         nxdim = data_num.ndim-self.nsdim # dims other than space
@@ -286,6 +287,8 @@ class Packer(_Base_):
                 norm = True
             if mean is None:
                 mean = False
+        elif mode is False:
+            mean = norm = False
         if copy:
             data = data.clone() if cdms2.isVariable(data) else data.copy()
         if norm is not False:
@@ -372,7 +375,7 @@ class Packer(_Base_):
         # From pshape only
         return pshape[:1], [None]
 
-    def create_array(self, firstdims=None, format=1, pshape=None, id=None):
+    def create_array(self, firstdims=None, format=1, pshape=None, id=None, atts=None):
         """Initialize an array similar to input array
 
         Type of array is guessed from attribute :attr:`array_type`.
@@ -413,37 +416,68 @@ class Packer(_Base_):
         else:
             data[:] = self.missing_value
 
+        # Format CDAT variables
+        if self.ismv2 and format:
+
+            data = self._format_array_(data, firstdims, firstaxes, format,
+                id=id, atts=atts)
+
+        return data
+
+    def format_array(self, data, mode=1, firstdims=None, id=None, atts=None):
+        """Format to a MV2 array similar to input array"""
+        # Input was not formatted
+        if not self.ismv2:
+            return data
+
+        # Make sure to have a MV2 array
+        data = MV2.asarray(data)
+
+        # Record or other first dims
+        rdims = data.shape[:-self.nsdim]
+        pshape = (N.multiply.reduce(rdims), ) if rdims else ()
+        pshape += 1,  # fake spatial dim
+
+        # First dimes
+        firstdims, firstaxes = self._get_firstdims_(firstdims, pshape=pshape)
+
+        # Format
+        return self._format_array_(data, firstdims, firstaxes, mode,
+            id=id, atts=atts)
+
+    def _format_array_(self, data, firstdims, firstaxes, mode, id=None, atts=None):
+
+        if firstaxes:
+            for i, a in enumerate(firstaxes):
+                if a is not None and not isinstance(a, int):
+                    try:
+                        data.setAxis(i, a)
+                    except:
+                        pass
+
+        # Space
+        for i, axis in enumerate(self.saxes):
+            data.setAxis(i+len(firstdims), axis)
+
         # Id
+        if atts is None:
+            atts = self.atts.copy()
+        else:
+            mode = 2
         if id is True:
             id = atts['id']
         elif isinstance(id, basestring):
             id = id.format(**self.atts)
         else:
             id = None
-        atts = self.atts.copy()
-        del atts['id']
+        if id:
+            data.id = id
 
-        # Format CDAT variables
-        if self.ismv2 and format:
-
-            # - record or other first dims
-            if firstdims:
-                for i, a in enumerate(firstaxes):
-                    if a is not None:
-                        try:
-                            data.setAxis(i, a)
-                        except:
-                            pass
-
-            # - space
-            for i, axis in enumerate(self.saxes):
-                data.setAxis(i+len(firstdims), axis)
-
-            # Attributes
-
-            if format=='full' or format>1:
-                set_atts(data, self.atts)
-
+        # Attributes
+        if mode=='full' or mode>1:
+            if 'id' in atts:
+                del atts['id']
+            set_atts(data, self.atts)
 
         return data
 
