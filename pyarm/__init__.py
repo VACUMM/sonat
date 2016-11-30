@@ -207,8 +207,10 @@ class _Base_(object):
 
     def __init__(self, logger=None, **kwargs):
 
-        self.logger = get_logger(logger, **kwfilter(kwargs, 'logger_'))
+        if logger is not False:
 
-        self.logger.debug('Instantiate '+self.__class__.__name__)
+            self.logger = get_logger(logger, **kwfilter(kwargs, 'logger_'))
+
+            self.logger.debug('Instantiate '+self.__class__.__name__)
 
 import plot # register cmaps
