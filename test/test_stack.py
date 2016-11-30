@@ -48,15 +48,39 @@ def test_stack_mv2_with_record():
 
     return stacker
 
-def test_pack_mv2_scattered_without_record_fixed_norm():
+def test_stack_mv2_scattered_without_record_fixed_norm():
 
     # Fake data
     # - first array
-    lons, lats, data = create_mv2_scattered_xyzt(nt=0)
-    data[:, 3:5] = MV2.masked
-    data[:] *= data
-    norm = data.std()*2.
+    norm0 = 20.
+    lons, lats, data0 = create_mv2_scattered_xyzt(nt=0)
+    data0[:, 3:5] = MV2.masked
+    # - second array
+    norm1 = 8.
+    lons, lats, data1 = create_mv2_scattered_xyzt(nt=0, np=20, nz=0)
+    data1[10:12] = MV2.masked
+
+    # Stack: fixed norm, no record dim, no anomaly
+    stacker = Stacker([data0, data1], norms=[norm0, norm1], nordim=True,
+        mean=False, logger=LOGGER)
+
+    # Unstack
+    unstacked0, unstacked1 = stacker.unstack(stacker.stacked_data)
+
+    # Restack
+    restacked = stacker.restack([data0, data1])
+
+    # Checks
+    assert_allclose(stacker.stacked_data.shape,
+        ((~data0.mask).sum()+(~data1.mask).sum(),))
+    assert_allclose(stacker.stacked_data,
+        N.concatenate((data0.compressed()/norm0, data1.compressed()/norm1)))
+    assert_allclose(unstacked0, data0)
+    assert_allclose(unstacked1, data1)
+    assert_allclose(restacked, stacker.stacked_data)
+
+    return stacker
 
 if __name__=='__main__':
-    stacker = test_stack_mv2_with_record()
-    print 'Done'
+    test_stack_mv2_with_record()
+    test_stack_mv2_scattered_without_record_fixed_norm()

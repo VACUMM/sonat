@@ -35,13 +35,14 @@ def test_pack_mv2_curved_with_record():
     # Checks
     svalid = ~data[0].mask
     cdata = data.asma().reshape(data.shape[0], -1).compress(svalid.ravel(), axis=1)
-    cnorm = cdata.std()
     cdata -= cdata.mean(axis=0)
+    cnorm = cdata.std()
     cdata /= cnorm
+    dmean = data.asma().mean(axis=0)
     assert_allclose(packer.good, svalid)
     assert_allclose(packer.sshape, data.shape[1:])
-    assert_allclose(packer.norm, data.asma().std())
-    assert_allclose(packer.mean, data.mean(axis=0))
+    assert_allclose(packer.mean, dmean)
+    assert_allclose(packer.norm, (data.asma()-dmean).std())
     assert_allclose(packer.packed_data.shape, (svalid.sum(), data.shape[0]))
     assert_allclose(packer.packed_data, cdata.T)
     assert_allclose(unpacked, data)
@@ -86,4 +87,3 @@ def test_pack_mv2_scattered_without_record_fixed_norm():
 if __name__=='__main__':
     packer = test_pack_mv2_curved_with_record()
     packer = test_pack_mv2_scattered_without_record_fixed_norm()
-    print 'Done'
