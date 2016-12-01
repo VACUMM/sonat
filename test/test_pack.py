@@ -1,4 +1,4 @@
-"""Test script for module :mod:`pyarm.pack`
+"""Test script for module :mod:`sonat.pack`
 """
 import os
 import sys
@@ -8,7 +8,7 @@ import MV2
 from util import (LOGGER, assert_allclose, create_mv2_gridder_xyzt,
     create_mv2_scattered_xyzt)
 
-from pyarm.pack import Packer
+from sonat.pack import Packer
 
 
 def test_pack_mv2_curved_with_record():

@@ -43,7 +43,7 @@ rootdir = os.path.dirname(__file__)
 
 # Get values from the sources
 keys = ['__version__', '__author__', '__date__',  '__url__']
-f = open(os.path.join(rootdir, 'pyarm/__init__.py'))
+f = open(os.path.join(rootdir, 'sonat/__init__.py'))
 for line in f:
     line = line[:-1].strip()
     for key in keys:
@@ -55,7 +55,7 @@ f.close()
 # Some info
 version = __version__
 date = __date__
-description = 'Objective coastal observation array assement tools'
+description = 'Stochastic ocean Observing Network Assement Toolkit'
 author = __author__
 url = __url__
 license = "CeCILL"
@@ -71,7 +71,7 @@ if __name__=='__main__':
 
 
     # Setup the python module
-    s = setup(name="pyarm",
+    s = setup(name="sonat",
         version = version,
         description = description,
         author = author,
@@ -80,10 +80,10 @@ if __name__=='__main__':
         #maintainer_email=author_email,
         license = license,
         ext_modules = [
-            Extension('pyarm._fcore', ['pyarm/fcore.f90'])
+            Extension('sonat._fcore', ['sonat/fcore.f90'])
         ],
-        #package_dir={'pyarm':'pyarm'},
-        packages = ["pyarm"],
+        #package_dir={'sonat':'sonat'},
+        packages = ["sonat"],
 
     )
 

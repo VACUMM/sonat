@@ -95,7 +95,7 @@ class NcObsPlatform(Stacker):
         else:
             self.ncvars = [vname.lstrip(nc_error_suffix) for vname in self.ncvars]
         if not self.ncvars:
-            raise PyARMError(('No valid error variable with suffix "{self.nc_error_suffix}"'
+            raise SONATError(('No valid error variable with suffix "{self.nc_error_suffix}"'
                 ' in file: {self.ncfile}').format(self))
 
         # Reference variable
@@ -109,7 +109,7 @@ class NcObsPlatform(Stacker):
             self.pshape = 'gridded'
             kwread = dict(time=self.time, lat=self.lat, lon=self.lon)
             if '-' in self.order:
-                raise PyARMError("There are unkown dimensions in your gridded variable. "
+                raise SONATError("There are unkown dimensions in your gridded variable. "
                     "Current order: "+self.order)
             self.axes1d = self.order[:-2]
 
@@ -127,11 +127,11 @@ class NcObsPlatform(Stacker):
             else:
                 lons = ncget_lon(f)
                 if lons is None:
-                    raise PyARMError("Longitudes not found")
+                    raise SONATError("Longitudes not found")
                 lons = ncread_lon(f, id=lons)
                 lats = ncget_lat(f)
                 if lats is None:
-                    raise PyARMError("Latitudes not found")
+                    raise SONATError("Latitudes not found")
                 if self.lon:
                     mask |= lons < self.lons[0]
                 if self.lat:
@@ -146,12 +146,12 @@ class NcObsPlatform(Stacker):
             else:
                 self.depths = ncget_dep(f)
                 if self.depths is not None:
-                    raise PyARMError("Scattered Z dimension not yet supported")
+                    raise SONATError("Scattered Z dimension not yet supported")
                     self.pshape = self.pshape+'z'
                 elif hasattr(fs, 'depth'): # depth from attribute
                     self.depths = fs.depth
                     if not isinstance(self.depths, basestring):
-                        raise PyARMError("Depth must be a string if specified as an attribute")
+                        raise SONATError("Depth must be a string if specified as an attribute")
 
             # Time selection
             if 't' in self.order: # 1D axis
@@ -170,11 +170,11 @@ class NcObsPlatform(Stacker):
 
             # Check mask
             if mask.all():
-                PyARMError("All your observation data are masked")
+                SONATError("All your observation data are masked")
 
             # Check remaining dims
             if order:
-                PyARMError("There are unkown dimensions in your scattered obs variable")
+                SONATError("There are unkown dimensions in your scattered obs variable")
 
 
         # Read
@@ -193,7 +193,7 @@ class NcObsPlatform(Stacker):
         if self.nc_flag_name in f.listvariables():
             self.flag = f(self.nc_flag_name, **kwread)
         else:
-            pyarm_warn('No flag variable found in obs file. '
+            sonat_warn('No flag variable found in obs file. '
                 'Setting it to 1 everywhere.')
             shape = grid.shape if grid else lons.shape
             self.flag = MV2.ones(shape, 'i')
@@ -277,7 +277,7 @@ class NcObsPlatform(Stacker):
             # Parse
             direction = str(direction).lower()
             if not RE_PERTDIR_MATCH(direction):
-                raise PyARMError("The direction of perturbation argument must"
+                raise SONATError("The direction of perturbation argument must"
                     " be of the form: '{+|-}{x|y}'")
             isx = direction[1]=='x'
             sign = 1 if direction[0]=='-' else -1
@@ -344,11 +344,11 @@ class NcObsPlatform(Stacker):
                 kw = {}
                 if 't' in self.pshape:
                     if 't' not in order:
-                        raise PyARMError("Model variables must have a time axis")
+                        raise SONATError("Model variables must have a time axis")
                     kw['times'] = self.times
                 if 'z' in self.pshape:
                     if 'z' not in order:
-                        raise PyARMError("Model variables must have a depth axis")
+                        raise SONATError("Model variables must have a depth axis")
                     kw['depths'] = self.depths
                 var = transect(var, lons=lons, lats=lats, **kw)
 

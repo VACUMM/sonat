@@ -1,4 +1,4 @@
-"""Test script for module :mod:`pyarm._fcore`
+"""Test script for module :mod:`sonat._fcore`
 
 These tests are taken from the examples of the SANGOMA library.
 """
@@ -8,10 +8,10 @@ import numpy as N
 
 from util import THISDIR, assert_allclose
 
-from pyarm._fcore import f_arm, f_eofcovar, f_sampleens, f_computeensstats
+from sonat._fcore import f_arm, f_eofcovar, f_sampleens, f_computeensstats
 
 def test_fcore_arm():
-    """Test the :func:`pyarm._fcore.f_arm` function"""
+    """Test the :func:`sonat._fcore.f_arm` function"""
 
     # Sample states
     ssamples = N.array([[0.24, -0.38, 0.14], [0.51, -0.75, 0.24]], order='F')
@@ -46,7 +46,7 @@ def test_fcore_arm():
     assert_allclose(rho_mu, rho_mu_true)
 
 def test_fcore_eofcovar():
-    """Test the :func:`pyarm._fcore.f_eofcovar` function"""
+    """Test the :func:`sonat._fcore.f_eofcovar` function"""
 
     # Inits
     nfiles = 5
@@ -86,7 +86,7 @@ def test_fcore_eofcovar():
     assert_allclose(meanstate, meanstate_true)
 
 def test_fcore_sampleens():
-    """Test the :func:`pyarm._fcore.f_sampleens` function"""
+    """Test the :func:`sonat._fcore.f_sampleens` function"""
 
     # Inits
     neofs = 4
@@ -114,7 +114,7 @@ def test_fcore_sampleens():
 #    assert_allclose(ens, ens_true) # fails only with nosetests!
 
 def test_fcore_computeensstats():
-    """Test the :func:`pyarm._fcore.f_computeens` function"""
+    """Test the :func:`sonat._fcore.f_computeens` function"""
 
     # Inits
     nfiles = 5

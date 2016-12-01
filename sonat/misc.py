@@ -42,7 +42,7 @@ from collections import OrderedDict
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices)
 
-from .__init__ import pyarm_warn, PyARMError
+from .__init__ import sonat_warn, SONATError
 
 def scan_format_string(format_string):
     """Scan a format string using :class:`string.Formatter`
@@ -144,7 +144,7 @@ def list_files_from_pattern(ncpat, time=None, dtfile=None, sort=True, **subst):
             # With time
             if time is None: # without
 
-                pyarm_warn("You should better provide a time interval "
+                sonat_warn("You should better provide a time interval "
                     "with a date pattern in file name")
                 ncfile = DatePat2GlobFormatter().format(ncpat, **subst)
                 files = glob(ncfile)
@@ -156,7 +156,7 @@ def list_files_from_pattern(ncpat, time=None, dtfile=None, sort=True, **subst):
                 freq = pat2freq(date_format)
                 if dtfile is None:
                     dtfile = 1, freq
-                    pyarm_warn('Time steps between files not explicitly specified. '
+                    sonat_warn('Time steps between files not explicitly specified. '
                         'Set to {}. You may miss first files!'.format(dtfile))
                 elif not isinstance(dtfile, tuple):
                     dtfile = dtfile, freq
@@ -225,7 +225,7 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False, asslices=False):
 
             taxis = ncget_time(ncfile, ro=True)
             if taxis is None:
-                PyARMError("Can't read time axis in file: " + ncfile)
+                SONATError("Can't read time axis in file: " + ncfile)
             ctimes = taxis.asComponentTime()
 
             if i==0: # Reference info
@@ -337,7 +337,7 @@ class NcReader(object):
             return self.variables.keys()
         if self.type=='dataset':
             return self.f.dataset[0].variables.keys()
-        raise PyARMError('Method yet not implemented for read type "{}"'.format(self.type))
+        raise SONATError('Method yet not implemented for read type "{}"'.format(self.type))
 
     def close(self):
         self.f.close()

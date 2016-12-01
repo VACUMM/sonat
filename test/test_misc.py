@@ -1,4 +1,4 @@
-"""Test script for module :mod:`pyarm.misc`"""
+"""Test script for module :mod:`sonat.misc`"""
 
 from vcmq import adatetime, comptime
 
@@ -6,7 +6,7 @@ from util import (THISDIR, NCPAT_MANGA, NCFILE_MANGA0, NCFILE_MANGA1,
     NCGLOB_MANGA, NCPATGLOB_MANGA,
     assert_allclose, assert_raises, N, cdms2, cdtime)
 
-from pyarm.misc import (scan_format_string, list_files_from_pattern,
+from sonat.misc import (scan_format_string, list_files_from_pattern,
     DatePat2GlobFormatter, ncfiles_time_indices)
 
 def test_misc_scan_format_string():

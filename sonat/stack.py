@@ -39,7 +39,7 @@ Inspired from the spanlib library (http://www.github.com/stefraynaud/spanlib)
 import numpy as npy
 from vcmq import broadcast
 
-from .__init__ import _Base_, PyARMError
+from .__init__ import _Base_, SONATError
 from .pack import Packer, default_missing_value
 
 class Stacker(_Base_):
@@ -95,7 +95,7 @@ class Stacker(_Base_):
             if self.nr is None:
                 self.nr = packer.nr
             elif self.nr != packer.nr:
-                raise PyARMError(('Record dimension of variable {idata} must '
+                raise SONATError(('Record dimension of variable {idata} must '
                     'be {self.nr} (not {packer.nr})').format(**locals()))
 
         # Merge
@@ -224,11 +224,11 @@ class Stacker(_Base_):
                 nr2 = d.size/self[i].nstot
                 if packs[0].ndim != packs[i].ndim:
                     if packs[0].ndim==1:
-                        PyARMError('Variable {} must not have a record dimension '.format(i))
+                        SONATError('Variable {} must not have a record dimension '.format(i))
                     else:
-                        PyARMError('Variable {} must have a record dimension '.format(i))
+                        SONATError('Variable {} must have a record dimension '.format(i))
                 elif nr1!=nr2:
-                    raise PyARMError(('Record length of variable {i} ({nr2}) '
+                    raise SONATError(('Record length of variable {i} ({nr2}) '
                         'different from that of first variable ({nr1})').format(**locals()))
 
         # Stack

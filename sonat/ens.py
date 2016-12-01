@@ -1,4 +1,5 @@
 """
+Ensembles
 """
 #
 # Copyright IFREMER (2016-2017)
@@ -40,7 +41,7 @@ import scipy.stats as SS
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates,
     MV2_concatenate, create_axis, N, kwfilter, check_case)
 
-from .__init__ import _Base_, get_logger, pyarm_warn, PyARMError
+from .__init__ import _Base_, get_logger, sonat_warn, SONATError
 from .misc import list_files_from_pattern, ncfiles_time_indices, asma, NcReader
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
@@ -62,7 +63,7 @@ def load_model_at_regular_dates(ncpat, ncvars=None, time=None, lat=None, lon=Non
     # Get file list
     ncfiles = list_files_from_pattern(ncpat, time, dtfile=dtfile, sort=True)
     if not ncfiles:
-        raise PyARMError('No file found')
+        raise SONATError('No file found')
 
     # Time interval
     reqtime = time
@@ -71,7 +72,7 @@ def load_model_at_regular_dates(ncpat, ncvars=None, time=None, lat=None, lon=Non
         # First
         taxis = ncget_time(ncfiles[0])
         if taxis is None:
-            raise PyARMError("Can't get time axis for: "+ncfiles[0])
+            raise SONATError("Can't get time axis for: "+ncfiles[0])
         ctimes = taxis.asComponentTime()
         ct0 = ctimes[0]
 
@@ -79,7 +80,7 @@ def load_model_at_regular_dates(ncpat, ncvars=None, time=None, lat=None, lon=Non
         if ncfiles[0]!=ncfiles[-1]:
             taxis = ncget_time(ncfiles[-1])
             if taxis is None:
-                raise PyARMError("Can't get time axis for: "+ncfiles[-1])
+                raise SONATError("Can't get time axis for: "+ncfiles[-1])
             ctimes = taxis.asComponentTime()
         ct1 = ctimes[-1]
 
@@ -97,7 +98,7 @@ def load_model_at_regular_dates(ncpat, ncvars=None, time=None, lat=None, lon=Non
         if reqtime:
             msg = msg + (", and your requested time range must be enclosed "
                 "by model time range.")
-        raise PyARMError(msg)
+        raise SONATError(msg)
 
     # Read
     single = isinstance(ncvars, basestring)
@@ -204,7 +205,7 @@ def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
         stddev, svals, svecs, status = f_eofcovar(dim_fields=stacker.ns, offsets=1,
             remove_mstate=0, do_mv=0, states=states, meanstate=meanstate)
         if status!=0:
-           raise PyARMError('Error while calling fortran eofcovar routine')
+           raise SONATError('Error while calling fortran eofcovar routine')
         neof = svals.size # computed
         neofr = nrens - 1 # retained
         svals = svals[:neofr] * N.sqrt((neof-1.) / neof) # to be consistent with total variance
@@ -326,7 +327,7 @@ class Ensemble(Stacker):
 
             # We need at least one
             if not ncvars:
-                raise PyARMError('No valid variable found in file {ncfile}'.format(
+                raise SONATError('No valid variable found in file {ncfile}'.format(
                     **locals()))
 
         else: # provided
@@ -338,7 +339,7 @@ class Ensemble(Stacker):
             # State variables
             for vname in ncvars:
                 if vname not in allvars:
-                    raise PyARMError('Variable {vname} not found in file {ncfile}'.format(
+                    raise SONATError('Variable {vname} not found in file {ncfile}'.format(
                         **locals()))
 
             # Variance of state variables
@@ -352,7 +353,7 @@ class Ensemble(Stacker):
                     else:
                         notfound.append(varname)
                 if notfound:
-                    raise PyARMError('Variance variables not found: '+' '.join(notfound))
+                    raise SONATError('Variance variables not found: '+' '.join(notfound))
 
         # Eigen values
         if evname not in allvars:

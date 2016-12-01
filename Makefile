@@ -1,5 +1,5 @@
 ################################################################################
-NAME=pyarm
+NAME=sonat
 CURDIRNAME=$(shell basename $(CURDIR))
 PYTHON_PACKAGE_NAME=$(NAME)
 PYTHON_VERSION=$(shell  python -c 'import sys; print "%d.%d"%sys.version_info[:2]')

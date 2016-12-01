@@ -1,4 +1,4 @@
-"""Test script for module :mod:`pyarm.ens`"""
+"""Test script for module :mod:`sonat.ens`"""
 
 import os
 import sys
@@ -10,7 +10,7 @@ from vcmq import comptime, netcdf4
 from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
     NCFILE_MANGA1)
 
-from pyarm.ens import (load_model_at_regular_dates, generate_pseudo_ensemble,
+from sonat.ens import (load_model_at_regular_dates, generate_pseudo_ensemble,
     Ensemble)
 
 netcdf4()

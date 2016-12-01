@@ -1,4 +1,4 @@
-"""Test script for module :mod:`pyarm.stack`
+"""Test script for module :mod:`sonat.stack`
 """
 import os
 import sys
@@ -8,7 +8,7 @@ import MV2
 from util import (LOGGER, assert_allclose, create_mv2_gridder_xyzt,
     create_mv2_scattered_xyzt)
 
-from pyarm.stack import Stacker
+from sonat.stack import Stacker
 
 
 def test_stack_mv2_with_record():

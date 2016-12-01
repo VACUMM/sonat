@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
-"""PyARM
+"""SONAT
 """
 #
 # Copyright IFREMER (2016-2017)
@@ -41,7 +41,7 @@ __author__ = 'Stephane Raynaud, Guillaume Charria, Pierre De Mey'
 __email__ = "raynaud@actimar.fr, charria@actimar.fr"
 __version__ = '0.0.1'
 __date__ = '2016-11-01'
-__url__ = 'http://www.ifremer.fr/pyarm'
+__url__ = 'http://www.ifremer.fr/sonat'
 __coryright__ = 'IFREMER'
 
 import os
@@ -54,30 +54,30 @@ import _fcore
 
 
 #: Config specification file
-PYARM_INIFILE = os.path.join(os.path.dirname(__file__), 'pyarm.ini')
+SONAT_INIFILE = os.path.join(os.path.dirname(__file__), 'sonat.ini')
 
 #: Default user configuration file
-HYCOMVALID_DEFAULT_CFGFILE = 'pyarm.cfg'
+HYCOMVALID_DEFAULT_CFGFILE = 'sonat.cfg'
 
 #: Matplotlib default configuration file
-PYARM_DEFAULT_MATPLOTLIBRC =  os.path.join(os.path.dirname(__file__), 'matplotlibrc')
+SONAT_DEFAULT_MATPLOTLIBRC =  os.path.join(os.path.dirname(__file__), 'matplotlibrc')
 
 #: Matplotlib user configuration file
-PYARM_USER_MATPLOTLIBRC =  'matplotlibrc'
+SONAT_USER_MATPLOTLIBRC =  'matplotlibrc'
 
 
-class PyARMError(Exception):
+class SONATError(Exception):
     pass
 
-class PyARMWarning(UserWarning):
+class SONATWarning(UserWarning):
     pass
 
-def pyarm_warn(message, stacklevel=2):
-    """Issue a :class:`PyARMWarning`"""
-    warn(message, PyARMWarning, stacklevel=stacklevel)
+def sonat_warn(message, stacklevel=2):
+    """Issue a :class:`SONATWarning`"""
+    warn(message, SONATWarning, stacklevel=stacklevel)
 
 
-class PyARMLogger(Logger):
+class SONATLogger(Logger):
     def created(self, msg):
         msg = 'Created: '+msg
         self.info(msg)
@@ -86,7 +86,7 @@ def get_logger(name=None, cfg=None, **kwargs):
     """Automatically setup a logger for the current script"""
     kwargs.setdefault('redirect_warnings', True)
     kwargs.setdefault('redirect_stdout', 'debug')
-    import pyarm
+    import sonat
     if cfg is not None:
         level = cfg['logger']['level']
         file = cfg['logger']['file']
@@ -104,14 +104,14 @@ def get_logger(name=None, cfg=None, **kwargs):
 
     if name is None:
 
-        if pyarm.LOGGER: # Use existing logger
+        if sonat.LOGGER: # Use existing logger
 
-            return pyarm.LOGGER
+            return sonat.LOGGER
 
         # Create new generic logger
-        name = 'PYARM'
-        pyarm.LOGGER = Logger(name, **kwargs)
-        return pyarm.LOGGER
+        name = 'SONAT'
+        sonat.LOGGER = Logger(name, **kwargs)
+        return sonat.LOGGER
 
     elif isinstance(name, Logger):
 
@@ -125,29 +125,29 @@ def get_logger(name=None, cfg=None, **kwargs):
          else:
              path = None
 
-         if pyarm.LOGGER: # Existing logger
+         if sonat.LOGGER: # Existing logger
 
-             if pyarm.LOGGER.logger.name != name: # Create a child
+             if sonat.LOGGER.logger.name != name: # Create a child
 
-                 name = '{}.{}'.format(pyarm.LOGGER.logger.name, name)
-                 return PyARMLogger(name, console=False, logfile=None)
+                 name = '{}.{}'.format(sonat.LOGGER.logger.name, name)
+                 return SONATLogger(name, console=False, logfile=None)
 
              # Same logger to use it
-             return pyarm.LOGGER
+             return sonat.LOGGER
 
          # New specific logger
-         kwargs.setdefault('logfile', 'pyarm.log')
+         kwargs.setdefault('logfile', 'sonat.log')
          kwargs.setdefault('level', 'info')
-         pyarm.LOGGER = PyARMLogger(name, **kwargs)
+         sonat.LOGGER = SONATLogger(name, **kwargs)
          if path is not None:
-             pyarm.LOGGER.debug('Running: '+path)
-         return pyarm.LOGGER
+             sonat.LOGGER.debug('Running: '+path)
+         return sonat.LOGGER
 
 #: Current root :class:`~vacumm.misc.io.Logger` instance
 LOGGER = None
 
 def help(text=None, url=None):
-    """Open pyarm website in a web browser and optionally search for a string
+    """Open sonat website in a web browser and optionally search for a string
 
     :Params:
 
@@ -222,7 +222,7 @@ def _get_domain_minmax_(cfg, key, defmin, defmax, bounds, none=True):
 def load_mplrc(userfile=None):
     """Load a matplotlib or default user configuration file"""
     # Load default file first
-    rcParams.update(rc_params_from_file(PYARM_DEFAULT_MATPLOTLIBRC, use_default_template=False))
+    rcParams.update(rc_params_from_file(SONAT_DEFAULT_MATPLOTLIBRC, use_default_template=False))
 
     # Load user file
     userfile = str(userfile)
@@ -231,7 +231,7 @@ def load_mplrc(userfile=None):
     if userfile=='True':
         userfile = 'None'
     if userfile=='None':
-        userfile = PYARM_USER_MATPLOTLIBRC
+        userfile = SONAT_USER_MATPLOTLIBRC
     if not os.path.exists(userfile):
         return
     rcParams.update(rc_params_from_file(userfile, use_default_template=False))

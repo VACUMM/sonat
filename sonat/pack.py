@@ -40,7 +40,7 @@ import MV2
 import cdms2
 from vcmq import dict_filter, broadcast, get_atts, set_atts, isaxis
 
-from .__init__ import _Base_, PyARMError
+from .__init__ import _Base_, SONATError
 
 N = npy = numpy
 default_missing_value = npy.ma.default_fill_value(0.)
@@ -227,7 +227,7 @@ class Packer(_Base_):
         """
         # Check shape
         if data_num.shape[-self.nsdim:] != self.sshape:
-            raise PyARMError("Data to pack has a wrong spatial shape: {} (!= {})".format(
+            raise SONATError("Data to pack has a wrong spatial shape: {} (!= {})".format(
                 data_num.shape[-self.nsdim:], self.sshape))
 
         # Remove bad channels ?
@@ -344,7 +344,7 @@ class Packer(_Base_):
 
             # We really want it as the input so we check
             if pshape is not None and firstdims is True and self.rsize!=pshape[0]:
-                raise PyARMError("Wrong requested shape")
+                raise SONATError("Wrong requested shape")
 
             # Ok, no chek or valid -> like input
             if pshape is None or self.rsize==pshape[0]:
@@ -368,7 +368,7 @@ class Packer(_Base_):
 
             # Check
             if pshape is not None and N.multiply.reduce(firstdims_)!=pshape[0]:
-                raise PyARMError("Wrong requested shape")
+                raise SONATError("Wrong requested shape")
 
             return firstdims_, firstaxes
 
