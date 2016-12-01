@@ -249,4 +249,12 @@ class _Base_(object):
 
             self.logger.debug('Instantiate '+self.__class__.__name__)
 
+    def warn(self, msg):
+        """Issue a :class:`SONATWarning`"""
+        sonat_warn(msg, stacklevel=3)
+
+    def error(self, msg):
+        """Raise a :class:`SONARError`"""
+        raise SONARError(msg)
+
 import plot # register cmaps

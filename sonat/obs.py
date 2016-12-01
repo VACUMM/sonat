@@ -1,4 +1,5 @@
 """
+Observations
 """
 #
 # Copyright IFREMER (2016-2017)
@@ -40,7 +41,8 @@ from vcmq import (cdms2, MV2, grid2xy, regrid2d, ncget_lon, ncget_lat,
     ncget_lat, ncget_dep, ArgList, ncfind_obj, itv_intersect, intersect)
 
 from .__init__ import _Base_
-from stack import Stacker
+from .misc import xycompress
+from .stack import Stacker
 
 
 RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
@@ -79,7 +81,7 @@ class NcObsPlatform(Stacker):
         self.load()
 
         # Init stacker
-        Stacker.__init__(self.errors.values(), logger=False, mean=False,
+        Stacker.__init__(self.errors.values(), logger=False, means=False,
             norms=norms)
 
 
@@ -122,8 +124,6 @@ class NcObsPlatform(Stacker):
             # Lon/lat selection
             if grid:
                 kwread = dict(lat=self.lat, lon=self.lon)
-#                lons = grid.getLongitude()
-#                lats = grid.getLatitude()
             else:
                 lons = ncget_lon(f)
                 if lons is None:
@@ -148,8 +148,8 @@ class NcObsPlatform(Stacker):
                 if self.depths is not None:
                     raise SONATError("Scattered Z dimension not yet supported")
                     self.pshape = self.pshape+'z'
-                elif hasattr(fs, 'depth'): # depth from attribute
-                    self.depths = fs.depth
+                elif hasattr(f, 'depth'): # depth from file attribute
+                    self.depths = f.depth
                     if not isinstance(self.depths, basestring):
                         raise SONATError("Depth must be a string if specified as an attribute")
 
@@ -363,26 +363,69 @@ class NcObsPlatform(Stacker):
     def plot(self):
         pass
 
-def xycompress(valid, vari):
-    """Keep valid spatial points"""
-    # Init
-    nv = valid.sum()
-    ax = vari.getAxis(-1)
-    vari = vari[:nv].clone()
-
-    # Fill
-    vari.getAxis(-1)[:] = N.compress(valid, ax[:])
-    vari[:] = N.compress(valid, vari.asma(), axis=-1)
-
-    return vari
-
 class ObsManager(_Base_):
 
-    def __init__(self, obs, logger=None, **kawargs):
+    def __init__(self, input, logger=None, **kawargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
 
+        # Load platforms
+        obsplats = _MapIO_._load_input_(input)
+        self.obsplats = []
+        for obsplat in obsplats:
+            if not isinstance(obsplat, NcObsPlatform):
+                raise SONATError('ObsManager must be initialised with a single or '
+                    'list of NcObsPlatform instances')
+                self.obsplats.append(obsplat)
+
+        # Stack stacked data
         self.stacked_data = npy.asfortranarray(
-            npy.concatenate([p.packed_data for p in self.packers], axis=0))
-        self.splits = npy.cumsum([p.packed_data.shape[0] for p in self.packers[:-1]])
+            npy.concatenate([o.stacked_data for o in self.obsplats], axis=0))
+        self.splits = npy.cumsum([o.stcked_data.shape[0] for o in self.obsplats[:-1]])
+
+    def __len__(self):
+        return len(self._obsplats)
+
+    def __getitem__(self, key):
+        return self.obsplats[key]
+
+    def restack(self, input, scale='norm'):
+
+        # Check input data
+        inputs = self.remap(input, reshape=False)
+
+        # Stack stacks
+        stacks = [self[istack].restack(unstacked, scale=scale)
+            for istack, unstacked in enumerate(inputs)]
+
+        # Check record length (first axis)
+        nr1 = stacks[0].size / self[0].ns
+        if len(inputs)>1:
+            for i, d in enumerate(stacks[1:]):
+                i += 1
+                nr2 = d.size / self[i].ns
+                if stacks[0].ndim != stacks[i].ndim:
+                    if stacks[0].ndim==1:
+                        SONATError('Variable {} must not have a record dimension '.format(i))
+                    else:
+                        SONATError('Variable {} must have a record dimension '.format(i))
+                elif nr1!=nr2:
+                    raise SONATError(('Record length of variable {i} ({nr2}) '
+                        'different from that of first variable ({nr1})').format(**locals()))
+
+        # Stack
+        stacked_data = npy.asfortranarray(npy.concatenate(stacks, axis=0))
+
+        return stacked_data
+
+    def unstack(self, sdata, rescale=True, format='norm', firstdims=None, **kwargs):
+
+        # Unstack: level 0
+        stacks = npy.split(sdata, self.splits, axis=0)
+
+        # Ustack: level 1
+        unstacks= [self[i].unstack(pdata, rescale=rescale, format=format,
+            firstdims=firstdims, **kwargs) for i, pdata in enumerate(stacks)]
+
+        return self.unmap(unstacks)

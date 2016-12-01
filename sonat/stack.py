@@ -42,7 +42,49 @@ from vcmq import broadcast
 from .__init__ import _Base_, SONATError
 from .pack import Packer, default_missing_value
 
-class Stacker(_Base_):
+class _MapIO_(object):
+
+    def _load_input_(self, input):
+        self.input = input
+        if isinstance(input, (list, tuple)):
+            inputs = list(input)
+            self.map = len(input)
+        else:
+            inputs = [input]
+            self.map = 0
+        return inputs
+
+    def unmap(self, out):
+        """Remap out so as to be in the same form as input data
+
+        It has the opposite effect of :meth:`remap`.
+        """
+        if self.map==0:
+            return out[0]
+        return out
+
+    def remap(self, values, reshape=True, fill_value=None):
+        """Makes sure that values is a list (or tuple) of length :attr:`nvar`
+
+        :func:`broadcast` is called when reshaping.
+
+        It has the opposite effect of :meth:`unmap`.
+        """
+        # We always need a list
+        if not isinstance(values, (list, tuple)):
+            values = [values]
+
+        # Check length
+        n = len(self)
+        if len(values)!=n:
+            if not reshape:
+                raise SONATError('Wrong number of input items (%i instead of %i)'
+                    %(len(values), n))
+            values = broadcast(values, n, fill_value)
+        return values
+
+
+class Stacker(_Base_, _MapIO_):
     """Class to handle one variable or a list of variables
 
     This fonction concatenates several dataset that have the
@@ -61,16 +103,9 @@ class Stacker(_Base_):
         # Logger
         _Base_.__init__(self, logger=logger, **kwargs)
 
-        # Input shape
-        self.input = input
-        if isinstance(input, (list, tuple)):
-            inputs = list(input)
-            self.map = len(input)
-        else:
-            inputs = [input]
-            self.map = 0
+        # Input
+        self.inputs = inputs = _MapIO_._load_input_(input)
         self.nvar = self.nd = len(inputs)
-        self.inputs = inputs
 
         # Other inits
         self.packers = []
@@ -114,35 +149,6 @@ class Stacker(_Base_):
     @property
     def data(self):
         return self.unmap(self.datas)
-
-    def unmap(self, out):
-        """Remap out so as to be in the same form as input data
-
-        It has the opposite effect of :meth:`remap`.
-        """
-        if self.map==0:
-            return out[0]
-        return out
-
-    def remap(self, values, reshape=True, fill_value=None):
-        """Makes sure that values is a list (or tuple) of length :attr:`nvar`
-
-        :func:`broadcast` is called when reshaping.
-
-        It has the opposite effect of :meth:`unmap`.
-        """
-        # We always need a list
-        if not isinstance(values, (list, tuple)):
-            values = [values]
-
-        # Check length
-        n = len(self)
-        if len(values)!=n:
-            if not reshape:
-                self.error('Wrong number of input items (%i instead of %i)'
-                    %(len(values), n))
-            values = broadcast(values, n, fill_value)
-        return values
 
     def has_cdat(self, idata=None):
         """Check if there were at least one input array of CDAT type (:mod:`MV2`)
@@ -203,21 +209,14 @@ class Stacker(_Base_):
         """
 
         # Check input data
-        if isinstance(input, (list, tuple)):
-            inputs = list(input)
-            dmap = len(input)
-        else:
-            inputs = [input]
-            dmap = 0
-        if  len(inputs)!=len(self):
-            self.error('You must provide %i variable(s) to stack'%len(inputs))
+        inputs = self.remap(input, reshape=False)
 
         # Pack
         packs = [self[idata].repack(data, scale=scale)
             for idata, data in enumerate(inputs)]
 
         # Check record length (first axis)
-        nr1 = inputs[0].size / self[0].nstot
+        nr1 = inputs[0].rsize / self[0].nstot
         if len(inputs)>1:
             for i, d in enumerate(inputs[1:]):
                 i += 1

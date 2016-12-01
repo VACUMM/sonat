@@ -1,7 +1,7 @@
 SONAT - Stochastic ocean Observing Networw Assessment Toolkit
 =============================================================
 
-SONAT is intended to help designing a multivariate, multiplateform
+SONAT is intended to help designing a multivariate, multiplatform
 ocean observation network using ocean model ensembles.
 
 License

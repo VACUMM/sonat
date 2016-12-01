@@ -119,6 +119,7 @@ class Packer(_Base_):
             self.raxis = None
             self.rshape = ()
             self.rsize = 0
+        self.nr = self.rsize
 
         # - others axes and attributes
         if self.ismv2: # cdms -> ids

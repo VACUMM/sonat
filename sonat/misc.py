@@ -341,3 +341,18 @@ class NcReader(object):
 
     def close(self):
         self.f.close()
+
+
+def xycompress(valid, vari):
+    """Keep valid spatial points"""
+    # Init
+    nv = valid.sum()
+    ax = vari.getAxis(-1)
+    vari = vari[:nv].clone()
+
+    # Fill
+    vari.getAxis(-1)[:] = N.compress(valid, ax[:])
+    vari[:] = N.compress(valid, vari.asma(), axis=-1)
+
+    return vari
+

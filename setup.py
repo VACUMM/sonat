@@ -42,7 +42,7 @@ from numpy.distutils.core import setup, Extension
 rootdir = os.path.dirname(__file__)
 
 # Get values from the sources
-keys = ['__version__', '__author__', '__date__',  '__url__']
+keys = ['__version__', '__author__', '__date__',  '__url__', '__email__']
 f = open(os.path.join(rootdir, 'sonat/__init__.py'))
 for line in f:
     line = line[:-1].strip()
@@ -55,8 +55,9 @@ f.close()
 # Some info
 version = __version__
 date = __date__
-description = 'Stochastic ocean Observing Network Assement Toolkit'
+description = 'Stochastic ocean Observing Network Assessment Toolkit'
 author = __author__
+author_email = __email__
 url = __url__
 license = "CeCILL"
 
@@ -75,14 +76,13 @@ if __name__=='__main__':
         version = version,
         description = description,
         author = author,
-        #author_email=author_email,
+        author_email=author_email,
         maintainer = author,
-        #maintainer_email=author_email,
+        maintainer_email=author_email,
         license = license,
         ext_modules = [
             Extension('sonat._fcore', ['sonat/fcore.f90'])
         ],
-        #package_dir={'sonat':'sonat'},
         packages = ["sonat"],
 
     )
