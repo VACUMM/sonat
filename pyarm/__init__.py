@@ -182,6 +182,42 @@ def get_cfg_cmap(cfg, param):
     except:
         return get_cmap()
 
+def get_cfg_xminmax(cfg, bounds=None, none=True):
+    """Get a ``(min,max[,bb])`` longitude interval from config"""
+    return _get_domain_minmax_(cfg, 'x', -720, 720, bounds, none)
+
+def get_cfg_yminmax(cfg, bounds=None, none=True):
+    """Get a ``(min,max[,bb])`` latitude interval from config"""
+    return _get_domain_minmax_(cfg, 'y', -90, 90, bounds, none)
+
+def get_cfg_zminmax(cfg, bounds=None, none=True):
+    """Get a ``(min,max[,bb])`` latitude interval from config"""
+    levels = cfg['domain']['levels']
+    if levels:
+        zmin = min(levels)
+        zmax = max(levels)
+    else:
+        zmin = -10000
+        zmax = 0
+    return _get_domain_minmax_(cfg, 'z', zmin, zmax, bounds, none)
+
+def get_cfg_tminmax(cfg, bounds='co', none=True):
+    """Get a ``(min,max[,bb])`` time interval from config"""
+    return _get_domain_minmax_(cfg, 't', '1950-01-01', '2100-01-01', bounds, none)
+
+def _get_domain_minmax_(cfg, key, defmin, defmax, bounds, none=True):
+    dmin = cfg['domain'][key+'min']
+    dmax = cfg['domain'][key+'max']
+    if int(none)==1 and dmin is None and dmax is None:
+        return
+    if int(none)!=2:
+        if dmin is None: dmin = defmin
+        if dmax is None: dmax = defmax
+    itv = (dmin, dmax)
+    if bounds:
+         itv += bounds,
+    return itv
+
 
 def load_mplrc(userfile=None):
     """Load a matplotlib or default user configuration file"""
