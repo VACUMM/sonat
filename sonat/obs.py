@@ -38,16 +38,16 @@ Observations
 from collections import OrderedDict
 import re
 from vcmq import (cdms2, MV2, grid2xy, regrid2d, ncget_lon, ncget_lat,
-    ncget_lat, ncget_dep, ArgList, ncfind_obj, itv_intersect, intersect)
+    ncget_lat, ncget_dep, ArgList, ncfind_obj, itv_intersect, intersect,
+    MV2_axisConcatenate)
 
-from .__init__ import _Base_
-from .misc import xycompress
+from .misc import xycompress, _Base_, _XYT_
 from .stack import Stacker
 
 
 RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
 
-class NcObsPlatform(Stacker):
+class NcObsPlatform(Stacker, _XYT_):
     """Generic observation platform class
 
 
@@ -61,7 +61,8 @@ class NcObsPlatform(Stacker):
     nc_flag_name = 'flag'
 
     def __init__(self, ncfile, ncvars=None, logger=None, norms=None,
-            time=None, lon=None, lat=None, levels=None, pert=1e-2, **kwargs):
+            time=None, lon=None, lat=None, levels=None, pert=1e-2,
+            singlevar=False, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -78,14 +79,14 @@ class NcObsPlatform(Stacker):
         self._orig = {}
 
         # Load positions and variables
-        self.load()
+        self.load(singlevar=singlevar)
 
         # Init stacker
         Stacker.__init__(self.errors.values(), logger=False, means=False,
             norms=norms)
 
 
-    def load(self, **kwargs):
+    def load(self, singlevar=False, **kwargs):
         """Read flag, errors, depth and time in opened netcdf file"""
         # Open
         f = cdms2.open(self.ncfile)
@@ -99,6 +100,8 @@ class NcObsPlatform(Stacker):
         if not self.ncvars:
             raise SONATError(('No valid error variable with suffix "{self.nc_error_suffix}"'
                 ' in file: {self.ncfile}').format(self))
+        if singlevar:
+            self.ncvars = self.ncvars[:1]
 
         # Reference variable
         fs = f[self.ncvars[0] + nc_error_suffix]
@@ -224,38 +227,6 @@ class NcObsPlatform(Stacker):
     def grid(self):
         return self.flag.getGrid()
 
-    @property
-    def ctimes(self):
-        if not hasattr(self, '_ctimes'):
-            if self.times is None:
-                self._ctimes = None
-            else:
-                self._ctimes = comptime(self.times)
-        return self._ctimes
-
-    def get_seldict(self, axes='xyt', xybounds='cce', tbounds='cce'):
-        sel = {}
-        if 'x' in axes:
-            sel['lon'] = (self.lons.min(), self.lons.max(), xybounds)
-        if 'y' in axes:
-            sel['lat'] = (self.lats.min(), self.lats.max(), xybounds)
-        if 't' in axes and self.ctimes:
-            sel['time'] = (self.ctimes.min(), self.ctimes.max(), tbounds)
-        return sel
-
-    def intersects(self, lon=None, lat=None, time=None):
-        """Does the observations intersects specified intervals"""
-        sdict = self.get_seldict()
-        if lon is not None and not intersect(lon, sdict['lon']):
-            return False
-        if lat is not None and not intersect(lat, sdict['lat']):
-            return False
-        if (time is not None and self.times is not None and
-                not intersect(time, sdict['time'])):
-            return False
-        return True
-
-
     def get_error(vname):
         return self.errors[vname]
 
@@ -326,7 +297,7 @@ class NcObsPlatform(Stacker):
 
 
     def interp_model(self, var):
-
+        """Interpolate model variables to observations positions"""
         # List of variables
         al = ArgList(var)
 
@@ -384,11 +355,40 @@ class ObsManager(_Base_):
             npy.concatenate([o.stacked_data for o in self.obsplats], axis=0))
         self.splits = npy.cumsum([o.stcked_data.shape[0] for o in self.obsplats[:-1]])
 
+
     def __len__(self):
         return len(self._obsplats)
 
     def __getitem__(self, key):
         return self.obsplats[key]
+
+    @property
+    def ncvars(self):
+        vv = []
+        for obs in self:
+            vv.extend(obs.ncvars)
+        return list(set(vv))
+
+    @property
+    def lons(self):
+        if not hasattr(self, '_lons'):
+            self._lons = N.concatenate(obs.lons[:].ravel() for obs in self
+                if obs.lons is not None)
+        return self._lons
+
+    @property
+    def lats(self):
+        if not hasattr(self, '_lats'):
+            self._lats = N.concatenate(obs.lats[:].ravel() for obs in self
+                if obs.lats is not None)
+        return self._lats
+
+    @property
+    def times(self):
+        if not hasattr(self, '_lats'):
+            self._lats = MV2_axisConcatenate(obs.times for obs in self
+                if obs.times is not None)
+        return self._times
 
     def restack(self, input, scale='norm'):
 
@@ -429,3 +429,8 @@ class ObsManager(_Base_):
             firstdims=firstdims, **kwargs) for i, pdata in enumerate(stacks)]
 
         return self.unmap(unstacks)
+
+    def interp_model(self, var):
+        """Interpolate model variables to observations positions"""
+        return sel.unmap([obs.interp_model(var) for obs in self])
+

@@ -39,7 +39,8 @@ Inspired from the spanlib library (http://www.github.com/stefraynaud/spanlib)
 import numpy as npy
 from vcmq import broadcast
 
-from .__init__ import _Base_, SONATError
+from .__init__ import SONATError
+from .misc import _Base_, _MapIO_
 from .pack import Packer, default_missing_value
 
 class _MapIO_(object):

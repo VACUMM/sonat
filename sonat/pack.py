@@ -40,7 +40,8 @@ import MV2
 import cdms2
 from vcmq import dict_filter, broadcast, get_atts, set_atts, isaxis
 
-from .__init__ import _Base_, SONATError
+from .__init__ import SONATError
+from .misc import _Base_
 
 N = npy = numpy
 default_missing_value = npy.ma.default_fill_value(0.)

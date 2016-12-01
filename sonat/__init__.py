@@ -239,22 +239,5 @@ def load_mplrc(userfile=None):
 #load_mplrc()
 
 
-class _Base_(object):
-
-    def __init__(self, logger=None, **kwargs):
-
-        if logger is not False:
-
-            self.logger = get_logger(logger, **kwfilter(kwargs, 'logger_'))
-
-            self.logger.debug('Instantiate '+self.__class__.__name__)
-
-    def warn(self, msg):
-        """Issue a :class:`SONATWarning`"""
-        sonat_warn(msg, stacklevel=3)
-
-    def error(self, msg):
-        """Raise a :class:`SONARError`"""
-        raise SONARError(msg)
 
 import plot # register cmaps

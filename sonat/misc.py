@@ -356,3 +356,55 @@ def xycompress(valid, vari):
 
     return vari
 
+class _Base_(object):
+
+    def __init__(self, logger=None, **kwargs):
+
+        if logger is not False:
+
+            self.logger = get_logger(logger, **kwfilter(kwargs, 'logger_'))
+
+            self.logger.debug('Instantiate '+self.__class__.__name__)
+
+    def warn(self, msg):
+        """Issue a :class:`SONATWarning`"""
+        sonat_warn(msg, stacklevel=3)
+
+    def error(self, msg):
+        """Raise a :class:`SONARError`"""
+        raise SONARError(msg)
+
+class _XYT_(object):
+    """Needs lons, lats and times to be defined"""
+
+    @property
+    def ctimes(self):
+        if not hasattr(self, '_ctimes'):
+            if self.times is None:
+                self._ctimes = None
+            else:
+                self._ctimes = comptime(self.times)
+        return self._ctimes
+
+    def get_seldict(self, axes='xyt', xybounds='cce', tbounds='cce'):
+        sel = {}
+        if 'x' in axes:
+            sel['lon'] = (self.lons.min(), self.lons.max(), xybounds)
+        if 'y' in axes:
+            sel['lat'] = (self.lats.min(), self.lats.max(), xybounds)
+        if 't' in axes and self.ctimes:
+            sel['time'] = (self.ctimes.min(), self.ctimes.max(), tbounds)
+        return sel
+
+    def intersects(self, lon=None, lat=None, time=None):
+        """Does the observations intersects specified intervals"""
+        sdict = self.get_seldict()
+        if lon is not None and not intersect(lon, sdict['lon']):
+            return False
+        if lat is not None and not intersect(lat, sdict['lat']):
+            return False
+        if (time is not None and self.times is not None and
+                not intersect(time, sdict['time'])):
+            return False
+        return True
+
