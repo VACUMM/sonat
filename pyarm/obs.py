@@ -37,7 +37,7 @@
 from collections import OrderedDict
 import re
 from vcmq import (cdms2, MV2, grid2xy, regrid2d, ncget_lon, ncget_lat,
-    ncget_lat, ncget_dep, ArgList, ncfind_obj)
+    ncget_lat, ncget_dep, ArgList, ncfind_obj, itv_intersect, intersect)
 
 from .__init__ import _Base_
 from stack import Stacker
@@ -99,7 +99,7 @@ class NcObsPlatform(Stacker):
                 ' in file: {self.ncfile}').format(self))
 
         # Reference variable
-        fs = f[self.ncvars[0]]
+        fs = f[self.ncvars[0] + nc_error_suffix]
 
         # Inspect
         grid = fs.getGrid()
@@ -224,6 +224,15 @@ class NcObsPlatform(Stacker):
     def grid(self):
         return self.flag.getGrid()
 
+    @property
+    def ctimes(self):
+        if not hasattr(self, '_ctimes'):
+            if self.times is None:
+                self._ctimes = None
+            else:
+                self._ctimes = comptime(self.times)
+        return self._ctimes
+
     def get_seldict(self, axes='xyt', xybounds='cce', tbounds='cce'):
         sel = {}
         if 'x' in axes:
@@ -231,8 +240,20 @@ class NcObsPlatform(Stacker):
         if 'y' in axes:
             sel['lat'] = (self.lats.min(), self.lats.max(), xybounds)
         if 't' in axes and self.ctimes:
-            sel['lat'] = (self.times.min(), self.times.max(), tbounds)
+            sel['time'] = (self.ctimes.min(), self.ctimes.max(), tbounds)
         return sel
+
+    def intersects(self, lon=None, lat=None, time=None):
+        """Does the observations intersects specified intervals"""
+        sdict = self.get_seldict()
+        if lon is not None and not intersect(lon, sdict['lon']):
+            return False
+        if lat is not None and not intersect(lat, sdict['lat']):
+            return False
+        if (time is not None and self.times is not None and
+                not intersect(time, sdict['time'])):
+            return False
+        return True
 
 
     def get_error(vname):
@@ -354,3 +375,14 @@ def xycompress(valid, vari):
     vari[:] = N.compress(valid, vari.asma(), axis=-1)
 
     return vari
+
+class ObsManager(_Base_):
+
+    def __init__(self, obs, logger=None, **kawargs):
+
+        # Init logger
+        _Base_.__init__(self, logger=logger, **kwargs)
+
+        self.stacked_data = npy.asfortranarray(
+            npy.concatenate([p.packed_data for p in self.packers], axis=0))
+        self.splits = npy.cumsum([p.packed_data.shape[0] for p in self.packers[:-1]])
