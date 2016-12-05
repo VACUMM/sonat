@@ -40,10 +40,10 @@ import numpy as npy
 from vcmq import broadcast
 
 from .__init__ import SONATError
-from .misc import _Base_, _MapIO_
+from .misc import _Base_
 from .pack import Packer, default_missing_value
 
-class _MapIO_(object):
+class _StackerMapIO_(object):
 
     def _load_input_(self, input):
         self.input = input
@@ -85,7 +85,7 @@ class _MapIO_(object):
         return values
 
 
-class Stacker(_Base_, _MapIO_):
+class Stacker(_Base_, _StackerMapIO_):
     """Class to handle one variable or a list of variables
 
     This fonction concatenates several dataset that have the
@@ -105,7 +105,7 @@ class Stacker(_Base_, _MapIO_):
         _Base_.__init__(self, logger=logger, **kwargs)
 
         # Input
-        self.inputs = inputs = _MapIO_._load_input_(input)
+        self.inputs = inputs = _StackerMapIO_._load_input_(self, input)
         self.nvar = self.nd = len(inputs)
 
         # Other inits
