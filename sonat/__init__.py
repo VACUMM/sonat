@@ -65,6 +65,8 @@ SONAT_DEFAULT_MATPLOTLIBRC =  os.path.join(os.path.dirname(__file__), 'matplotli
 #: Matplotlib user configuration file
 SONAT_USER_MATPLOTLIBRC =  'matplotlibrc'
 
+#: Bottom generic variable names
+BOTTOM_VARNAMES = ['turb']
 
 class SONATError(Exception):
     pass
