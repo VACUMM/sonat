@@ -39,10 +39,13 @@ import string
 from string import Formatter
 from glob import has_magic, glob
 from collections import OrderedDict
+import numpy as N
+import cdms2
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
-    comptime, add_time, pat2glob, are_same_units, indices2slices)
+    comptime, add_time, pat2glob, are_same_units, indices2slices,
+    kwfilter, numod)
 
-from .__init__ import sonat_warn, SONATError
+from .__init__ import sonat_warn, SONATError, get_logger
 
 def scan_format_string(format_string):
     """Scan a format string using :class:`string.Formatter`
@@ -345,16 +348,20 @@ class NcReader(object):
 
 def xycompress(valid, vari):
     """Keep valid spatial points"""
-    # Init
-    nv = valid.sum()
-    ax = vari.getAxis(-1)
-    vari = vari[:nv].clone()
+    if cdms2.isVariable(vari):
+        # Init
+        nv = valid.sum()
+        ax = vari.getAxis(-1)
+        varo = vari[:nv].clone()
 
-    # Fill
-    vari.getAxis(-1)[:] = N.compress(valid, ax[:])
-    vari[:] = N.compress(valid, vari.asma(), axis=-1)
+        # Fill
+        varo.getAxis(-1)[:] = N.compress(valid, ax[:])
+        varo[:] = N.compress(valid, vari.asma(), axis=-1)
 
-    return vari
+    else:
+        varo = numod(vari).compress(valid, vari, axis=-1)
+
+    return varo
 
 class _Base_(object):
 
@@ -384,6 +391,7 @@ class _XYT_(object):
                 self._ctimes = None
             else:
                 self._ctimes = comptime(self.times)
+            self._ctime.sort()
         return self._ctimes
 
     def get_seldict(self, axes='xyt', xybounds='cce', tbounds='cce'):
