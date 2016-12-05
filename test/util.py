@@ -15,6 +15,7 @@ NCFILE_MANGA0 = os.path.abspath(os.path.join(THISDIR, '../data/manga-2014-01-01.
 NCFILE_MANGA1 = os.path.abspath(os.path.join(THISDIR, '../data/manga-2014-01-16.nc'))
 NCGLOB_MANGA = os.path.abspath(os.path.join(THISDIR, '../data/manga-*-[01][0-9]-??.nc'))
 NCPATGLOB_MANGA = os.path.abspath(os.path.join(THISDIR, '../data/manga-*-{date:%m-%d}.nc'))
+NCFILE_OBS_SURF = os.path.abspath(os.path.join(THISDIR, '../data/obs.surf.nc'))
 
 LIBDIR = os.path.abspath(os.path.join(THISDIR, '..', 'sonat'))
 if os.path.exists(os.path.join(LIBDIR, '__init__.py')):
