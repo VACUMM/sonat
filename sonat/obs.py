@@ -37,12 +37,16 @@ Observations
 
 from collections import OrderedDict
 import re
-from vcmq import (cdms2, MV2, grid2xy, regrid2d, ncget_lon, ncget_lat,
-    ncget_lat, ncget_dep, ArgList, ncfind_obj, itv_intersect, intersect,
+import cdms2
+import MV2
+import numpy as N
+from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
+    ncget_time, ncget_level, ArgList, ncfind_obj, itv_intersect, intersect,
     MV2_axisConcatenate)
 
+from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES
 from .misc import xycompress, _Base_, _XYT_
-from .stack import Stacker
+from .stack import Stacker, _StackerMapIO_
 
 
 RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
@@ -55,13 +59,15 @@ class NcObsPlatform(Stacker, _XYT_):
     ----------
     pshape: string
         Plateform shape
+    varnames: strings
+        Variable names WITHOUT the error prefix
     """
 
     nc_error_suffix = '_error'
     nc_flag_name = 'flag'
 
-    def __init__(self, ncfile, ncvars=None, logger=None, norms=None,
-            time=None, lon=None, lat=None, levels=None, pert=1e-2,
+    def __init__(self, ncfile, varnames=None, logger=None, norms=None,
+            time=None, lon=None, lat=None, levels=None,
             singlevar=False, **kwargs):
 
         # Init logger
@@ -69,20 +75,19 @@ class NcObsPlatform(Stacker, _XYT_):
 
         # Init parameters
         self.ncfile = ncfile
-        self.ncvars = ncvars
+        self.varnames = ArgList(varnames).get() if varnames else varnames
         self.time = time
         self.lon = lon
         self.lat = lat
         self.levels = levels
         self.errors = OrderedDict()
-        self.pert = pert
         self._orig = {}
 
         # Load positions and variables
         self.load(singlevar=singlevar)
 
         # Init stacker
-        Stacker.__init__(self.errors.values(), logger=False, means=False,
+        Stacker.__init__(self, self.errors.values(), logger=False, means=False,
             norms=norms)
 
 
@@ -92,19 +97,20 @@ class NcObsPlatform(Stacker, _XYT_):
         f = cdms2.open(self.ncfile)
 
         # List of error variables
-        if self.ncvars is None:
-            self.ncvars = [vname for vname in f.listvariables()
-                if vname.endswith(nc_error_suffix)]
+        if self.varnames is None:
+            self.varnames = [vname.rstrip(self.nc_error_suffix)
+                for vname in f.listvariables()
+                    if vname.endswith(self.nc_error_suffix)]
         else:
-            self.ncvars = [vname.lstrip(nc_error_suffix) for vname in self.ncvars]
-        if not self.ncvars:
-            raise SONATError(('No valid error variable with suffix "{self.nc_error_suffix}"'
-                ' in file: {self.ncfile}').format(self))
+            self.varnames = [vname.rstrip(self.nc_error_suffix) for vname in self.varnames]
+        if not self.varnames:
+            raise SONATError(('No valid error variable with suffix "{0.nc_error_suffix}"'
+                ' in file: {0.ncfile}').format(self))
         if singlevar:
-            self.ncvars = self.ncvars[:1]
+            self.varnames = self.varnames[:1]
 
         # Reference variable
-        fs = f[self.ncvars[0] + nc_error_suffix]
+        fs = f[self.varnames[0] + self.nc_error_suffix]
 
         # Inspect
         grid = fs.getGrid()
@@ -113,41 +119,47 @@ class NcObsPlatform(Stacker, _XYT_):
 
             self.pshape = 'gridded'
             kwread = dict(time=self.time, lat=self.lat, lon=self.lon)
-            if '-' in self.order:
+            if '-' in order:
                 raise SONATError("There are unkown dimensions in your gridded variable. "
-                    "Current order: "+self.order)
-            self.axes1d = self.order[:-2]
+                    "Current order: "+order)
+            self.axes1d = order[:-2]
+
 
         else: # Unstructured grid
 
             mask = N.ma.nomask #zeros(fs.shape[-1], '?')
             self.pshape = 'xy'
             self.axes1d = []
+            kwread = {}
 
             # Lon/lat selection
             if grid:
-                kwread = dict(lat=self.lat, lon=self.lon)
+                kwread.update(lat=self.lat, lon=self.lon)
             else:
                 lons = ncget_lon(f)
                 if lons is None:
                     raise SONATError("Longitudes not found")
-                lons = ncread_lon(f, id=lons)
                 lats = ncget_lat(f)
                 if lats is None:
                     raise SONATError("Latitudes not found")
+                lons = lons.asma()
+                lats = lats.asma()
                 if self.lon:
-                    mask |= lons < self.lons[0]
+                    mask |= lons < self.lon[0]
+                    mask |= lons > self.lon[1]
                 if self.lat:
-                    mask |= lats < self.lats[1]
+                    mask |= lats < self.lat[0]
+                    mask |= lats > self.lat[1]
+            mask = mask.filled(False)
             order = order[:-1]
 
             # Vertical dimension
-            if 'z' in self.order:
+            if 'z' in order:
                 order.remove('z')
                 self.depths = fs.getLevel().clone()
                 self.axes1d.append(self.depths)
             else:
-                self.depths = ncget_dep(f)
+                self.depths = ncget_level(f)
                 if self.depths is not None:
                     raise SONATError("Scattered Z dimension not yet supported")
                     self.pshape = self.pshape+'z'
@@ -155,10 +167,14 @@ class NcObsPlatform(Stacker, _XYT_):
                     self.depths = f.depth
                     if not isinstance(self.depths, basestring):
                         raise SONATError("Depth must be a string if specified as an attribute")
+                elif fs.id in BOTTOM_VARNAMES: # 2D: bottom
+                    self.depths = 'bottom'
+                else: # 2D: surf
+                    self.depths = 'surf'
 
             # Time selection
-            if 't' in self.order: # 1D axis
-                kwread = dict(time=time)
+            if 't' in order: # 1D axis
+                kwread.update(time=time)
                 order.remove('t')
                 self.times = fs.getTime().clone()
                 self.axes1d.append(self.times)
@@ -182,8 +198,8 @@ class NcObsPlatform(Stacker, _XYT_):
 
         # Read
         # - errors
-        for vname in self.ncvars:
-            self.errors[vname] = f(vname + nc_error_suffix, **kwread)
+        for vname in self.varnames:
+            self.errors[vname] = f(vname + self.nc_error_suffix, **kwread)
         sample = self.errors[vname]
         # - lon/lat
         if grid:
@@ -195,22 +211,26 @@ class NcObsPlatform(Stacker, _XYT_):
         # - flag
         if self.nc_flag_name in f.listvariables():
             self.flag = f(self.nc_flag_name, **kwread)
+        elif self.rshape=='gridded': # don't move grid for the moment
+            self.flag = 0.
         else:
             sonat_warn('No flag variable found in obs file. '
                 'Setting it to 1 everywhere.')
             shape = grid.shape if grid else lons.shape
             self.flag = MV2.ones(shape, 'i')
+        self.mobile = (N.ma.asarray(self.flag)==1).all()
 
         # Compression to remove masked point
         if self.pshape != 'gridded' and mask.any():
             valid = ~mask
             self.lons = xycompress(valid, self.lons)
             self.lats = xycompress(valid, self.lats)
-            for vname, var in self.errors.item():
+            for vname, var in self.errors.items():
                 self.errors[vname] = xycompress(valid, var)
             if self.times is not None and self.times not in self.axes1d:
                 self.times = xycompress(valid, self.times)
-            if self.depths is not None and self.depths not in self.axes1d:
+            if (self.depths is not None and self.depths not in self.axes1d and
+                    not isinstance(self.depths, basestring)):
                 self.depths = xycompress(valid, self.depths)
 
 
@@ -240,7 +260,8 @@ class NcObsPlatform(Stacker, _XYT_):
         mgrid: cdms2 grid
             Model grid
         """
-        if self.rshape=='gridded':
+        if not self.mobile:
+            sonat_warn('This platform cannot be moved')
             return
 
         if direction:
@@ -282,7 +303,8 @@ class NcObsPlatform(Stacker, _XYT_):
 
 
     def deactivate_xy_pert(self):
-
+        if not self.mobile:
+            return
         for cname in 'lons', 'lats':
             if cname in self._orig:
                 getattr(sel, cname)[:] = self._orig[cname]
@@ -290,6 +312,9 @@ class NcObsPlatform(Stacker, _XYT_):
 
     @property
     def xy_pert_indices(self):
+        if not self.mobile:
+            sonat_warn('This platform cannot be moved')
+            return N.array([])
         if hasattr(self, '_xy_pert_indices'):
             return self.xy_pert_indices
         self.xy_pert_indices = N.where(self.flag>=1)[0]
@@ -304,6 +329,11 @@ class NcObsPlatform(Stacker, _XYT_):
         # Loop on variables
         out = []
         for var in al.get():
+
+            # Check id
+            if var.id not in self.varnames:
+                sonat_warn('Variable id "{}" not found on this observation platform'.format(
+                    var.id))
 
             # Order
             order = var.getOrder()
@@ -334,7 +364,8 @@ class NcObsPlatform(Stacker, _XYT_):
     def plot(self):
         pass
 
-class ObsManager(_Base_):
+class ObsManager(_Base_, _StackerMapIO_):
+    """Class to manage several observation platform instances"""
 
     def __init__(self, input, logger=None, **kawargs):
 
@@ -363,32 +394,66 @@ class ObsManager(_Base_):
         return self.obsplats[key]
 
     @property
-    def ncvars(self):
+    def varnames(self):
         vv = []
         for obs in self:
-            vv.extend(obs.ncvars)
+            vv.extend(obs.varnames)
         return list(set(vv))
 
     @property
     def lons(self):
         if not hasattr(self, '_lons'):
-            self._lons = N.concatenate(obs.lons[:].ravel() for obs in self
-                if obs.lons is not None)
+            self._lons = N.concatenate([obs.lons[:].ravel() for obs in self
+                if obs.lons is not None])
         return self._lons
 
     @property
     def lats(self):
         if not hasattr(self, '_lats'):
-            self._lats = N.concatenate(obs.lats[:].ravel() for obs in self
-                if obs.lats is not None)
+            self._lats = N.concatenate([obs.lats[:].ravel() for obs in self
+                if obs.lats is not None])
         return self._lats
 
     @property
     def times(self):
         if not hasattr(self, '_lats'):
-            self._lats = MV2_axisConcatenate(obs.times for obs in self
-                if obs.times is not None)
+            self._times = MV2_axisConcatenate([obs.times for obs in self
+                if obs.times is not None])
         return self._times
+
+    @property
+    def depths(self):
+        """Dict of depths for each variable across all platforms"""
+        if not hasattr(self, '_depths'):
+            varnames = self.varnames
+            self._depths = {}
+            for ncvar in varnames:
+                self._depths[ncvar] = []
+                for obs in self:
+                    if (isinstance(obs.depths, basestring) and # 2D
+                            not obs.depths in depths[ncvar]):
+                        self._depths[ncvar].append(obs.depths)
+                    elif '3d' not in depths[ncvar]: # 3D
+                        self._depths[ncvar].apend('3d')
+        return self._depths
+
+    def get_model_specs(self):
+        """Get specifications for reading model
+
+        Return
+        ------
+        dict: with keys
+
+            - lon: longitude interval
+            - lat: latitude interval
+            - depths: depths as a dict for each variable within 'surf', 'bottom', '3d'
+            - varnames: variable names
+        """
+        specs = self.get_seldict()
+        specs['depths'] = self.depths
+        specs['varnames'] = self.varnames
+        return specs
+
 
     def restack(self, input, scale='norm'):
 
