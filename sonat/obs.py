@@ -42,12 +42,13 @@ import MV2
 import numpy as N
 from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     ncget_time, ncget_level, ArgList, ncfind_obj, itv_intersect, intersect,
-    MV2_axisConcatenate)
+    MV2_axisConcatenate, transect, create_axis)
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES
 from .misc import xycompress, _Base_, _XYT_
 from .stack import Stacker, _StackerMapIO_
 
+npy = N
 
 RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
 
@@ -328,7 +329,7 @@ class NcObsPlatform(Stacker, _XYT_):
 
         # Loop on variables
         out = []
-        for var in al.get():
+        for i, var in enumerate(al.get()):
 
             # Check id
             if var.id not in self.varnames:
@@ -339,7 +340,7 @@ class NcObsPlatform(Stacker, _XYT_):
             order = var.getOrder()
 
             # Gridded and scattered
-            if self.rtype=='gridded':
+            if self.pshape=='gridded':
                 var = regrid2d(var, self.grid, method='bilinear')
             else:
                 kw = {}
@@ -351,7 +352,14 @@ class NcObsPlatform(Stacker, _XYT_):
                     if 'z' not in order:
                         raise SONATError("Model variables must have a depth axis")
                     kw['depths'] = self.depths
-                var = transect(var, lons=lons, lats=lats, **kw)
+
+                if i==0:
+                    outaxis = create_axis(self.lons.shape, id='point',
+                        long_name='Observation point')
+
+                var = transect(var, lons=self.lons, lats=self.lats,
+                    outaxis=outaxis, **kw)
+
 
             # Auxilary axes
             for axis in self.axes1d:
@@ -364,31 +372,31 @@ class NcObsPlatform(Stacker, _XYT_):
     def plot(self):
         pass
 
-class ObsManager(_Base_, _StackerMapIO_):
+class ObsManager(_Base_, _StackerMapIO_, _XYT_):
     """Class to manage several observation platform instances"""
 
-    def __init__(self, input, logger=None, **kawargs):
+    def __init__(self, input, logger=None, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
 
         # Load platforms
-        obsplats = _MapIO_._load_input_(input)
+        obsplats = _StackerMapIO_._load_input_(self, input)
         self.obsplats = []
         for obsplat in obsplats:
             if not isinstance(obsplat, NcObsPlatform):
                 raise SONATError('ObsManager must be initialised with a single or '
                     'list of NcObsPlatform instances')
-                self.obsplats.append(obsplat)
+            self.obsplats.append(obsplat)
 
         # Stack stacked data
         self.stacked_data = npy.asfortranarray(
             npy.concatenate([o.stacked_data for o in self.obsplats], axis=0))
-        self.splits = npy.cumsum([o.stcked_data.shape[0] for o in self.obsplats[:-1]])
+        self.splits = npy.cumsum([o.stacked_data.shape[0] for o in self.obsplats[:-1]])
 
 
     def __len__(self):
-        return len(self._obsplats)
+        return len(self.obsplats)
 
     def __getitem__(self, key):
         return self.obsplats[key]
@@ -416,25 +424,33 @@ class ObsManager(_Base_, _StackerMapIO_):
 
     @property
     def times(self):
-        if not hasattr(self, '_lats'):
-            self._times = MV2_axisConcatenate([obs.times for obs in self
-                if obs.times is not None])
+        if not hasattr(self, '_times'):
+            times = [obs.times for obs in self if obs.times is not None]
+            if not times:
+                self._times = None
+            else:
+                self._times = MV2_axisConcatenate(times)
         return self._times
 
     @property
     def depths(self):
         """Dict of depths for each variable across all platforms"""
         if not hasattr(self, '_depths'):
-            varnames = self.varnames
             self._depths = {}
-            for ncvar in varnames:
-                self._depths[ncvar] = []
-                for obs in self:
-                    if (isinstance(obs.depths, basestring) and # 2D
-                            not obs.depths in depths[ncvar]):
-                        self._depths[ncvar].append(obs.depths)
-                    elif '3d' not in depths[ncvar]: # 3D
-                        self._depths[ncvar].apend('3d')
+            for obs in self:
+                if isinstance(obs.depths, basestring): # 2D
+                    depths = obs.depths
+                elif obs.depths is not None: # 3D
+                    depths = '3d'
+                else:
+                    depths = None
+                for varname in obs.varnames:
+                    vdepths = self._depths.setdefault(varname, [])
+                    if depths is not None and depths not in vdepths:
+                        vdepths.append(depths)
+            if varname in self.varnames:
+                if not self._depths[varname]:
+                    self._depths[varname] = None
         return self._depths
 
     def get_model_specs(self):
