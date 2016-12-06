@@ -391,7 +391,7 @@ class _XYT_(object):
                 self._ctimes = None
             else:
                 self._ctimes = comptime(self.times)
-            self._ctime.sort()
+#            self._ctimes.sort()
         return self._ctimes
 
     def get_seldict(self, axes='xyt', xybounds='cce', tbounds='cce'):
@@ -401,7 +401,7 @@ class _XYT_(object):
         if 'y' in axes:
             sel['lat'] = (self.lats.min(), self.lats.max(), xybounds)
         if 't' in axes and self.ctimes:
-            sel['time'] = (self.ctimes.min(), self.ctimes.max(), tbounds)
+            sel['time'] = (min(self.ctimes), max(self.ctimes), tbounds)
         return sel
 
     def intersects(self, lon=None, lat=None, time=None):
