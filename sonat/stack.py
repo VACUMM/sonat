@@ -147,23 +147,27 @@ class Stacker(_Base_, _StackerMapIO_):
     def __getitem__(self, i):
         return self.packers[i]
 
+    def __iter__(self):
+        for packer in self.packers:
+            yield packer
+
     @property
     def data(self):
         return self.unmap(self.datas)
 
-    def has_cdat(self, idata=None):
-        """Check if there were at least one input array of CDAT type (:mod:`MV2`)
-
-        :Sea also: :meth:`Data.has_cdat`
-        """
-        # Single var
-        if idata is not None:
-            return self[idata].has_cdat()
-
-        # At least one
-        for d in self.packers:
-            if d.has_cdat(): return True
-        return False
+#    def has_cdat(self, idata=None):
+#        """Check if there were at least one input array of CDAT type (:mod:`MV2`)
+#
+#        :Sea also: :meth:`Data.has_cdat`
+#        """
+#        # Single var
+#        if idata is not None:
+#            return self[idata].has_cdat()
+#
+#        # At least one
+#        for d in self.packers:
+#            if d.has_cdat(): return True
+#        return False
 
     def get_record_axis(self, nr=None, offset=0, idata=0):
         """Get the record axis of an input variable
@@ -217,9 +221,9 @@ class Stacker(_Base_, _StackerMapIO_):
             for idata, data in enumerate(inputs)]
 
         # Check record length (first axis)
-        nr1 = inputs[0].rsize / self[0].nstot
+        nr1 = packs[0].size / self[0].nstot
         if len(inputs)>1:
-            for i, d in enumerate(inputs[1:]):
+            for i, d in enumerate(packs[1:]):
                 i += 1
                 nr2 = d.size/self[i].nstot
                 if packs[0].ndim != packs[i].ndim:
