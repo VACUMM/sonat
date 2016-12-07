@@ -436,6 +436,8 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
     def depths(self):
         """Dict of depths for each variable across all platforms"""
         if not hasattr(self, '_depths'):
+
+            # Loop on platforms
             self._depths = {}
             for obs in self:
                 if isinstance(obs.depths, basestring): # 2D
@@ -448,9 +450,14 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
                     vdepths = self._depths.setdefault(varname, [])
                     if depths is not None and depths not in vdepths:
                         vdepths.append(depths)
+
+            # Finalisation for each variable
             if varname in self.varnames:
                 if not self._depths[varname]:
                     self._depths[varname] = None
+                else:
+                    self._depths[varname] = tuple(self._depths[varname])
+
         return self._depths
 
     def get_model_specs(self):
@@ -513,5 +520,5 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
 
     def interp_model(self, var):
         """Interpolate model variables to observations positions"""
-        return sel.unmap([obs.interp_model(var) for obs in self])
+        return self.unmap([obs.interp_model(var) for obs in self])
 
