@@ -38,19 +38,36 @@ Ensembles
 import re
 from collections import OrderedDict
 import scipy.stats as SS
-from vcmq import (cdms2, MV2, DS, ncget_time, lindates,
-    MV2_concatenate, create_axis, N, kwfilter, check_case)
+from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList,
+    MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var)
 
-from .__init__ import _Base_, get_logger, sonat_warn, SONATError
-from .misc import list_files_from_pattern, ncfiles_time_indices, asma, NcReader
+from .__init__ import get_logger, sonat_warn, SONATError
+from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
+    validate_varnames)
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
 
 
-def load_model_at_regular_dates(ncpat, ncvars=None, time=None, lat=None, lon=None,
+def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=None,
        level=None,  modeltype='mars', nt=50, dtfile=None, sort=True, asdict=False,
-       logger=None, **kwargs):
+       logger=None, depths=None, **kwargs):
     """Read model output at nearest unique dates with optional linear interpolation
+
+
+    Parameters
+    ----------
+    ncpat: string or list of strings
+    varnames: string, strings
+        Generic var names. If None, all variables that are known from the
+        :mod:`vacumm.data.cf` module are used.
+    depths: string, list of floats, array, tuple of them, dict
+
+    Examples
+    --------
+    >>> mdict = load_model_at_regular_dates('myfile.nc', depths='surf')
+    >>> mdict = load_model_at_regular_dates('myfile.nc', depths=('surf', 'bottom')
+    >>> mdict = load_model_at_regular_dates('myfile.nc', varnames=['temp', 'sal'],
+        depths={'temp':('surf', 'bottom'), 'sal':[-50, -10]})
 
     """
     # Logger
@@ -101,9 +118,9 @@ def load_model_at_regular_dates(ncpat, ncvars=None, time=None, lat=None, lon=Non
         raise SONATError(msg)
 
     # Read
-    single = isinstance(ncvars, basestring)
+    single = isinstance(varnames, basestring)
     if single:
-        ncvars = [ncvars]
+        varnames = [varnames]
     out = OrderedDict()
     vlevels = {}
     for ncfile, tslices in iidict.items():
@@ -111,28 +128,62 @@ def load_model_at_regular_dates(ncpat, ncvars=None, time=None, lat=None, lon=Non
         # Dataset instance
         ds = DS(ncfile, modeltype, logger=logger)
 
-        # List of variables
-        if ncvars is None:
-            ncvars = [('+'+vname) for vname in ds.get_variable_names()]
+        # List of well known variables
+        if varnames is None:
+            ncvarnames = ds.get_variable_names()
+            varnames = []
+            for ncvarname in ds.get_variable_names():
+                varname = match_known_var(ds[0][ncvarname])
+                if varname:
+                    varnames.append(varname)
 
         # Loop on variables
-        for vname in list(ncvars):
+        vardepth = None
+        kwvar = dict(lat=lat, lon=lon, verbose=False, bestestimate=False)
+        for vname in list(varnames):
 
             # Level selector
-            if vname in vlevels:
+            if vname in vlevels: # cached
                 vlevel = vlevels[vname]
             else:
-                if isinstance(level, dict):
+                if isinstance(level, dict): # variable specific
                     vlevel = level.get(vname, None)
                 else:
-                    vlevel = level
-                vlevels[vname] = vlevel
+                    vlevel = level # same for all variables
+                vlevels[vname] = vlevel # cache it
+            if vlevel is None:
+                vlevel = None,
 
-            # Read and aggregate
-            vout = out.setdefault(vname, [])
-            for tslice in tslices:
-                vout.append(ds(vname, time=tslice, lat=lat, lon=lon, level=vlevel,
-                    verbose=False, bestestimate=False))
+            # Loop on level specs
+            for vlev in vlevel:
+
+                # Output vname
+                if isinstance(vlev, basestring) and not vlev=='3d':
+                    vnameo = vname + '_' + vlev
+                else:
+                    vnameo = vname
+
+                # Read and aggregate
+                vout = out.setdefault(vnameo, [])
+                for tslice in tslices:
+
+                    # Get var
+                    kwvar['time'] = tslice
+                    var = ds(vname, level=vlevel, **kwvar)
+
+                    # Interpolate at depths
+                    if ((vlev=='3d' or not isinstance(vlev, basestring)) and
+                            depths is not None and var.getLevel() is not None):
+
+                        # Get depths
+                        if vardepth is None:
+                            vardepth = ds.get_depth(level=vlev, **kwvar)
+
+                        # Interpolate
+                        var = ds._interp_at_depths_(var, vardepth, depths)
+
+                    var.id = vnameo
+                    vout.append(var)
 
     # Concatenate
     for vname, vout in out.items():
@@ -282,9 +333,9 @@ class Ensemble(Stacker):
         self.variance = variance
 
     @classmethod
-    def from_file(cls, ncfile, ncvars=None, ncreader='mars3d',
+    def from_file(cls, ncfile, varnames=None, ncreader='mars3d',
             exclude=['.*_eof$', 'bounds_.*'],
-            include=None, evname='ev', varpat='{vname}_variance',
+            include=None, evname='ev', varipat='{varname}_variance',
             lon=None, lat=None, level=None, time=None,
             **kwargs):
         """Init the class with a netcdf file"""
@@ -293,11 +344,11 @@ class Ensemble(Stacker):
         allvars = f.get_variables()
 
         # List of variables
-        if ncvars is None: # guess
+        if varnames is None: # guess
 
             # Basic list
             single = False
-            ncvars = list(allvars)
+            varnames = list(allvars)
 
             # Filter
             if exclude is None:
@@ -309,49 +360,49 @@ class Ensemble(Stacker):
             elif isinstance(include, basestring):
                     include = [include]
             exclude.append(evname + '$')
-            exclude.append('^' + varpat.format(vname='.*') + '$')
+            exclude.append('^' + varipat.format(varname='.*') + '$')
             exclude = [re.compile(e, re.I).match for e in exclude]
             include = [re.compile(e, re.I).match for e in include]
-            for vname in list(ncvars):
+            for varname in list(varnames):
 
-                if (exclude and any([e(vname) for e in exclude]) or
-                        (include and not any([e(vname) for e in include]))):
+                if (exclude and any([e(varname) for e in exclude]) or
+                        (include and not any([e(varname) for e in include]))):
 
-                    ncvars.remove(vname) # Remove from state variables
+                    varnames.remove(varname) # Remove from state variables
 
-                elif varpat: # ok, now check variance
+                elif varipat: # ok, now check variance
 
-                    varname = varpat.format(vname=vname)
-                    if varname in allvars:
-                        varnames.append(varname)
+                    variname = varipat.format(varname=varname)
+                    if variname in allvars:
+                        varnames.append(variname)
 
             # We need at least one
-            if not ncvars:
+            if not varnames:
                 raise SONATError('No valid variable found in file {ncfile}'.format(
                     **locals()))
 
         else: # provided
 
-            single = isinstance(ncvars, N.ndarray)
+            single = isinstance(varnames, N.ndarray)
             if single:
-                ncvars = [ncvars]
+                varnames = [varnames]
 
             # State variables
-            for vname in ncvars:
-                if vname not in allvars:
-                    raise SONATError('Variable {vname} not found in file {ncfile}'.format(
+            for varname in varnames:
+                if varname not in allvars:
+                    raise SONATError('Variable {varname} not found in file {ncfile}'.format(
                         **locals()))
 
             # Variance of state variables
             varnames = []
-            if varpat:
+            if varipat:
                 notfound = []
-                for vname in ncvars:
-                    varname = varpat.format(vname=vname)
-                    if varname in allvars:
-                        varnames.append(varname)
+                for varname in varnames:
+                    variname = varipat.format(varname=varname)
+                    if variname in allvars:
+                        varnames.append(variname)
                     else:
-                        notfound.append(varname)
+                        notfound.append(variname)
                 if notfound:
                     raise SONATError('Variance variables not found: '+' '.join(notfound))
 
@@ -363,8 +414,8 @@ class Ensemble(Stacker):
         # Read
         kwsel = dict(time=time, level=level, lat=lat, lon=lon)
         data = []
-        for vname in ncvars:
-            data.append(f(vname, **kwsel))
+        for varname in varnames:
+            data.append(f(varname, **kwsel))
         if evname:
             kwargs['ev'] = f('ev', **kwsel)
         if varnames:
@@ -375,6 +426,9 @@ class Ensemble(Stacker):
             data = data[0]
         return cls(data, **kwargs)
 
+    @property
+    def varnames(self):
+        return [getattr(input, 'id', None) for input in self.inputs]
 
     def _ss_diag_(self, diag_name, diag_dict, index=None, format=1, **kwargs):
         """Compute a scipy.stats diagnostic are store it in diags"""
