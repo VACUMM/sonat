@@ -43,7 +43,7 @@ import numpy as N
 import cdms2
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices,
-    kwfilter, numod)
+    kwfilter, numod, GENERIC_VAR_NAMES)
 
 from .__init__ import sonat_warn, SONATError, get_logger
 
@@ -416,3 +416,19 @@ class _XYT_(object):
             return False
         return True
 
+def validate_varnames(varnames):
+    """Check that all variable names are in
+    :attr:`vacumm.data.cf.GENERIC_VAR_NAMES` list
+
+    Suffixes in the ``_<suffix>`` are removed before searching.
+
+    Raise
+    -----
+    :class:`sonat.SONATError` if var name is invalid.
+    """
+    if isinstance(varnames, basestring):
+        varnames = [varnames]
+    for varname in varnames:
+        varname = varnames.split('_')[0]
+        if varname not in GENERIC_VAR_NAMES:
+            raise SONATError('Invalid generic name: '+varname)
