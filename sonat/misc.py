@@ -43,7 +43,7 @@ import numpy as N
 import cdms2
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices,
-    kwfilter, numod, GENERIC_VAR_NAMES)
+    kwfilter, numod, GENERIC_VAR_NAMES, DS)
 
 from .__init__ import sonat_warn, SONATError, get_logger
 
@@ -309,7 +309,7 @@ class NcReader(object):
     """
 
     def __init__(self, ncfile, readertype='generic',  **kwargs):
-
+        self.ncfile = ncfile
         if not isinstance(readertype, basestring):
             self.f = readertype(ncfile,  **kwargs)
             self.type = 'callable'
@@ -321,7 +321,7 @@ class NcReader(object):
             self.f = netcdf4.Dataset(ncfile,  **kwargs)
             self.type = readertype
         else:
-            self.f = DS(readertype, ncfile,  **kwargs)
+            self.f = DS(ncfile, readertype, **kwargs)
             self.type = 'dataset'
 
 
@@ -333,7 +333,7 @@ class NcReader(object):
 
             return self.f[vname][args]
         else:
-            return self.f(*args, **kwargs)
+            return self.f(vname, *args, **kwargs)
 
     def get_variables(self):
         if self.type=='netcdf4' or self.type=='cdms2':
