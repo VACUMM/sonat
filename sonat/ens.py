@@ -151,8 +151,8 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
                 else:
                     vlevel = level # same for all variables
                 vlevels[vname] = vlevel # cache it
-            if vlevel is None:
-                vlevel = None,
+            if not isinstance(vlevel, tuple):
+                vlevel = vlevel,
 
             # Loop on level specs
             for vlev in vlevel:
@@ -169,7 +169,7 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
 
                     # Get var
                     kwvar['time'] = tslice
-                    var = ds(vname, level=vlevel, **kwvar)
+                    var = ds(vname, level=vlev, **kwvar)
 
                     # Interpolate at depths
                     if ((vlev=='3d' or not isinstance(vlev, basestring)) and
@@ -337,13 +337,16 @@ class Ensemble(Stacker):
             exclude=['.*_eof$', 'bounds_.*'],
             include=None, evname='ev', varipat='{varname}_variance',
             lon=None, lat=None, level=None, time=None,
+            readertype='generic',
             **kwargs):
         """Init the class with a netcdf file"""
-        # open
-        f = NcReader(ncfile, readdertype)
+
+        # Open
+        f = NcReader(ncfile, readertype)
         allvars = f.get_variables()
 
-        # List of variables
+        # Get the list of variables
+        varinames = []
         if varnames is None: # guess
 
             # Basic list
@@ -365,16 +368,16 @@ class Ensemble(Stacker):
             include = [re.compile(e, re.I).match for e in include]
             for varname in list(varnames):
 
-                if (exclude and any([e(varname) for e in exclude]) or
+                if ((exclude and any([e(varname) for e in exclude])) or
                         (include and not any([e(varname) for e in include]))):
 
                     varnames.remove(varname) # Remove from state variables
 
-                elif varipat: # ok, now check variance
+                elif varipat: # Ok, now check variance
 
                     variname = varipat.format(varname=varname)
                     if variname in allvars:
-                        varnames.append(variname)
+                        varinames.append(variname)
 
             # We need at least one
             if not varnames:
@@ -394,17 +397,16 @@ class Ensemble(Stacker):
                         **locals()))
 
             # Variance of state variables
-            varnames = []
             if varipat:
-                notfound = []
+#                notfound = []
                 for varname in varnames:
                     variname = varipat.format(varname=varname)
                     if variname in allvars:
-                        varnames.append(variname)
-                    else:
-                        notfound.append(variname)
-                if notfound:
-                    raise SONATError('Variance variables not found: '+' '.join(notfound))
+                        varinames.append(variname)
+#                    else:
+#                        notfound.append(variname)
+#                if notfound:
+#                    raise SONATError('Variance variables not found: '+' '.join(notfound))
 
         # Eigen values
         if evname not in allvars:
@@ -418,8 +420,13 @@ class Ensemble(Stacker):
             data.append(f(varname, **kwsel))
         if evname:
             kwargs['ev'] = f('ev', **kwsel)
-        if varnames:
-            kwargs['variance'] = [f(varname, **kwsel) for varname in varnames]
+        if varinames:
+            kwargs['variance'] = []
+            for variname in varinames:
+                vari = f(variname, **kwsel)
+                if vari is not None:
+                    kwargs['variance'].append(vari)
+            kwargs['variance'] = kwargs['variance'] or None
         f.close()
 
         if single:

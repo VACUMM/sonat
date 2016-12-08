@@ -22,7 +22,7 @@ if os.path.exists(os.path.join(LIBDIR, '__init__.py')):
     sys.path.insert(0, os.path.dirname(LIBDIR))
 from sonat import get_logger
 
-LOGGER = get_logger(level="debug")
+LOGGER = get_logger(level="critical")
 
 
 def create_mv2_gridder_xyzt(nx=8, ny=7, nz=6, nt=5, xmin=-6., xmax=-3, ymin=46,

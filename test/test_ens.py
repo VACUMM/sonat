@@ -26,9 +26,9 @@ def test_ens_load_model_at_regular_dates():
     dtfile = (12, 'day')
 
     # 3D
-    ncvars = ['temp', 'depth']
+    varnames = ['temp', 'depth']
     level = None
-    temp, depth = load_model_at_regular_dates(ncpat, ncvars=ncvars, time=time,
+    temp, depth = load_model_at_regular_dates(ncpat, varnames=varnames, time=time,
         lat=lat, lon=lon, level=level, modeltype='mars', nt=nt, dtfile=dtfile, sort=True)
     assert temp.shape==(nt, 15, 10, 4)
     assert depth.shape==(nt, 15, 10, 4)
@@ -37,9 +37,9 @@ def test_ens_load_model_at_regular_dates():
     assert ctimes[-2] == comptime('2014-1-24 0:0:0.0')
 
     # Surf
-    ncvars = 'temp'
+    varnames = 'temp'
     level = {'temp':'surf'}
-    temp = load_model_at_regular_dates(ncpat, ncvars=ncvars, time=time,
+    temp = load_model_at_regular_dates(ncpat, varnames=varnames, time=time,
         lat=lat, lon=lon, level=level, modeltype='mars', nt=nt, dtfile=dtfile, sort=True)
     assert temp.shape==(nt, 10, 4)
 
@@ -47,7 +47,7 @@ def test_ens_generate_pseudo_ensemble():
 
     # Specs
     ncpat = NCPAT_MANGA
-    ncvars = ['temp', 'sal']
+    varnames = ['temp', 'sal']
     time = ('2014-01-01 13', '2014-01-25 12')
     nrens = 14
     enrich = 1.5
@@ -57,7 +57,7 @@ def test_ens_generate_pseudo_ensemble():
     # Direct
     enrich = 0 # <= 1
     (temp, sal) = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich,
-        time=time, ncvars=ncvars, dtfile=dtfile, logger=LOGGER, anomaly=False)
+        time=time, varnames=varnames, dtfile=dtfile, logger=LOGGER, anomaly=False)
     assert temp.shape[0]==nrens
     assert sal.shape[0]==nrens
     f = cdms2.open(NCFILE_MANGA0)
@@ -68,7 +68,7 @@ def test_ens_generate_pseudo_ensemble():
     # Enrichment
     enrich = 1.5
     ens = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich,
-        ncvars=ncvars, time=time, dtfile=dtfile, logger=LOGGER, getmodes=True)
+        varnames=varnames, time=time, dtfile=dtfile, logger=LOGGER, getmodes=True)
     (temp, sal), modes = ens
     (temp_eof, sal_eof) = modes['eofs']
     ev = modes['eigenvalues']
@@ -121,7 +121,7 @@ def test_ens_ensemble_diags():
 
 
 if __name__=='__main__':
-#    test_ens_load_model_at_regular_dates()
+    test_ens_load_model_at_regular_dates()
     test_ens_generate_pseudo_ensemble()
-#    test_ens_ensemble_init()
+    test_ens_ensemble_init()
     test_ens_ensemble_diags()
