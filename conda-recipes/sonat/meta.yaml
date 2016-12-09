@@ -28,6 +28,8 @@ requirements:
     - vacumm >=3.3.0
 
 test:
+    source_files:
+    - test/*.py
     requires:
     - nose
     commands:
