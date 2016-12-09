@@ -401,6 +401,10 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
     def __getitem__(self, key):
         return self.obsplats[key]
 
+    def __iter__(self):
+        for obs in self.obsplats:
+            yield obs
+
     @property
     def varnames(self):
         vv = []
@@ -521,4 +525,5 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
     def interp_model(self, var):
         """Interpolate model variables to observations positions"""
         return self.unmap([obs.interp_model(var) for obs in self])
+
 

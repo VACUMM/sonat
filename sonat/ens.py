@@ -327,6 +327,7 @@ class Ensemble(Stacker):
         # Init base
         kwargs['nordim'] = False
         Stacker.__init__(self, data, logger=logger, norms=norms, means=means, **kwargs)
+        self.variables = self.inputs
 
         # Add more variables
         self.ev = ev
@@ -436,6 +437,17 @@ class Ensemble(Stacker):
     @property
     def varnames(self):
         return [getattr(input, 'id', None) for input in self.inputs]
+
+    def get_variable(self, varname, depths):
+        """Get a variable knowing its name and depths specifications"""
+        if hasattr(depths, 'depths'):
+            depths = depths.depths
+        if isinstance(depths, basestring):
+            vname = vname + '_' + dephts
+        for var in self.variables:
+            if var.id == varname:
+                return var
+        raise SONATError('Invalid variable name: ' + vname)
 
     def _ss_diag_(self, diag_name, diag_dict, index=None, format=1, **kwargs):
         """Compute a scipy.stats diagnostic are store it in diags"""
