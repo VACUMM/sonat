@@ -30,8 +30,8 @@ def test_fcore_arm():
     spect, U, rho_mu, status = f_arm(ndof, ssamples, dsamples, R)
 
     # True values
-    spect_true = N.loadtxt(os.path.join(THISDIR, 'sangoma_example_arm_output--RM_spectrum'),
-        usecols=[1])
+    spect_true = N.loadtxt(os.path.join(THISDIR,
+        'sangoma_example_arm_output--RM_spectrum'), usecols=[1])
     U_true =  N.array([N.loadtxt(os.path.join(THISDIR,
             'sangoma_example_arm_output--mode{:04d}'.format(i+1)), usecols=[1])
         for i in xrange(dsamples.shape[0])]).T
