@@ -8,7 +8,8 @@ from ._fcore import f_arm
 
 class ARM(_Base_):
     """Interface to the ARM assessment algorithm"""
-    def __init__(self, ens, obsmanager, logger=None, **kwargs):
+    def __init__(self, ens, obsmanager, logger=None, checkvars=True,
+            syncnorms=True, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -26,6 +27,17 @@ class ARM(_Base_):
             raise SONATError(msg)
         self.ens = ens
         self.obsmanager = obsmanager
+
+        # Check variables
+        if checkvars:
+            self.ens.check_variables()
+            self.obsmanager.check_variables()
+
+        # Make sur that ens norms are synced witho obs norms
+        if syncnorms:
+            self.ens.sync_norms(force=False)
+            dnorms = self.ens.get_named_norms()
+            self.obsmanager.set_named_norms(dnorms)
 
         # Dims
         self.nstate, self.nens = self.ens.stacked_data.shape
