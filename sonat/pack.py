@@ -223,9 +223,11 @@ class Packer(_Base_):
     def atts(self):
         if not self.ismv2:
             return
+        atts = {}
         for att in self.input.listattributes() + ['id']:
-            val = getattr(input, att, att)
-            self.atts[att] = val
+            val = getattr(self.input, att)
+            atts[att] = val
+        return atts
 
     @property
     def units(self):
