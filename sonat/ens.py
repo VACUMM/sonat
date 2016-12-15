@@ -319,19 +319,44 @@ def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
 
 
 class Ensemble(Stacker):
-    """Class for exploiting an ensemble"""
+    """Class for exploiting an ensemble
+
+
+    Parameters
+    ----------
+    data: array or list of arrays
+        Input model variable with same first axis
+    ev: 1D array, optional
+        Eigen values from EOF decomposition
+    variance: array or list of arrays
+        Variance of each variable
+    checkmv2: bool, optional
+        Make sure that all variable are MV2 arrays
+    syncnorms: bool, optional
+        Make sur that all variable whose id has the same prefix (string
+        before "_") have the same norm
+    """
 
     def __init__(self, data, ev=None, variance=None, logger=None, norms=None,
-            means=None, **kwargs):
+            means=None, syncnorms=True, checkcdms=True, **kwargs):
 
         # Init base
         kwargs['nordim'] = False
+        for input in ArgList(data).get():
+            if not cdms2.isVariable(input):
+                raise SONATError('Input variable must of type MV2.array')
         Stacker.__init__(self, data, logger=logger, norms=norms, means=means, **kwargs)
         self.variables = self.inputs
+
+        # Synchronise norms
+        self._norm_synced = False
+        if syncnorms:
+            self.sync_norms()
 
         # Add more variables
         self.ev = ev
         self.variance = variance
+
 
     @classmethod
     def from_file(cls, ncfile, varnames=None, ncreader='mars3d',
@@ -438,8 +463,19 @@ class Ensemble(Stacker):
     def varnames(self):
         return [getattr(input, 'id', None) for input in self.inputs]
 
+    def get_prefixed(self, prefix):
+        """Get index of all variables that start with prefix"""
+        prefix = prefix.strip('_')
+        indices = [i for i, varname in enumerate(self.varnames)
+            if varname and varname.split("_")[0].startswith(prefix)]
+
+    def get_prefixes(self):
+        return set([varname.split("_")[0] for varname in self.varnames
+            if varname])
+
+
     def get_variable(self, varname, depths):
-        """Get a variable knowing its name and depths specifications"""
+        """Get a variable knowing its name and the depths specifications"""
         if hasattr(depths, 'depths'):
             depths = depths.depths
         if isinstance(depths, basestring):
@@ -448,6 +484,51 @@ class Ensemble(Stacker):
             if var.id == varname:
                 return var
         raise SONATError('Invalid variable name: ' + vname)
+
+    def sync_norms(self):
+        """Synchronise norms between variables whose id has the same prefix"""
+        # Renorm for each prefix
+        for prefix in self.get_prefixes():
+
+            # Indices
+            indices = self.get_prefixed(prefix)
+
+            # Unified norm
+            psize = sum([self[i].psize for i in indices])
+            norm = N.sqrt(sum([(self[i].psize * self[i].norm**2)
+                for i in indices]) / psize)
+
+            # Set it
+            for i in indices:
+                self[i].set_norm(norm)
+
+        self._norm_synced = True
+
+    def get_named_norms(self, sync=None):
+        """Get the norm of each variable prefix
+
+        Example
+        -------
+        >>> dnorms = ens.get_named_norms(sync=True)
+        >>> temp_norm = dnorms['temp']
+        """
+        # Norms must all be sync by variable prefix
+        if sync is None:
+            sync = not  self._norm_synced
+        if sync:
+            self.sync_norms()
+
+        # Fill norms
+        dnorms = {}
+        for prefix in self.get_prefixes():
+
+            # Indices
+            indices = self.get_prefixed(prefix)
+
+            # Get the norm
+            dnorms[prefix] = self[indices[0]].norm
+
+        return dnorms
 
     def _ss_diag_(self, diag_name, diag_dict, index=None, format=1, **kwargs):
         """Compute a scipy.stats diagnostic are store it in diags"""
