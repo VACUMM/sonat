@@ -45,7 +45,7 @@ from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     MV2_axisConcatenate, transect, create_axis)
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES
-from .misc import xycompress, _Base_, _XYT_
+from .misc import xycompress, _Base_, _XYT_, check_variables
 from .stack import Stacker, _StackerMapIO_
 
 npy = N
@@ -65,7 +65,7 @@ class NcObsPlatform(Stacker, _XYT_):
     """
 
     nc_error_suffix = '_error'
-    nc_flag_name = 'flag'
+    nc_mobility_name = 'mobility'
 
     def __init__(self, ncfile, varnames=None, logger=None, norms=None,
             time=None, lon=None, lat=None, levels=None,
@@ -93,7 +93,7 @@ class NcObsPlatform(Stacker, _XYT_):
 
 
     def load(self, singlevar=False, **kwargs):
-        """Read flag, errors, depth and time in opened netcdf file"""
+        """Read mobility, errors, depth and time in open netcdf file"""
         # Open
         f = cdms2.open(self.ncfile)
 
@@ -201,7 +201,7 @@ class NcObsPlatform(Stacker, _XYT_):
         # - errors
         for vname in self.varnames:
             self.errors[vname] = f(vname + self.nc_error_suffix, **kwread)
-        sample = self.errors[vname]
+        self._sample = sample = self.errors[vname]
         # - lon/lat
         if grid:
             self.lons = sample.getLongitude()[:]
@@ -209,17 +209,17 @@ class NcObsPlatform(Stacker, _XYT_):
         else:
             self.lons = lons
             self.lats = lats
-        # - flag
-        if self.nc_flag_name in f.listvariables():
-            self.flag = f(self.nc_flag_name, **kwread)
-        elif self.rshape=='gridded': # don't move grid for the moment
-            self.flag = 0.
+        # - mobility
+        if self.nc_mobility_name in f.listvariables():
+            self.mobility = f(self.nc_mobility_name, **kwread)
+        elif self.pshape=='gridded': # don't move grid for the moment
+            self.mobility = 0.
         else:
-            sonat_warn('No flag variable found in obs file. '
+            sonat_warn('No mobility variable found in obs file. '
                 'Setting it to 1 everywhere.')
             shape = grid.shape if grid else lons.shape
-            self.flag = MV2.ones(shape, 'i')
-        self.mobile = (N.ma.asarray(self.flag)==1).all()
+            self.mobility = MV2.ones(shape, 'i')
+        self.mobile = (N.ma.asarray(self.mobility)==1).all()
 
         # Compression to remove masked point
         if self.pshape != 'gridded' and mask.any():
@@ -234,32 +234,68 @@ class NcObsPlatform(Stacker, _XYT_):
                     not isinstance(self.depths, basestring)):
                 self.depths = xycompress(valid, self.depths)
 
+        f.close()
+
 
 
     @property
     def ndim(self):
-        return self.flag.ndim
+        return self._sample.ndim
+
+    @property
+    def nsdim(self):
+        return 1 + int(self.pshape=='gridded')
 
     @property
     def shape(self):
-        return self.flag.shape
+        return self._sample.shape
 
     @property
     def grid(self):
-        return self.flag.getGrid()
+        return self._sample.getGrid()
 
     def get_error(vname):
         return self.errors[vname]
 
-    def activate_xy_pert(self, direction, index, mres):
+    def set_named_norms(self, *anorms, **knorms):
+        """Set norms by variable names
+
+        Note
+        ----
+        The :class:`~sonat.pack.Packer` instance of  allvariables that were
+        not normed are returned.
+
+        Example
+        -------
+        >>> obs.set_named_norms(dict(temp=2.), sal=.8)
+        """
+        dnorms = dict(*anorms, **knorms)
+        notnormed = []
+        restacked = False
+        for packer in self:
+            for varname, norm in dnorms.items():
+                if packer.id and packer.id.split('_')[0] == varname:
+                    packer.norm = norm
+                    restack = True
+                    break
+            else:
+                notnormed.append(packer)
+        if restack:
+            self._core_stack_()
+        return notnormed
+
+
+    def activate_xy_pert(self, pert, zonal, index):
         """
 
         Parameters
         ----------
-        direction: string
-            Direction of perturbation in the form {+|-}{x|y}"
-        mgrid: cdms2 grid
-            Model grid
+        pert: float
+            Positive or nagative position perturbation in meters
+        zonal: bool
+            Zonal perturbation? Else meridional.
+        index: int
+            Index of a mobile observation
         """
         if not self.mobile:
             sonat_warn('This platform cannot be moved')
@@ -267,7 +303,7 @@ class NcObsPlatform(Stacker, _XYT_):
 
         if direction:
 
-            # Parse
+            # Parse direction
             direction = str(direction).lower()
             if not RE_PERTDIR_MATCH(direction):
                 raise SONATError("The direction of perturbation argument must"
@@ -276,14 +312,11 @@ class NcObsPlatform(Stacker, _XYT_):
             sign = 1 if direction[0]=='-' else -1
 
             # X and Y perturbation values
-            if not N.isscalar(mres): # grid
-                mres = min(resol(mres, meters=False))
-            base_pert = self.pert * mres * sign
-            if isx:
-                pert = base_pert / N.radians(self.lats).mean()
+            if zonal:
+                lat = self.lats.mean()
+                pert = m2deg(pert, lat)
                 cname = 'lons'
             else:
-                pert = base_pert
                 cname = 'lats'
             coords = getattr(self, cname) # array of coordinates
 
@@ -294,8 +327,6 @@ class NcObsPlatform(Stacker, _XYT_):
             self._orig[cname] = coords.copy()
 
             # Change coordinates in place
-            if coord.ndim==2:
-                index = N.unreavel_index(coords.shape)
             coords[index] += pert
 
         elif self._orig: # back to orig
@@ -311,15 +342,45 @@ class NcObsPlatform(Stacker, _XYT_):
                 getattr(sel, cname)[:] = self._orig[cname]
                 del self._orig[cname]
 
-    @property
-    def xy_pert_indices(self):
+    def get_xy_pert_indices_iter(self):
+        if not self.mobile:
+            return iter([])
+        if not hasattr(self, '_xy_pert_indices'):
+            self._xy_pert_indices = N.where(self.mobility>=1)
+        return iter(self._xy_pert_indices)
+
+    def init_xy_pert_arrays(self):
+        """Get the results for a spatial perturbation sensitivity test
+
+        Return
+        ------
+        array
+            First order zonal derivative
+        array
+            First order meridional derivative
+        array
+            Second order zonal derivative
+        array
+            Second order meridional derivative
+        """
         if not self.mobile:
             sonat_warn('This platform cannot be moved')
-            return N.array([])
-        if hasattr(self, '_xy_pert_indices'):
-            return self.xy_pert_indices
-        self.xy_pert_indices = N.where(self.flag>=1)[0]
-        return self.xy_pert_indices
+            return
+
+        mobile = self.mobility>=1
+        xder1 = xycompress(mobile, self._sample, id='xderiv1',
+            long_name='First order zonal derivative of variance')
+        yder1 = xder1.clone()
+        yder1 = 'xderiv1'
+        yder1.long_name = 'First order meridional derivative of variance'
+        xder2 = xder1.clone()
+        xder2.id = 'xderiv2'
+        xder2.long_name = 'Second order zonal derivative of variance'
+        yder2 = xder2.clone()
+        yder2.id = 'yderiv2'
+        yder2.long_name = 'Second order meridional derivative of variance'
+
+        return xder1, yder1, xder2, yder2
 
 
     def interp_model(self, var):
@@ -369,8 +430,8 @@ class NcObsPlatform(Stacker, _XYT_):
 
         return al.put(out)
 
-    def plot(self):
-        pass
+#    def plot(self):
+#        pass
 
 class ObsManager(_Base_, _StackerMapIO_, _XYT_):
     """Class to manage several observation platform instances"""
@@ -390,10 +451,13 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
             self.obsplats.append(obsplat)
 
         # Stack stacked data
-        self.stacked_data = npy.asfortranarray(
-            npy.concatenate([o.stacked_data for o in self.obsplats], axis=0))
-        self.splits = npy.cumsum([o.stacked_data.shape[0] for o in self.obsplats[:-1]])
+        self._core_stack_()
+        self.splits = npy.cumsum([obs.stacked_data.shape[0]
+            for obs in self.obsplats[:-1]])
 
+    def _core_stack_(self):
+        self.stacked_data = npy.asfortranarray(
+            npy.concatenate([obs.stacked_data for obs in self.obsplats], axis=0))
 
     def __len__(self):
         return len(self.obsplats)
@@ -464,12 +528,54 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
 
         return self._depths
 
+#    def _get_R(self):
+#        if not hasattr(self, '_R'):
+#            self._R = N.asfortranarray(N.diag(self.stacked_data))
+#        return self._R
+
+
+    def set_norms(self, norms):
+        """Change the norms of all abservation plateforms
+
+        Parameters
+        ----------
+        norms: list of list
+
+        Example
+        -------
+        >>> obsmanager.set_norms([[2., 4.], [1., .4, 6]])
+        """
+        norms = self.remap(norms, reshape=True)
+        for obs, norm in zip(self, norms):
+            obs[i].set_norms(norm)
+        self._core_stack_()
+
+    def set_named_norms(self, *anorms, **knorms):
+        """Set norms by variable names
+
+        Note
+        ----
+        The :class:`~sonat.pack.Packer` instance of  allvariables that were
+        not normed is returned.
+
+        Example
+        -------
+        >>> obsmanager.set_named_norms(dict(temp=2.), sal=.8)
+        """
+        dnorms = dict(*anorms, **knorms)
+        notnormed = []
+        for obs in self:
+            notnormed.extend(obs.set_named_norms(dnorms))
+        self._core_stack_()
+        return notnormed
+
     def get_model_specs(self):
         """Get specifications for reading model
 
         Return
         ------
-        dict: with keys
+        dict
+            Keys:
 
             - lon: longitude interval
             - lat: latitude interval

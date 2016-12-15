@@ -17,12 +17,20 @@ def test_obs_ncobsplatform_surf():
     # Load and stack obs
     obs = NcObsPlatform(NCFILE_OBS_SURF, logger=LOGGER, lat=(45, 47.8),
         norms=[0.2, 0.1])
+    stacked = obs.stacked_data.copy()
     assert obs.lons.shape == (3, )
     assert obs.ns == 6
     assert obs.ndim == 1
     assert_allclose(obs.means, [0, 0], atol=1e-7)
     assert obs.depths == 'surf'
-    assert_allclose(obs.stacked_data, [ 2.5,  1.5,  4. ,  1. ,  1.5,  4. ])
+    assert_allclose(stacked, [ 2.5,  1.5,  4. ,  1. ,  1.5,  4. ])
+
+    # Named norms
+    notnormed = obs.set_named_norms(temp=0.1)
+    assert obs.norms == [0.1, 0.1]
+    assert_allclose(obs.stacked_data[:3], 2*stacked[:3])
+    assert_allclose(obs.stacked_data[3:], stacked[3:])
+    obs.set_named_norms(temp=0.2)
 
     # Interpolate model
     f = DS(NCFILE_MANGA0, 'mars', level=obs.depths)
@@ -39,7 +47,7 @@ def test_obs_ncobsplatform_surf():
     osal[:] -= 35.5
     stacked_data = obs.restack([otemp, osal])
     assert stacked_data.shape == (6, 15)
-    asset_allclose(stacked_data[:3,0]*obs.norms[0] + 11.5, otem_true)
+    assert_allclose(stacked_data[:3,0]*obs.norms[0] + 11.5, otem_true)
 
     return obs
 
@@ -53,13 +61,16 @@ def test_obs_obsmanager():
 
     # Setup manager
     manager = ObsManager([obs_surf0, obs_surf1])
-    assert_allclose(manager.stacked_data, [ 1. ,  2.5,  1.5,  4. ,  1.5,  4. ])
+    stacked = manager.stacked_data
+    assert_allclose(stacked, [ 1. ,  2.5,  1.5,  4. ,  1.5,  4. ])
     assert_allclose(manager.lons, [-5.8,  -5.7,  -4.6,  -2.8])
     assert_allclose(manager.lats, [48.1, 47.5, 47.4, 47.3])
     assert manager.varnames == ['temp', 'sal']
     model_specs = manager.get_model_specs()
     assert sorted(model_specs.keys()) == ['depths', 'lat', 'lon', 'varnames']
 #    assert model_specs['depths']['temp']
+    manager.set_named_norms(temp=0.1)
+    assert manager.stacked_data[0] == 2 * stacked[0]
 
     # Interpolate model
     f = DS(NCFILE_MANGA0, 'mars', level=obs_surf0.depths)
