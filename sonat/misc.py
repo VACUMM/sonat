@@ -44,7 +44,7 @@ import cdms2
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices,
     kwfilter, numod, GENERIC_VAR_NAMES, DS, set_atts, format_var,
-    match_known_var)
+    match_known_var, ArgList)
 
 from .__init__ import sonat_warn, SONATError, get_logger
 
@@ -336,6 +336,9 @@ class NcReader(object):
         else:
             return self.f(vname, *args, **kwargs)
 
+    def __getitem__(self, vname):
+        return self.f[vname]
+
     def get_variables(self):
         if self.type=='netcdf4' or self.type=='cdms2':
             return self.variables.keys()
@@ -487,7 +490,7 @@ def check_variables(vv, searchmode='ns', format=True):
     """
     al = ArgList(vv)
     gennames = []
-    for var in val.get():
+    for var in al.get():
 
         # It is MV2.array?
         if not cdms2.isVariable(var):
@@ -498,6 +501,7 @@ def check_variables(vv, searchmode='ns', format=True):
         varname = vns[0]
         suffix = '_'.join(vns[1:])
         if varname in GENERIC_VAR_NAMES:
+            gennames.append(var.id)
             continue
 
         # Do its properties match a known variable?
@@ -505,14 +509,16 @@ def check_variables(vv, searchmode='ns', format=True):
         if not genname:
             raise SONATError('Unkown variable')
         if format:
-            format_var(var, genname)
+            format_var(var, genname, format_axes=False, force=1 if suffix else 2)
 
         # Suffix
         if suffix:
             if format:
                 var.id = var.id + '_' + suffix
             genname = genname + '_' + suffix
+
         gennames.append(genname)
-    al.put(gennames)
+
+    return al.put(gennames)
 
 
