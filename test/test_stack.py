@@ -29,6 +29,7 @@ def test_stack_mv2_with_record():
 
     # Stack
     stacker = Stacker([data0, data1], nordim=False, logger=LOGGER)
+    stacked = stacker.stacked_data
 
     # Unstack
     unstacked0, unstacked1 = stacker.unstack(stacker.stacked_data)
@@ -37,14 +38,23 @@ def test_stack_mv2_with_record():
     # Restack
     restacked = stacker.restack([data0, data1])
 
+    # Renorm and norm back
+    norms = stacker.norms
+    stacker.set_norms([(norm*2) for norm in norms])
+    renormed = stacker.stacked_data.copy()
+    stacker.set_norms(norms)
+    backnormed = stacker.stacked_data.copy()
+
     # Checks
-    assert_allclose(stacker.stacked_data.shape,
+    assert_allclose(stacked.shape,
         ((~data0[0].mask).sum()+(~data1[0].mask).sum(), data0.shape[0]))
     assert_allclose(unstacked0, data0)
     assert_allclose(unstacked1, data1)
     assert_allclose(unstacked0[:nt/2], unstacked0b)
     assert_allclose(unstacked1[:nt/2], unstacked1b)
-    assert_allclose(restacked, stacker.stacked_data)
+    assert_allclose(restacked, stacked)
+    assert_allclose(renormed, stacked/2)
+    assert_allclose(backnormed, stacked)
 
     return stacker
 
@@ -63,6 +73,7 @@ def test_stack_mv2_scattered_without_record_fixed_norm():
     # Stack: fixed norm, no record dim, no anomaly
     stacker = Stacker([data0, data1], norms=[norm0, norm1], nordim=True,
         mean=False, logger=LOGGER)
+    stacked = stacker.stacked_data
 
     # Unstack
     unstacked0, unstacked1 = stacker.unstack(stacker.stacked_data)
@@ -70,14 +81,23 @@ def test_stack_mv2_scattered_without_record_fixed_norm():
     # Restack
     restacked = stacker.restack([data0, data1])
 
+    # Renorm and norm back
+    norms = stacker.norms
+    stacker.set_norms([(norm*2) for norm in norms])
+    renormed = stacker.stacked_data.copy()
+    stacker.set_norms(norms)
+    backnormed = stacker.stacked_data.copy()
+
     # Checks
-    assert_allclose(stacker.stacked_data.shape,
+    assert_allclose(stacked.shape,
         ((~data0.mask).sum()+(~data1.mask).sum(),))
-    assert_allclose(stacker.stacked_data,
+    assert_allclose(stacked,
         N.concatenate((data0.compressed()/norm0, data1.compressed()/norm1)))
     assert_allclose(unstacked0, data0)
     assert_allclose(unstacked1, data1)
-    assert_allclose(restacked, stacker.stacked_data)
+    assert_allclose(restacked, stacked)
+    assert_allclose(renormed, stacked/2)
+    assert_allclose(backnormed, stacked)
 
     return stacker
 

@@ -135,8 +135,7 @@ class Stacker(_Base_, _StackerMapIO_):
                     'be {self.nr} (not {packer.nr})').format(**locals()))
 
         # Merge
-        self.stacked_data = npy.asfortranarray(
-            npy.concatenate([p.packed_data for p in self.packers], axis=0))
+        self._core_stack_()
         self.splits = npy.cumsum([p.packed_data.shape[0] for p in self.packers[:-1]])
         self.ns = self.stacked_data.shape[0]
         self.nrv = (self.stacked_data!=default_missing_value).any(axis=0).sum()
@@ -155,34 +154,24 @@ class Stacker(_Base_, _StackerMapIO_):
     def data(self):
         return self.unmap(self.datas)
 
-#    def has_cdat(self, idata=None):
-#        """Check if there were at least one input array of CDAT type (:mod:`MV2`)
-#
-#        :Sea also: :meth:`Data.has_cdat`
-#        """
-#        # Single var
-#        if idata is not None:
-#            return self[idata].has_cdat()
-#
-#        # At least one
-#        for d in self.packers:
-#            if d.has_cdat(): return True
-#        return False
-
-    def get_record_axis(self, nr=None, offset=0, idata=0):
-        """Get the record axis of an input variable
-
-        If CDAT is not used, length of axis is returned.
-        """
-        return self[idata].get_record_axis(nr, offset)
-
-
     def get_norms(self, idata=None):
         """Get :attr:`norms` for one or all input variables"""
         if idata is None:
             return [p.norm for p in self.packers]
         return self[idata].norm
-    norms = property(get_norms, doc="Normalization factors")
+
+    def set_norms(self, norms):
+        """Get :attr:`norms` for all variables"""
+        norms = self.remap(norms, reshape=True)
+        for pack, norm in zip(self, norms):
+            pack.set_norm(norm)
+        self._core_stack_()
+
+    norms = property(fget=get_norms, fset=set_norms, doc="Normalisation factors")
+
+    @property
+    def norm(self):
+        self.unmap(self.norms)
 
     def get_means(self, idata=None):
         """Get :attr:`means` for one or all input variables"""
@@ -192,12 +181,12 @@ class Stacker(_Base_, _StackerMapIO_):
     means = property(get_means, doc="Record averages")
 
     @property
-    def norm(self):
-        self.unmap(self.norms)
-
-    @property
     def mean(self):
         self.unmap(self.means)
+
+    def _core_stack_(self):
+        self.stacked_data = npy.asfortranarray(
+            npy.concatenate([p.packed_data for p in self.packers], axis=0))
 
     def restack(self, input, scale=True):
         """Stack new variables as a fortran array
@@ -283,3 +272,26 @@ class Stacker(_Base_, _StackerMapIO_):
         for i, d in enumerate(data):
             arrs[i][:] = d
         return arrs
+
+#    def has_cdat(self, idata=None):
+#        """Check if there were at least one input array of CDAT type (:mod:`MV2`)
+#
+#        :Sea also: :meth:`Data.has_cdat`
+#        """
+#        # Single var
+#        if idata is not None:
+#            return self[idata].has_cdat()
+#
+#        # At least one
+#        for d in self.packers:
+#            if d.has_cdat(): return True
+#        return False
+
+    def get_record_axis(self, nr=None, offset=0, idata=0):
+        """Get the record axis of an input variable
+
+        If CDAT is not used, length of axis is returned.
+        """
+        return self[idata].get_record_axis(nr, offset)
+
+

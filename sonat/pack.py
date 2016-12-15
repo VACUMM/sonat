@@ -126,7 +126,7 @@ class Packer(_Base_):
         if self.ismv2: # cdms -> ids
 
             self.saxes = input.getAxisList()[self.nrdim:]
-            self.id = input.id
+            self.id = self.varname = input.id
             self.atts =  {}
             for att in input.listattributes() + ['id']:
                 val = getattr(input, att, att)
@@ -138,7 +138,7 @@ class Packer(_Base_):
         else: # numpy/ma -> length
 
             self.saxes = data.shape[self.nrdim:]
-            self.id = None
+            self.id = self.varname = None
             self.atts = None
             self.grid = None
 
