@@ -43,7 +43,8 @@ import numpy as N
 import cdms2
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices,
-    kwfilter, numod, GENERIC_VAR_NAMES, DS)
+    kwfilter, numod, GENERIC_VAR_NAMES, DS, set_atts, format_var,
+    match_known_var)
 
 from .__init__ import sonat_warn, SONATError, get_logger
 
@@ -346,20 +347,45 @@ class NcReader(object):
         self.f.close()
 
 
-def xycompress(valid, vari):
+def xycompress(valid, vari, **atts):
     """Keep valid spatial points"""
+
+    # Slice for extra dimensions
+    pslice = (slice(None), ) * (valid.ndim-2)
+
     if cdms2.isVariable(vari):
-        # Init
+
         nv = valid.sum()
-        ax = vari.getAxis(-1)
-        varo = vari[:nv].clone()
 
-        # Fill
-        varo.getAxis(-1)[:] = N.compress(valid, ax[:])
-        varo[:] = N.compress(valid, vari.asma(), axis=-1)
 
-    else:
-        varo = numod(vari).compress(valid, vari, axis=-1)
+        if var.getGrid() is not None and len(var.getGrid().shape)==2:
+
+            # Init
+            assert valid.ndim == 2, 'Valid must be a 2D array'
+            varo = vari[pslice + (0, slice(0, nv))].clone()
+            ax = create_axis((nv, ), id='point', long_name='Spatial points')
+            varo.setAxis(-1, ax)
+            varo.setGrid(None)
+
+            # Fill
+            varo[:] = vari.asma()[pslice, valid]
+
+        else:
+
+            # Init
+            ax = vari.getAxis(-1)
+            varo = vari[pslice + (slice(0, nv), )].clone()
+
+            # Fill
+            varo.getAxis(-1)[:] = N.compress(valid, ax[:])
+            varo[:] = N.compress(valid, vari.asma(), axis=-1)
+
+        # Attributes
+        set_atts(varo, **atts)
+
+    else: # numpy or ma
+
+        varo = vari.asma()[pslice, valid]
 
     return varo
 
@@ -429,6 +455,37 @@ def validate_varnames(varnames):
     if isinstance(varnames, basestring):
         varnames = [varnames]
     for varname in varnames:
-        varname = varnames.split('_')[0]
+        varname = varname.split('_')[0]
         if varname not in GENERIC_VAR_NAMES:
             raise SONATError('Invalid generic name: '+varname)
+
+def check_variables(vv, searchmode='ns'):
+    """Check that all variables are of MV2.array type and is well known
+    of the :mod:`vacumm.data.cf` module
+
+    Variable are first checked on the first part of their id, before a "_".
+    If the prefix is not known, their are checked is their are known
+    with the :func:`vacumm.data.cf.match_known_var`. In this latter case,
+    the id of the variable is changed in case of success.
+    """
+    if not isinstance(vv, list):
+        vv = [vv]
+    for var in vv:
+
+        # It is MV2.array?
+        if not cdms2.isVariable(var):
+            raise SONATError('Variable is not of MV2.array type')
+
+        # Is the name generic?
+        varname = var.id.split('_')[0]
+        if varname in GENERIC_VAR_NAMES:
+            continue
+
+        # Do its properties match a known variable?
+        genname = match_known_var(var, searchmode=searchmode)
+        if not genname:
+            raise SONATError('Unkown variable')
+        format_var(var, genname)
+
+
+
