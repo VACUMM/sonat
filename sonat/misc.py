@@ -358,7 +358,7 @@ def xycompress(valid, vari, **atts):
         nv = valid.sum()
 
 
-        if var.getGrid() is not None and len(var.getGrid().shape)==2:
+        if vari.getGrid() is not None and len(vari.getGrid().shape)==2:
 
             # Init
             assert valid.ndim == 2, 'Valid must be a 2D array'
@@ -385,7 +385,7 @@ def xycompress(valid, vari, **atts):
 
     else: # numpy or ma
 
-        varo = vari.asma()[pslice, valid]
+        varo = vari[pslice + (valid, )]
 
     return varo
 
