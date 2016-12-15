@@ -24,13 +24,21 @@ def test_pack_mv2_curved_with_record():
 
     # Pack
     packer = Packer(data, nordim=False, logger=LOGGER)
+    packed = packer.packed_data.copy()
 
     # Unpacked
-    unpacked = packer.unpack(packer.packed_data)
-    unpacked2 = packer.unpack(packer.packed_data[:, :nt/2])
+    unpacked = packer.unpack(packed)
+    unpacked2 = packer.unpack(packed[:, :nt/2])
 
     # Repack
     repacked = packer.repack(data)
+
+    # Renorm and norm back
+    norm = packer.norm
+    packer.set_norm(norm*2)
+    renormed = packer.packed_data.copy()
+    packer.set_norm(norm)
+    backnormed = packer.packed_data.copy()
 
     # Checks
     svalid = ~data[0].mask
@@ -43,11 +51,13 @@ def test_pack_mv2_curved_with_record():
     assert_allclose(packer.sshape, data.shape[1:])
     assert_allclose(packer.mean, dmean)
     assert_allclose(packer.norm, (data.asma()-dmean).std())
-    assert_allclose(packer.packed_data.shape, (svalid.sum(), data.shape[0]))
-    assert_allclose(packer.packed_data, cdata.T)
+    assert_allclose(packed.shape, (svalid.sum(), data.shape[0]))
+    assert_allclose(packed, cdata.T)
     assert_allclose(unpacked, data)
     assert_allclose(unpacked2, unpacked[:nt/2])
     assert_allclose(repacked, packer.packed_data)
+    assert_allclose(renormed, packed/2)
+    assert_allclose(backnormed, packed)
 
     return packer
 
@@ -61,12 +71,20 @@ def test_pack_mv2_scattered_without_record_fixed_norm():
 
     # Pack
     packer = Packer(data, nordim=True, logger=LOGGER, mean=False, norm=norm)
+    packed = packer.packed_data.copy()
 
     # Unpacked
     unpacked = packer.unpack(packer.packed_data)
 
     # Repack
     repacked = packer.repack(data)
+
+    # Renorm and norm back
+    norm = packer.norm
+    packer.set_norm(norm*2)
+    renormed = packer.packed_data.copy()
+    packer.set_norm(norm)
+    backnormed = packer.packed_data.copy()
 
     # Checks
     svalid = ~data.mask
@@ -77,10 +95,12 @@ def test_pack_mv2_scattered_without_record_fixed_norm():
     assert_allclose(packer.sshape, data.shape)
     assert_allclose(packer.norm, data.asma().std()*2)
     assert_allclose(packer.mean, 0)
-    assert_allclose(packer.packed_data.shape, svalid.sum())
-    assert_allclose(packer.packed_data, cdata)
+    assert_allclose(packed.shape, svalid.sum())
+    assert_allclose(packed, cdata)
     assert_allclose(unpacked, data)
     assert_allclose(repacked, packer.packed_data)
+    assert_allclose(renormed, packed/2)
+    assert_allclose(backnormed, packed)
 
     return packer
 

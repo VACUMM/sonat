@@ -172,7 +172,7 @@ class Packer(_Base_):
         self.masked = not self.good.any()
         if self.masked:
             self.logger.warning('all your data are masked')
-            self.norm = 1.
+            self._norm = 1.
             self.mean = 0
         else:
             # - mean
@@ -190,7 +190,7 @@ class Packer(_Base_):
                     norm = abs(norm)*(data-self.mean).std()
             else:
                 norm = 1.
-            self.norm = norm
+            self._norm = norm
             # - apply
             self.scale(data)
 
@@ -199,6 +199,7 @@ class Packer(_Base_):
 
         # Pack
         self.packed_data = self.core_pack(data_num, force2d=False)
+        self.psize = self.packed_data.size
 
     @property
     def withrdim(self):
@@ -219,6 +220,16 @@ class Packer(_Base_):
     @property
     def isnumpy(self):
         return  self.array_type=='numpy'
+
+    def set_norm(self, norm):
+        self.packed_data *=  self._norm / norm
+        self._norm = norm
+
+    def get_norm(self):
+        return self._norm
+
+    norm = property(fget=get_norm, fset=set_norm, doc="Normalisation factor")
+
 
     def core_pack(self, data_num, force2d=False):
         """Compress data along space if needed
@@ -274,7 +285,7 @@ class Packer(_Base_):
         if mean is not False:
             data[:] -= self.mean if mean is True or mean is None else mean
         if norm is not False:
-            data[:] /= self.norm if norm is True or norm is None else norm
+            data[:] /= self._norm if norm is True or norm is None else norm
         return data
 
     def rescale(self, data, copy=False, mean=None, norm=None, mode=None):
@@ -294,7 +305,7 @@ class Packer(_Base_):
         if copy:
             data = data.clone() if cdms2.isVariable(data) else data.copy()
         if norm is not False:
-            data[:] *= self.norm if norm is True or norm is None else norm
+            data[:] *= self._norm if norm is True or norm is None else norm
         if mean is not False:
             data[:] += self.mean if mean is True or mean is None else mean
         return data
@@ -484,7 +495,8 @@ class Packer(_Base_):
         return data
 
 
-    def unpack(self, pdata, rescale=True, format=1, firstdims=None, id=None):
+    def unpack(self, pdata, rescale=True, format=1, firstdims=None, id=None,
+            atts=None):
         """Unpack data along space, reshape, and optionally unnormalize and remean.
 
         Input is sub_space:other, output is other:split_space.
@@ -507,7 +519,7 @@ class Packer(_Base_):
         pdata = npy.ascontiguousarray(pdata.T).copy()
         # - create variable
         data = self.create_array(firstdims=firstdims, format=format,
-            pshape=pdata.shape, id=id)
+            pshape=pdata.shape, id=id, atts=atts)
         # - check packed data shape
         firstdims = data.shape[:len(data.shape)-self.nsdim]
         if len(firstdims) > 1:
