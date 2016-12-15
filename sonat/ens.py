@@ -38,12 +38,12 @@ Ensembles
 import re
 from collections import OrderedDict
 import scipy.stats as SS
-from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList,
+from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
     MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var)
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
-    validate_varnames, _CheckVariables_)
+    validate_varnames, _CheckVariables_, check_variables)
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
 
@@ -448,7 +448,10 @@ class Ensemble(Stacker, _CheckVariables_):
             var = f(varname, **kwsel)
             data.append(var)
             if checkvars:
-                format_var(var, genname, format_axes=False)
+                vns = gennames[i].split('_')
+                suffix = '_'.join(vns[1:])
+                format_var(var, vns[0], format_axes=False, force=1 if suffix else 2)
+                var.id = var.id + '_' + suffix
         if evname:
             kwargs['ev'] = f('ev', **kwsel)
         if varinames:
