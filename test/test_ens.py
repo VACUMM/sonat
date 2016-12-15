@@ -101,10 +101,10 @@ def test_ens_ensemble_init():
     f.close()
 
     # Init from variables
-    ensv = Ensemble([temp, sal])
+    ensv = Ensemble([temp, sal], checkvars=True)
 
     # Init from file
-    ensf = Ensemble.from_file(ncfile)
+    ensf = Ensemble.from_file(ncfile, checkvars=True)
 
     # Checks
     assert_allclose(ensv.stacked_data, ensf.stacked_data)

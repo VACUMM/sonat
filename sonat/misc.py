@@ -442,6 +442,18 @@ class _XYT_(object):
             return False
         return True
 
+class _CheckVariables_(object):
+
+    def check_variables(self, searchmode='ns'):
+        """Check that all input variables have known prorties
+
+        See also
+        --------
+        :func:`sonat.misc.check_variables`
+        """
+        check_variables([pack.input for pack in self], searchmode=searchmode)
+
+
 def validate_varnames(varnames):
     """Check that all variable names are in
     :attr:`vacumm.data.cf.GENERIC_VAR_NAMES` list
@@ -459,18 +471,23 @@ def validate_varnames(varnames):
         if varname not in GENERIC_VAR_NAMES:
             raise SONATError('Invalid generic name: '+varname)
 
-def check_variables(vv, searchmode='ns'):
+def check_variables(vv, searchmode='ns', format=True):
     """Check that all variables are of MV2.array type and is well known
     of the :mod:`vacumm.data.cf` module
 
     Variable are first checked on the first part of their id, before a "_".
     If the prefix is not known, their are checked is their are known
     with the :func:`vacumm.data.cf.match_known_var`. In this latter case,
-    the id of the variable is changed in case of success.
+    the id of the variable is changed in case of success if format is True.
+
+    Return
+    ------
+    list
+        The corresponding list of generic names
     """
-    if not isinstance(vv, list):
-        vv = [vv]
-    for var in vv:
+    al = ArgList(vv)
+    gennames = []
+    for var in val.get():
 
         # It is MV2.array?
         if not cdms2.isVariable(var):
@@ -485,7 +502,9 @@ def check_variables(vv, searchmode='ns'):
         genname = match_known_var(var, searchmode=searchmode)
         if not genname:
             raise SONATError('Unkown variable')
-        format_var(var, genname)
-
+        if format:
+            format_var(var, genname)
+        gennames.append(genname)
+    al.put(gennames)
 
 

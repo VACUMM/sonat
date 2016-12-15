@@ -43,7 +43,7 @@ from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList,
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
-    validate_varnames)
+    validate_varnames, _CheckVariables_)
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
 
@@ -318,7 +318,7 @@ def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
     return ens, dict(eofs=eofs, eigenvalues=svals, variance=variance)
 
 
-class Ensemble(Stacker):
+class Ensemble(Stacker, _CheckVariables_):
     """Class for exploiting an ensemble
 
 
@@ -330,21 +330,18 @@ class Ensemble(Stacker):
         Eigen values from EOF decomposition
     variance: array or list of arrays
         Variance of each variable
-    checkmv2: bool, optional
-        Make sure that all variable are MV2 arrays
     syncnorms: bool, optional
         Make sur that all variable whose id has the same prefix (string
         before "_") have the same norm
     """
 
     def __init__(self, data, ev=None, variance=None, logger=None, norms=None,
-            means=None, syncnorms=True, checkcdms=True, **kwargs):
+            means=None, syncnorms=True, checkvars=False, **kwargs):
 
         # Init base
         kwargs['nordim'] = False
-        for input in ArgList(data).get():
-            if not cdms2.isVariable(input):
-                raise SONATError('Input variable must of type MV2.array')
+        if checkvars:
+            check_variables(ArgList(data).get())
         Stacker.__init__(self, data, logger=logger, norms=norms, means=means, **kwargs)
         self.variables = self.inputs
 
@@ -363,7 +360,7 @@ class Ensemble(Stacker):
             exclude=['.*_eof$', 'bounds_.*'],
             include=None, evname='ev', varipat='{varname}_variance',
             lon=None, lat=None, level=None, time=None,
-            readertype='generic',
+            readertype='generic', checkvars=False,
             **kwargs):
         """Init the class with a netcdf file"""
 
@@ -434,6 +431,11 @@ class Ensemble(Stacker):
 #                if notfound:
 #                    raise SONATError('Variance variables not found: '+' '.join(notfound))
 
+        # Check that variables are well known
+        if checkvars:
+            gennames = check_variables([f[varname] for varname in varnames], format=False)
+        kwargs['checkvars'] = False
+
         # Eigen values
         if evname not in allvars:
             evname = None
@@ -442,8 +444,11 @@ class Ensemble(Stacker):
         # Read
         kwsel = dict(time=time, level=level, lat=lat, lon=lon)
         data = []
-        for varname in varnames:
-            data.append(f(varname, **kwsel))
+        for i, varname in enumerate(varnames):
+            var = f(varname, **kwsel)
+            data.append(var)
+            if checkvars:
+                format_var(var, genname, format_axes=False)
         if evname:
             kwargs['ev'] = f('ev', **kwsel)
         if varinames:
@@ -466,7 +471,7 @@ class Ensemble(Stacker):
     def get_prefixed(self, prefix):
         """Get index of all variables that start with prefix"""
         prefix = prefix.strip('_')
-        indices = [i for i, varname in enumerate(self.varnames)
+        return [i for i, varname in enumerate(self.varnames)
             if varname and varname.split("_")[0].startswith(prefix)]
 
     def get_prefixes(self):
@@ -485,8 +490,11 @@ class Ensemble(Stacker):
                 return var
         raise SONATError('Invalid variable name: ' + vname)
 
-    def sync_norms(self):
+    def sync_norms(self, force=True):
         """Synchronise norms between variables whose id has the same prefix"""
+        if not force and self._norm_synced:
+            return False
+
         # Renorm for each prefix
         for prefix in self.get_prefixes():
 
@@ -503,6 +511,7 @@ class Ensemble(Stacker):
                 self[i].set_norm(norm)
 
         self._norm_synced = True
+        return True
 
     def get_named_norms(self, sync=None):
         """Get the norm of each variable prefix

@@ -52,7 +52,7 @@ npy = N
 
 RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
 
-class NcObsPlatform(Stacker, _XYT_):
+class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
     """Generic observation platform class
 
 
@@ -253,6 +253,15 @@ class NcObsPlatform(Stacker, _XYT_):
     @property
     def grid(self):
         return self._sample.getGrid()
+
+    def check_variables(self, searchmode='ns'):
+        """Check that all input variables have known prorties
+
+        See also
+        --------
+        :func:`sonat.misc.check_variables`
+        """
+        check_variables(*[pack.input for pack in self], searchmode=searchmode)
 
     def get_error(vname):
         return self.errors[vname]
@@ -475,6 +484,16 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
         for obs in self:
             vv.extend(obs.varnames)
         return list(set(vv))
+
+    def check_variables(self, searchmode='ns'):
+        """Check that all input variables have known prorties
+
+        See also
+        --------
+        :func:`sonat.misc.check_variables`
+        """
+        for obs in self:
+            obs.check_variables(searchmode)
 
     @property
     def lons(self):
