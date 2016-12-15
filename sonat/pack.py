@@ -122,24 +122,15 @@ class Packer(_Base_):
             self.rsize = 0
         self.nr = self.rsize
 
-        # - others axes and attributes
+        # - others axes
         if self.ismv2: # cdms -> ids
 
             self.saxes = input.getAxisList()[self.nrdim:]
-            self.id = self.varname = input.id
-            self.atts =  {}
-            for att in input.listattributes() + ['id']:
-                val = getattr(input, att, att)
-                self.atts[att] = val
-                if att in ['units', 'long_name', 'id']:
-                    setattr(self, att, val)
             self.grid = input.getGrid()
 
         else: # numpy/ma -> length
 
             self.saxes = data.shape[self.nrdim:]
-            self.id = self.varname = None
-            self.atts = None
             self.grid = None
 
         # - missing value
@@ -220,6 +211,33 @@ class Packer(_Base_):
     @property
     def isnumpy(self):
         return  self.array_type=='numpy'
+
+    @property
+    def id(self):
+        if self.ismv2:
+            return self.input.id
+
+    varname = id
+
+    @property
+    def atts(self):
+        if not self.ismv2:
+            return
+        for att in self.input.listattributes() + ['id']:
+            val = getattr(input, att, att)
+            self.atts[att] = val
+
+    @property
+    def units(self):
+        if not self.ismv2:
+            return
+        return self.atts.get('units', None)
+
+    @property
+    def long_name(self):
+        if not self.ismv2:
+            return
+        return self.atts.get('long_name', None)
 
     def set_norm(self, norm):
         self.packed_data *=  self._norm / norm
@@ -475,10 +493,11 @@ class Packer(_Base_):
         # Id
         if atts is None:
             atts = self.atts.copy()
+            atts['id'] = self.id
         else:
             mode = 2
         if id is True:
-            id = atts['id']
+            id = self.id
         elif isinstance(id, basestring):
             id = id.format(**self.atts)
         else:
