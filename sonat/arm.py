@@ -27,6 +27,10 @@ class ARM(_Base_):
         self.ens = ens
         self.obsmanager = obsmanager
 
+        # Dims
+        self.nstate, self.nens = self.ens.stacked_data.shape
+        self.nobs = self.ens.stacked_data.shape[0]
+
     def interp_ens_on_obs(self):
         """Interpolate the variables of an :class:`~sonat.ens.Ensemble` onto
         observation locations
@@ -51,13 +55,31 @@ class ARM(_Base_):
 
         # Observation errors
         err = self.obsmanager.stacked_data
-        R = N.asfortranarray(N.trace(err))
+        R = N.asfortranarray(N.diag(err))
 
         return dict(Af=Af, Yf=Yf, R=R)
 
 
-    def analyse(self):
-        """Perform the ARM analysis"""
+    def analyse(self, getraw=False):
+        """Perform the ARM analysis
+
+        Parameters
+        ----------
+        getraw: bool
+            Also return raw array modes and array mode representers from ARM
+
+        Return
+        ------
+        dict
+            Keys are:
+
+            - spect: spectrum
+            - arm: array modes
+            - rep: array mode representers
+            - raw_arm: raw version of arm (optional)
+            - raw_rep: raw version of rep (optional)
+
+        """
 
         # Get matrices
         mats = self.get_matrices()
@@ -67,5 +89,22 @@ class ARM(_Base_):
 
         # Call ARM
         ndof = min(dsamples.shape)
-        spect, U, rho_mu, status = f_arm(ndof, Af, Yf, R)
+        spect, arm, rep, status = f_arm(ndof, Af, Yf, R)
 
+        # Untack/pack/format to output
+        out = {}
+        # - spectrum
+        out['spect'] = MV2.array(spect, id='arm_spectrum', attributes=dict(
+            long_name='ARM spectrum'))
+        # - array modes
+        out['arm'] = self.obsmanager.unstack(arm, rescale=False, format=1,
+            id='arm_{id}')
+        if getraw:
+            out['raw_arm'] = arm
+        # - representers
+        out['rep'] = self.ensemble.unstack(rep, rescale=False, format=1,
+            id='arm_rep_{id}')
+        if getraw:
+            out['raw_rep'] = rep
+
+        return out
