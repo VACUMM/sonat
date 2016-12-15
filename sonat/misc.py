@@ -494,7 +494,9 @@ def check_variables(vv, searchmode='ns', format=True):
             raise SONATError('Variable is not of MV2.array type')
 
         # Is the name generic?
-        varname = var.id.split('_')[0]
+        vns = var.id.split('_')
+        varname = vns[0]
+        suffix = '_'.join(vns[1:])
         if varname in GENERIC_VAR_NAMES:
             continue
 
@@ -504,6 +506,12 @@ def check_variables(vv, searchmode='ns', format=True):
             raise SONATError('Unkown variable')
         if format:
             format_var(var, genname)
+
+        # Suffix
+        if suffix:
+            if format:
+                var.id = var.id + '_' + suffix
+            genname = genname + '_' + suffix
         gennames.append(genname)
     al.put(gennames)
 
