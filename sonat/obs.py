@@ -45,7 +45,7 @@ from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     MV2_axisConcatenate, transect, create_axis)
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES
-from .misc import xycompress, _Base_, _XYT_, check_variables
+from .misc import xycompress, _Base_, _XYT_, check_variables, _CheckVariables_
 from .stack import Stacker, _StackerMapIO_
 
 npy = N
@@ -186,7 +186,7 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
                         times = create_time(times[:], times.units)[:]
                         mask |= times < reltime(self.time[0], times.units)
                         mask |= times > reltime(self.time[1], times.units)
-                self.pshape = self.pshape + 't'
+                    self.pshape = self.pshape + 't'
 
             # Check mask
             if mask.all():
@@ -236,7 +236,17 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
 
         f.close()
 
+    def get_suffixed_varname(self, vname):
+        """Get the name of var optionally with a depth suffix"""
+        if hasattr(self, 'id'):
+            vname = vname.id
+        if isinstance(self.depths, basestring):
+            vname = vname + '_' + self.depths
+        return vname
 
+    @property
+    def suffixed_varnames(self):
+        return [self.get_suffixed_varname(vname) for vname in self.varnames]
 
     @property
     def ndim(self):
@@ -255,13 +265,13 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
         return self._sample.getGrid()
 
     def check_variables(self, searchmode='ns'):
-        """Check that all input variables have known prorties
+        """Check that all input variables have known properties
 
         See also
         --------
         :func:`sonat.misc.check_variables`
         """
-        check_variables(*[pack.input for pack in self], searchmode=searchmode)
+        check_variables([pack.input for pack in self], searchmode=searchmode)
 
     def get_error(vname):
         return self.errors[vname]
@@ -391,8 +401,7 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
 
         return xder1, yder1, xder2, yder2
 
-
-    def interp_model(self, var):
+    def interp_model(self, var, checkid=True):
         """Interpolate model variables to observations positions"""
         # List of variables
         al = ArgList(var)
@@ -402,7 +411,7 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
         for i, var in enumerate(al.get()):
 
             # Check id
-            if var.id not in self.varnames:
+            if checkid and var.id not in self.suffixed_varnames:
                 sonat_warn('Variable id "{}" not found on this observation platform'.format(
                     var.id))
 
@@ -537,9 +546,10 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
                     vdepths = self._depths.setdefault(varname, [])
                     if depths is not None and depths not in vdepths:
                         vdepths.append(depths)
+#                    print obs, varname, self._depths
 
             # Finalisation for each variable
-            if varname in self.varnames:
+            for varname in self.varnames:
                 if not self._depths[varname]:
                     self._depths[varname] = None
                 else:
