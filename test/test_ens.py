@@ -42,6 +42,7 @@ def test_ens_load_model_at_regular_dates():
     temp = load_model_at_regular_dates(ncpat, varnames=varnames, time=time,
         lat=lat, lon=lon, level=level, modeltype='mars', nt=nt, dtfile=dtfile, sort=True)
     assert temp.shape==(nt, 10, 4)
+    assert temp.id == 'temp_surf'
 
 def test_ens_generate_pseudo_ensemble():
 
@@ -67,7 +68,7 @@ def test_ens_generate_pseudo_ensemble():
 
     # Enrichment
     enrich = 1.5
-    ens = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich,
+    ens = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich, level='surf',
         varnames=varnames, time=time, dtfile=dtfile, logger=LOGGER, getmodes=True)
     (temp, sal), modes = ens
     (temp_eof, sal_eof) = modes['eofs']
@@ -96,8 +97,8 @@ def test_ens_ensemble_init():
     # Load file from previous routine
     ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
     f = cdms2.open(ncfile)
-    temp = f('temp')
-    sal = f('sal')
+    temp = f('temp_surf')
+    sal = f('sal_surf')
     f.close()
 
     # Init from variables
@@ -107,6 +108,8 @@ def test_ens_ensemble_init():
     ensf = Ensemble.from_file(ncfile, checkvars=True)
 
     # Checks
+    assert [v.id for v in ensv.variables] == ['temp_surf', 'sal_surf']
+    assert [v.id for v in ensf.variables] == ['temp_surf', 'sal_surf']
     assert_allclose(ensv.stacked_data, ensf.stacked_data)
 
 def test_ens_ensemble_diags():
