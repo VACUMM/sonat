@@ -49,8 +49,8 @@ from ._fcore import f_eofcovar, f_sampleens
 
 
 def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=None,
-       level=None,  modeltype='mars', nt=50, dtfile=None, sort=True, asdict=False,
-       logger=None, depths=None, **kwargs):
+       level=None, depths=None,  modeltype='mars', nt=50, dtfile=None, sort=True, asdict=False,
+       logger=None, **kwargs):
     """Read model output at nearest unique dates with optional linear interpolation
 
 
@@ -60,14 +60,31 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
     varnames: string, strings
         Generic var names. If None, all variables that are known from the
         :mod:`vacumm.data.cf` module are used.
-    depths: string, list of floats, array, tuple of them, dict
+    depths: string, None, list of floats, array, tuple of them, dict
+        Here are some possible values:
+
+        - "surf" or "bottom": self explenatory
+        - None or "3d": No slice, so get all levels with no interpolation.
+        - A list or array of negative depths: get all levels and
+          interpolate at these depths.
+
+        Variables sliced with "surf" and "bottom" are returned with
+        an id suffixed with "_surf" or "_bottom".
+        You can speficy different slicing  using a tuple
+        of depths specifications.
+        You can specilise slicings a variable using a dictionary with
+        the key as the variable name.
+
+
 
     Examples
     --------
-    >>> mdict = load_model_at_regular_dates('myfile.nc', depths='surf')
-    >>> mdict = load_model_at_regular_dates('myfile.nc', depths=('surf', 'bottom')
+    >>> mdict = load_model_at_regular_dates('myfile.nc', level='surf')
+    >>> mdict = load_model_at_regular_dates('myfile.nc', level=('surf', 'bottom')
     >>> mdict = load_model_at_regular_dates('myfile.nc', varnames=['temp', 'sal'],
-        depths={'temp':('surf', 'bottom'), 'sal':[-50, -10]})
+        level={'temp':('surf', 'bottom'), 'sal':[-50, -10]})
+    >>> mdict = load_model_at_regular_dates('myfile.nc', varnames=['temp', 'sal'],
+        level={'temp':('surf', '3d'), 'sal':None}, depths=[-50, -10])
 
     """
     # Logger
@@ -143,6 +160,7 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
         for vname in list(varnames):
 
             # Level selector
+            # - variable level
             if vname in vlevels: # cached
                 vlevel = vlevels[vname]
             else:
@@ -151,38 +169,63 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
                 else:
                     vlevel = level # same for all variables
                 vlevels[vname] = vlevel # cache it
+            # - as tuple
             if not isinstance(vlevel, tuple):
                 vlevel = vlevel,
 
             # Loop on level specs
             for vlev in vlevel:
 
-                # Output vname
-                if isinstance(vlev, basestring) and not vlev=='3d':
+                # Output vname and vlev check
+                if not isinstance(vlev, basestring):
+                     vnameo = vname
+                elif vlev not in ('surf', "bottom", "3d"):
+                    raise SONATError('Depth string must one of '
+                        'surf, bottom, 3d')
+                elif vlev!='3d':
                     vnameo = vname + '_' + vlev
                 else:
-                    vnameo = vname
+                    vlev = None
+
+                # Slicing level and output depths
+                if vlev not in ['surf', 'bottom']:
+
+                    # numeric so interpolation
+                    if vlev is None:
+                        vdep = depths if depths is not None else None
+                    else:
+                        vdep = vlev
+                    interp = vdep is not None
+                    if interp:
+                        vlev = None
+
+                else:
+
+                    interp = False
 
                 # Read and aggregate
                 vout = out.setdefault(vnameo, [])
+                vinterp = None
                 for tslice in tslices:
 
                     # Get var
                     kwvar['time'] = tslice
                     var = ds(vname, level=vlev, **kwvar)
 
-                    # Interpolate at depths
-                    if ((vlev=='3d' or not isinstance(vlev, basestring)) and
-                            depths is not None and var.getLevel() is not None):
+                    # Interpolate at numeric depths
+                    if interp and var.getLevel() is not None:
 
                         # Get depths
                         if vardepth is None:
                             vardepth = ds.get_depth(level=vlev, **kwvar)
 
                         # Interpolate
-                        var = ds._interp_at_depths_(var, vardepth, depths)
+                        var = ds._interp_at_depths_(var, vardepth, vdep)
 
+                    # Id with suffix
                     var.id = vnameo
+
+                    # Store results
                     vout.append(var)
 
     # Concatenate
@@ -450,8 +493,9 @@ class Ensemble(Stacker, _CheckVariables_):
             if checkvars:
                 vns = gennames[i].split('_')
                 suffix = '_'.join(vns[1:])
-                format_var(var, vns[0], format_axes=False, force=1 if suffix else 2)
-                var.id = var.id + '_' + suffix
+                format_var(var, vns[0], format_axes=False, force=True)
+                if suffix:
+                    var.id = var.id + '_' + suffix
         if evname:
             kwargs['ev'] = f('ev', **kwsel)
         if varinames:
@@ -482,14 +526,14 @@ class Ensemble(Stacker, _CheckVariables_):
             if varname])
 
 
-    def get_variable(self, varname, depths):
+    def get_variable(self, vname, depths):
         """Get a variable knowing its name and the depths specifications"""
         if hasattr(depths, 'depths'):
             depths = depths.depths
         if isinstance(depths, basestring):
-            vname = vname + '_' + dephts
+            vname = vname + '_' + depths
         for var in self.variables:
-            if var.id == varname:
+            if var.id == vname:
                 return var
         raise SONATError('Invalid variable name: ' + vname)
 
