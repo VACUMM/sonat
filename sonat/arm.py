@@ -54,7 +54,7 @@ class ARM(_Base_):
         out = []
         for obs in self.obsmanager:
             vmod = [self.ens.get_variable(vname, obs) for vname in obs.varnames]
-            out.append(obs.interp_model(vmod))
+            out.append(obs.project_model(vmod))
         return out
 
 

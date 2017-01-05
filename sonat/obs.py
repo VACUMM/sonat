@@ -401,8 +401,8 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
 
         return xder1, yder1, xder2, yder2
 
-    def interp_model(self, var, checkid=True):
-        """Interpolate model variables to observations positions"""
+    def project_model(self, var, checkid=True):
+        """Project model variables to observations positions"""
         # List of variables
         al = ArgList(var)
 
@@ -657,8 +657,8 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
 
         return self.unmap(unstacks)
 
-    def interp_model(self, var):
-        """Interpolate model variables to observations positions"""
-        return self.unmap([obs.interp_model(var) for obs in self])
+    def project_model(self, var):
+        """Project model variables to observations positions"""
+        return self.unmap([obs.project_model(var) for obs in self])
 
 
