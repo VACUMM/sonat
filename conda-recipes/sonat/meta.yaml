@@ -8,7 +8,7 @@ package:
   version: "{{ sonat_version }}"
 
 build:
-    script: python setup.py install
+    script: python setup.py install --single-version-externally-managed --record record.txt
     string: vc{{ vacumm_version }}_{{ pkg_buildnum }}
 
 source:
@@ -18,14 +18,12 @@ source:
 requirements:
   build:
     - uvcdat >=2.8.0
-    - gcc >=4.8.5
-    - libsangoma_tools
     - vacumm >=3.3.0
+    - libsangoma_tools >=2.0.1
   run:
     - uvcdat >=2.8.0
-    - libgcc >=4.8.5
-    - libsangoma_tools
     - vacumm >=3.3.0
+    - libsangoma_tools >=2.0.1
 
 test:
     source_files:
@@ -33,7 +31,7 @@ test:
     requires:
     - nose
     commands:
-    - nosetests
+    - nosetests "{{ environ['SRC_DIR'] }}"
     imports:
     - sonat
     - sonat._fcore
