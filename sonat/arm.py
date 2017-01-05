@@ -1,9 +1,11 @@
 """The ARM interface"""
+import numpy as N
+import MV2
 
 from .__init__ import SONATError
 from .misc import _Base_
 from .ens import Ensemble
-from .obs import ObsManager, NcbobsPlatform
+from .obs import ObsManager, NcObsPlatform
 from ._fcore import f_arm
 
 class ARM(_Base_):
@@ -18,10 +20,12 @@ class ARM(_Base_):
         if not isinstance(ens, Ensemble):
             raise SONATError('ens must be a Ensemble instance')
         msg = ('obsmanager must a either a ObsManager'
-                    ' instance or a list of NcbobsPlatform instances')
+                    ' instance or a list of NcObsPlatform instances')
         if isinstance(obsmanager, list):
-            if not all([isinstance(obs, NcbobsPlatform) for obs in obsmanager]):
+            if not all([isinstance(obs, NcObsPlatform) for obs in obsmanager]):
                 raise SONATError(msg)
+            obsmanager = ObsManager(obsmanager)
+        elif isinstance(obsmanager, NcObsPlatform):
             obsmanager = ObsManager(obsmanager)
         elif not isinstance(obsmanager, ObsManager):
             raise SONATError(msg)
@@ -33,7 +37,7 @@ class ARM(_Base_):
             self.ens.check_variables()
             self.obsmanager.check_variables()
 
-        # Make sur that ens norms are synced witho obs norms
+        # Make sure that ens norms are synced with obs norms
         if syncnorms:
             self.ens.sync_norms(force=False)
             dnorms = self.ens.get_named_norms()
@@ -43,13 +47,13 @@ class ARM(_Base_):
         self.nstate, self.nens = self.ens.stacked_data.shape
         self.nobs = self.ens.stacked_data.shape[0]
 
-    def interp_ens_on_obs(self):
+    def project_ens_on_obs(self):
         """Interpolate the variables of an :class:`~sonat.ens.Ensemble` onto
         observation locations
         """
         out = []
-        for obs in obsmanager:
-            vmod = [ens.get_variable(vname, obs) for vname in obs.varnames]
+        for obs in self.obsmanager:
+            vmod = [self.ens.get_variable(vname, obs) for vname in obs.varnames]
             out.append(obs.interp_model(vmod))
         return out
 
@@ -62,7 +66,7 @@ class ARM(_Base_):
         Af = self.ens.stacked_data
 
         # Ensemble states at observation locations
-        oens = self.interp_ens_on_obs()
+        oens = self.project_ens_on_obs()
         Yf = self.obsmanager.restack(oens)
 
         # Observation errors
@@ -100,7 +104,7 @@ class ARM(_Base_):
         R = mats['R']
 
         # Call ARM
-        ndof = min(dsamples.shape)
+        ndof = min(Yf.shape)
         spect, arm, rep, status = f_arm(ndof, Af, Yf, R)
 
         # Untack/pack/format to output
@@ -114,7 +118,7 @@ class ARM(_Base_):
         if getraw:
             out['raw_arm'] = arm
         # - representers
-        out['rep'] = self.ensemble.unstack(rep, rescale=False, format=1,
+        out['rep'] = self.ens.unstack(rep, rescale=False, format=1,
             id='arm_rep_{id}')
         if getraw:
             out['raw_rep'] = rep
