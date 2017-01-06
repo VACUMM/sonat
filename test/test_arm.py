@@ -16,6 +16,13 @@ from sonat.arm import ARM
 
 netcdf4()
 
+_CACHE = {}
+
+def get_arm():
+    if 'arm' not in _CACHE:
+        _CACHE['arm'] = test_arm_arm_init()
+    return _CACHE['arm']
+
 def test_arm_arm_init():
 
     # Load ensemble
@@ -41,40 +48,53 @@ def test_arm_arm_init():
 def test_arm_arm_project_ens_on_obs():
 
     # Load ARM
-    arm = test_arm_arm_init()
+    arm = get_arm()
 
-    # Get matrices
+    # Project
     oens = arm.project_ens_on_obs()
 
     return oens
 
-def test_arm_arm_get_matrices():
+def test_arm_arm_inputs():
 
     # Load ARM
-    arm = test_arm_arm_init()
+    arm = get_arm()
 
     # Get matrices
-    mats = arm.get_matrices()
+    Yf = arm.Yf
+    Af = arm.Af
+    R = arm.R
 
-    return mats
+    return
 
 def test_arm_arm_analyse():
 
     # Load ARM
-    arm = test_arm_arm_init()
+    arm = get_arm()
 
     # Analyse
-    ana = arm.analyse()
+    arm.analyse()
 
-    return ana
+def test_arm_arm_results():
 
+    # Load ARM
+    arm = get_arm()
+
+    # Raw results
+    assert arm.raw_spect.shape == (arm.ndof, )
+    assert arm.raw_arm.shape == (arm.nobs, arm.ndof)
+    assert arm.raw_rep.shape == (arm.nstate, arm.ndof)
+
+
+    return
 
 
 if __name__=='__main__':
     res = test_arm_arm_init()
     res = test_arm_arm_project_ens_on_obs()
-    res = test_arm_arm_get_matrices()
+    res = test_arm_arm_inputs()
     res = test_arm_arm_analyse()
+    res = test_arm_arm_results()
 
 
 
