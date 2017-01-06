@@ -46,24 +46,10 @@ __coryright__ = 'IFREMER'
 
 import os
 from warnings import warn
-from matplotlib import rcParams, rc_params_from_file
-from vcmq import (ConfigManager, cfgargparse, Logger, GENERIC_VAR_NAMES,
-    adatetime, get_cmap, kwfilter)
+from vcmq import (Logger, )
 
 import _fcore
 
-
-#: Config specification file
-SONAT_INIFILE = os.path.join(os.path.dirname(__file__), 'sonat.ini')
-
-#: Default user configuration file
-HYCOMVALID_DEFAULT_CFGFILE = 'sonat.cfg'
-
-#: Matplotlib default configuration file
-SONAT_DEFAULT_MATPLOTLIBRC =  os.path.join(os.path.dirname(__file__), 'matplotlibrc')
-
-#: Matplotlib user configuration file
-SONAT_USER_MATPLOTLIBRC =  'matplotlibrc'
 
 #: Bottom generic variable names
 BOTTOM_VARNAMES = ['turb']
@@ -169,77 +155,4 @@ def help(text=None, url=None):
         url += text
     open(url,  new=2)
 
-def get_cfg_cmap(cfg, param):
-    """Get the config colormap for a given parameter"""
-
-    # Default
-    default_cmap = cfg['cmaps']['default']
-    if default_cmap.lower()=='none':
-        default_cmap = None
-
-    # From configuration
-    cmap_name = cfg['cmaps'].get(param, default_cmap)
-    try:
-        return get_cmap(default_cmap)
-    except:
-        return get_cmap()
-
-def get_cfg_xminmax(cfg, bounds=None, none=True):
-    """Get a ``(min,max[,bb])`` longitude interval from config"""
-    return _get_domain_minmax_(cfg, 'x', -720, 720, bounds, none)
-
-def get_cfg_yminmax(cfg, bounds=None, none=True):
-    """Get a ``(min,max[,bb])`` latitude interval from config"""
-    return _get_domain_minmax_(cfg, 'y', -90, 90, bounds, none)
-
-def get_cfg_zminmax(cfg, bounds=None, none=True):
-    """Get a ``(min,max[,bb])`` latitude interval from config"""
-    levels = cfg['domain']['levels']
-    if levels:
-        zmin = min(levels)
-        zmax = max(levels)
-    else:
-        zmin = -10000
-        zmax = 0
-    return _get_domain_minmax_(cfg, 'z', zmin, zmax, bounds, none)
-
-def get_cfg_tminmax(cfg, bounds='co', none=True):
-    """Get a ``(min,max[,bb])`` time interval from config"""
-    return _get_domain_minmax_(cfg, 't', '1950-01-01', '2100-01-01', bounds, none)
-
-def _get_domain_minmax_(cfg, key, defmin, defmax, bounds, none=True):
-    dmin = cfg['domain'][key+'min']
-    dmax = cfg['domain'][key+'max']
-    if int(none)==1 and dmin is None and dmax is None:
-        return
-    if int(none)!=2:
-        if dmin is None: dmin = defmin
-        if dmax is None: dmax = defmax
-    itv = (dmin, dmax)
-    if bounds:
-         itv += bounds,
-    return itv
-
-
-def load_mplrc(userfile=None):
-    """Load a matplotlib or default user configuration file"""
-    # Load default file first
-    rcParams.update(rc_params_from_file(SONAT_DEFAULT_MATPLOTLIBRC, use_default_template=False))
-
-    # Load user file
-    userfile = str(userfile)
-    if userfile=='False':
-        return
-    if userfile=='True':
-        userfile = 'None'
-    if userfile=='None':
-        userfile = SONAT_USER_MATPLOTLIBRC
-    if not os.path.exists(userfile):
-        return
-    rcParams.update(rc_params_from_file(userfile, use_default_template=False))
-
-#load_mplrc()
-
-
-
-import plot # register cmaps
+#import plot # register cmaps
