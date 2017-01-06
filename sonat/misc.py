@@ -33,6 +33,7 @@
 # knowledge of the CeCILL license and that you accept its terms.
 #
 
+import re
 import os
 import codecs
 import string
@@ -521,4 +522,67 @@ def check_variables(vv, searchmode='ns', format=True):
 
     return al.put(gennames)
 
+def slice_gridded_var(var, time=None, depth=None, lat=None, lon=None):
+    """Make slices of a variable and squeeze out singletons to reduce it
 
+    .. warning:: All axes must be 1D
+    """
+
+    # Check order
+    var = var(squeeze=1)
+    order = var.getOrder()
+
+    # Time interpolation
+    if 't' in order and time:
+        axi = var.getTime()
+        if isinstance(time, slice):
+            var = var(time=time, squeeze=1)
+        else:
+            axo = create_time(time, axi.units)
+            var = regrid1d(var, axo)(squeeze=1)
+
+    # Depth interpolation
+    if 'z' in order and depth:
+        if isinstance(depth, slice):
+            var = var(level=depth, squeeze=1)
+        else:
+            if not N.isscalar(depth):
+                sonat_warn('depth must be a scalar. Taking its first value')
+                depth = depth[:1]
+            else:
+                depth = [depth]
+            if depth[0]>10:
+                sonat_warn('Interpolation depth is positive. Taking this opposite')
+                depth = [-depth[0]]
+            axo = create_dep(depth)
+            var = regrid1d(var, axo)(squeeze=1)
+
+    # Latitude interpolation
+    if 'y' in order and lat:
+        if isinstance(lat, slice):
+            var = var(lat=lat, squeeze=1)
+        else:
+            if not N.isscalar(lat):
+                sonat_warn('lat must be a scalar. Taking its first value')
+                lat = lat[:1]
+            else:
+                lat = [lat]
+            axo = create_lat(lat)
+            var = regrid1d(var, axo)(squeeze=1)
+
+    # Longitude interpolation
+    if 'x' in order and lat:
+        if isinstance(lon, slice):
+            var = var(lon=lon, squeeze=1)
+        else:
+            if not N.isscalar(lon):
+                sonat_warn('lon must be a scalar. Taking its first value')
+                lon = lon[:1]
+            else:
+                lon = [lon]
+            axo = create_lon(lon)
+            var = regrid1d(var, axo)(squeeze=1)
+
+    return var
+
+#def _take_first_index_(var,
