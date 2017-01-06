@@ -522,8 +522,11 @@ def check_variables(vv, searchmode='ns', format=True):
 
     return al.put(gennames)
 
-def slice_gridded_var(var, time=None, depth=None, lat=None, lon=None):
+def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None):
     """Make slices of a variable and squeeze out singletons to reduce it
+
+    The "member" axis is considered here as a generic name for the first
+    axis of unkown type.
 
     .. warning:: All axes must be 1D
     """
@@ -531,6 +534,22 @@ def slice_gridded_var(var, time=None, depth=None, lat=None, lon=None):
     # Check order
     var = var(squeeze=1)
     order = var.getOrder()
+
+    # Unkown axis
+    if '-' in order and member is not None:
+        i = order.find('-')
+        id = var.getAxisIds()[i]
+        if isinstance(member, slice):
+            kw = {id:member}
+            var = var(squeeze=1, **kw)
+        else:
+            if not N.isscalar(member):
+                sonat_warn('member must be a scalar. Taking its first value')
+                member = member[:1]
+            else:
+                member = [member]
+            axo = create_axis(member)
+            var = regrid1d(var, axo, iaxi=i)(squeeze=1)
 
     # Time interpolation
     if 't' in order and time:

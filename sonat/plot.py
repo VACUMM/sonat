@@ -40,9 +40,9 @@ from vcma import (regrid1d, regrid2d, create_time, create_dep, create_lon,
 from .__init__ import SONATError, sonat_warn
 from .misc import slice_gridded_var
 
-RE_GRIDDED_ORDER_MATCH = re.compile('[t][z]yx$').match
+RE_GRIDDED_ORDER_MATCH = re.compile(r'[\-][t][z]yx$').match
 
-def plot_gridded(var, time=None, depth=None, lat=None, lon=None, **kwargs):
+def plot_gridded(var, member=None, time=None, depth=None, lat=None, lon=None, **kwargs):
     """Generic 1D or 2D plot of a [T][Z]YX variable
 
     Parameters
@@ -68,10 +68,10 @@ def plot_gridded(var, time=None, depth=None, lat=None, lon=None, **kwargs):
     order = var.getOrder()
     if not RE_GRIDDED_ORDER_MATCH(order):
         raise SONATError('Wrong order for variable: {}. '
-            'It must match [t][z][yx]'.format(order))
+            'It must match -[t][z][yx]'.format(order))
 
     # Slice
-    vv = tuple([slice_gridded_var(var, time=time, depth=depth, lat=lat, lon=lon)
+    vv = tuple([slice_gridded_var(var, member=member, time=time, depth=depth, lat=lat, lon=lon)
         for var in vv])
 
     # Scalar
