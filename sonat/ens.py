@@ -39,13 +39,15 @@ import re
 from collections import OrderedDict
 import scipy.stats as SS
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
-    MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var)
+    MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var,
+    CaseChecker)
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
     validate_varnames, _CheckVariables_, check_variables)
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
+from .plot import plot_gridded_var
 
 
 def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=None,
@@ -313,7 +315,7 @@ def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
         if getmodes:
 
             # Modes
-            mode_axis = create_axis(N.arange(neofr, dtype='i'), id='mode')
+            mode_axis = create_axis(N.arange(1, neofr+1, dtype='i'), id='mode')
             eofs = stacker.unstack(svecs, firstdims=mode_axis, id='{id}_eof',
                 rescale=False, format=1)
             svals = MV2.array(svals, axes=[mode_axis], id='ev',
@@ -381,10 +383,15 @@ class Ensemble(Stacker, _CheckVariables_):
     def __init__(self, data, ev=None, variance=None, logger=None, norms=None,
             means=None, syncnorms=True, checkvars=False, **kwargs):
 
+        # Check input variables
+        datas = ArgList(data).get()
+        if checkvars:
+            check_variables(datas)
+        for var in datas: # rename first axis
+            var.getAxis(0).id = 'member'
+
         # Init base
         kwargs['nordim'] = False
-        if checkvars:
-            check_variables(ArgList(data).get())
         Stacker.__init__(self, data, logger=logger, norms=norms, means=means, **kwargs)
         self.variables = self.inputs
 
@@ -396,6 +403,10 @@ class Ensemble(Stacker, _CheckVariables_):
         # Add more variables
         self.ev = ev
         self.variance = variance
+
+        # Caches
+        self._diags = {}
+        self._meananoms = {}
 
 
     @classmethod
@@ -538,7 +549,13 @@ class Ensemble(Stacker, _CheckVariables_):
         raise SONATError('Invalid variable name: ' + vname)
 
     def sync_norms(self, force=True):
-        """Synchronise norms between variables whose id has the same prefix"""
+        """Synchronise norms between variables whose id has the same prefix
+
+        Parameters
+        ----------
+        force: bool
+            Force sync even if it seems at has already been synced.
+        """
         if not force and self._norm_synced:
             return False
 
@@ -588,6 +605,12 @@ class Ensemble(Stacker, _CheckVariables_):
 
     def _ss_diag_(self, diag_name, diag_dict, index=None, format=1, **kwargs):
         """Compute a scipy.stats diagnostic are store it in diags"""
+        # From cache
+        if diag_name in self._diags:
+            diag_dict[diag_name] = self._diags[diag_name]
+            return
+
+        # Compute
         ss_func = getattr(SS, diag_name)
         if index is not None:
             ss_func_ = ss_func
@@ -602,6 +625,10 @@ class Ensemble(Stacker, _CheckVariables_):
             skewtest=True, kurtosistest=True, normaltest=True):
         """Get ensemble diagnostics as a dict
 
+        Example
+        -------
+        >>> diags = ens.get_diags(mean=False, skew=True)
+        >>> assert diags['skew'].shape == diags['skewtest'].shape
 
         Sea also
         --------
@@ -615,40 +642,61 @@ class Ensemble(Stacker, _CheckVariables_):
         diags = {}
 
         # Inputs
-        mmeans = self.get_means()
-        manoms = [(self.datas[i]-mmeans[i]) for i in range(len(self))]
+        if not self._meananoms:
+            mmeans = self.get_means()
+            manoms = [(self.datas[i]-mmeans[i]) for i in range(len(self))]
+            self._meananoms = {'means':mmeans, 'anoms':manoms}
+        else:
+            mmeans = self._meananoms['means']
+            manoms = self._meananoms['anoms']
 
         # Mean
         if mean is True:
-            means = self.fill_arrays(mmeans, firstdims=False,
-                id='{id}_mean', format=2)
-            diags['mean'] = self.unmap(means)
+            if 'mean' in self._diags:
+                diags['mean'] = self._diags['mean']
+            else:
+                means = self.fill_arrays(mmeans, firstdims=False,
+                    id='{id}_mean', format=2)
+                diags['mean'] = self._diags['mean'] = self.unmap(means)
 
         # Variance
         if variance is True:
 
             # Local variance
-            vars = [v.var(axis=0) for v in manoms]
-            vars = self.fill_arrays(vars, firstdims=False,
-                id='{id}_variance', format=2)
-            diags['variance'] = self.unmap(vars)
+            if 'variance' in self._diags:
+                diags['variance'] = self._diags['variance']
+            else:
+                vars = [v.var(axis=0) for v in manoms]
+                vars = self.fill_arrays(vars, firstdims=False,
+                    id='{id}_variance', format=2)
+                diags['variance'] = self._diags['variance'] = self.unmap(vars)
 
             # Explained variance
             if self.ev is not None and hasattr(self.ev, 'total_variance'):
-                diags['explained_variance'] = (self.ev**2).sum()/self.ev.total_variance
+                if 'explained_variance' in self._diags:
+                    diags['explained_variance'] = self._diags['explained_variance']
+                else:
+                    diags['explained_variance'] = self._diags['explained_variance'] = \
+                        (self.ev**2)/self.ev.total_variance
+                    diags['explained_variance'].id = 'explained_variance'
 
             # Local explained variance
             if self.variance is not None:
-                lvars = self.remap(self.variance)
-                evars = []
-                for lvar, var in zip(self.remap(self.variance), vars):
-                    if cdms2.isVariable(lvar):
-                        evar = lvar.clone()
-                        evar.id = var.id.replace('_variance', '_expl_variance')
-                    else:
-                        evar = lvar.copy()
-                    evar[:] /= var
-
+                if 'local_explained_variance' in self._diags:
+                    diags['local_explained_variance'] = self._diags['local_explained_variance']
+                else:
+                    lvars = self.remap(self.variance)
+                    evars = []
+                    for lvar, var in zip(self.remap(self.variance), vars):
+                        if cdms2.isVariable(lvar):
+                            evar = lvar.clone()
+                            evar.id = var.id.replace('_variance', '_expl_variance')
+                        else:
+                            evar = lvar.copy()
+                        evar[:] /= var
+                        evars.append(evar)
+                    diags['local_explained_variance'] = self._diags['local_explained_variance'] = \
+                        self.unmap(evars)
 
 
         # Skew
@@ -673,4 +721,103 @@ class Ensemble(Stacker, _CheckVariables_):
 
         return diags
 
+    def plot_diags(self, mean=True, variance=True, kurtosis=True, skew=True,
+            skewtest=True, kurtosistest=True, normaltest=True,
+            titlepat = '{varname} - {diagname} - {locname}',
+            depths=None,
+            zonal_sections=None, meridional_sections=None, points=None,
+            figpat_map='arm_ens_{diag}_map_{depth}.png',
+            figpat_zonal='arm_ens_{diag}_zonal_{lat:.2f}.png',
+            figpat_merid='arm_ens_{diag}_merid_{lon:.2f}.png',
+            figpat_generic='arm_ens_{diag}.png',
+            figfir=None, show=False, cmaps={},
+            **kwargs):
+        """Create figures for diagnostics"""
+
+        # Diags
+        diags = self.get_diags(**kwargs)
+
+        # Inits
+        figs = {}
+        if maps and not isinstance(maps, list):
+            maps = [maps]
+        check_depth = CaseChecker(casename='depth')
+        kwmap = kwfilter(kwargs, 'map_')
+        kwcurve = kwfilter(kwargs, 'curve_')
+
+        # Loop on diags
+        figs = {}
+        for diag, diagvar in diags.items():
+
+            diagname = diag.replace('_', '_')
+
+            # Explained variance
+            if diag=='explained_variance':
+
+                figfile = figpat_generic.format(**locals())
+                curve(diagvar, xmin=.5, xmax=len(diagvar)+.5, ymin=0,
+                    savefig=figfile, show=show, close=True,
+                    title='Explained variance')
+                figs[diag] = figfile
+
+            # Loop on variables
+            else:
+
+                for diagvar in ArgList(diagvar).get():
+                    order = diagvar.getOrder()
+
+                    varname, depth, vdiagname = split_name(diagvar)
+                    id = diagvar.id
+
+                    # Maps
+                    if depths is not False:
+                        toplot = []
+
+                        # Get what to plot
+                        if ((vdepth=='surf' and check_case(depths, 'surf')) or
+                                (vdepth=='bottom' and check_case(depths, 'bottom'))):
+                            toplot.apppend((vdepth, diagvar))
+                        else:
+                            for i, depth in enumerate(diagvar.getLevel()):
+                                toplot.apppend(('{.0f}'.format(depth), diagvar[i]))
+
+                        # Plot them
+                        for locname, var in toplot.items():
+                            title = titlepat.format(**locals())
+                            plot_gridded_var(diagvar, title=title, **kwmap)
+                        del toplot
+
+        return figs
+
+
+
+
+def split_name(varname):
+    """Split a variable name in three parts (physical, depth, others)
+
+    The separator is the underscore sign.
+
+    Examples
+    --------
+    >>> print split_name('temp_surf_std_dev')
+    ('temp', 'surf', 'std_dev')
+    >>> print split_name('temp_variance')
+    ('temp', None, 'variance')
+    >>> print split_name('temp')
+    ('temp', None, 'None')
+    """
+    if cdms2.isVariable(varname):
+        varname = varname.id
+    svname = varname.split('_')
+    physical = svname[0]
+    depth = others = None
+    if len(svname)>2:
+        if svname[1] in ['surf', 'bottom']:
+            depth = svname[1]
+            svnames = svnames[2:]
+        else:
+            svnames = svnames[1:]
+        if svnames:
+            others = '_'.join(svnames)
+    return physical, depth, others
 
