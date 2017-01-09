@@ -543,16 +543,11 @@ def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=Non
             kw = {id:member}
             var = var(squeeze=1, **kw)
         else:
-            if not N.isscalar(member):
-                sonat_warn('member must be a scalar. Taking its first value')
-                member = member[:1]
-            else:
-                member = [member]
             axo = create_axis(member)
             var = regrid1d(var, axo, iaxi=i)(squeeze=1)
 
     # Time interpolation
-    if 't' in order and time:
+    if 't' in order and time is not None:
         axi = var.getTime()
         if isinstance(time, slice):
             var = var(time=time, squeeze=1)
@@ -561,46 +556,39 @@ def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=Non
             var = regrid1d(var, axo)(squeeze=1)
 
     # Depth interpolation
-    if 'z' in order and depth:
+    if 'z' in order and depth is not None:
         if isinstance(depth, slice):
             var = var(level=depth, squeeze=1)
         else:
-            if not N.isscalar(depth):
-                sonat_warn('depth must be a scalar. Taking its first value')
-                depth = depth[:1]
-            else:
-                depth = [depth]
-            if depth[0]>10:
-                sonat_warn('Interpolation depth is positive. Taking this opposite')
-                depth = [-depth[0]]
             axo = create_dep(depth)
+            if axo[:].max()>10:
+                sonat_warn('Interpolation depth is positive. Taking this opposite')
+                axo[:] *=-1
             var = regrid1d(var, axo)(squeeze=1)
 
-    # Latitude interpolation
-    if 'y' in order and lat:
-        if isinstance(lat, slice):
-            var = var(lat=lat, squeeze=1)
-        else:
-            if not N.isscalar(lat):
-                sonat_warn('lat must be a scalar. Taking its first value')
-                lat = lat[:1]
-            else:
-                lat = [lat]
-            axo = create_lat(lat)
-            var = regrid1d(var, axo)(squeeze=1)
+    # Point
+    if (order.endswith('yx') and lon is not None and lat is not None and
+            not isinstance(lat, slice) and not isinstance(lon, slice)):
 
-    # Longitude interpolation
-    if 'x' in order and lat:
-        if isinstance(lon, slice):
-            var = var(lon=lon, squeeze=1)
-        else:
-            if not N.isscalar(lon):
-                sonat_warn('lon must be a scalar. Taking its first value')
-                lon = lon[:1]
+        var = grid2xy(var, lons=lon, lats=lat)
+
+    else:
+
+        # Latitude interpolation
+        if 'y' in order and lat:
+            if isinstance(lat, slice):
+                var = var(lat=lat, squeeze=1)
             else:
-                lon = [lon]
-            axo = create_lon(lon)
-            var = regrid1d(var, axo)(squeeze=1)
+                axo = create_lat(lat)
+                var = regrid1d(var, axo)(squeeze=1)
+
+        # Longitude interpolation
+        if 'x' in order and lat:
+            if isinstance(lon, slice):
+                var = var(lon=lon, squeeze=1)
+            else:
+                axo = create_lon(lon)
+                var = regrid1d(var, axo)(squeeze=1)
 
     return var
 
