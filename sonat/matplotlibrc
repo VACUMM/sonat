@@ -137,6 +137,7 @@ backend      : qt4agg
 # relative to font.size, using the following values: xx-small, x-small,
 # small, medium, large, x-large, xx-large, larger, or smaller
 #font.size           : 12.0
+font.size           : 11.0
 #font.serif          : Bitstream Vera Serif, New Century Schoolbook, Century Schoolbook L, Utopia, ITC Bookman, Bookman, Nimbus Roman No9 L, Times New Roman, Times, Palatino, Charter, serif
 #font.sans-serif     : Bitstream Vera Sans, Lucida Grande, Verdana, Geneva, Lucid, Arial, Helvetica, Avant Garde, sans-serif
 #font.cursive        : Apple Chancery, Textile, Zapf Chancery, Sand, cursive
@@ -330,12 +331,14 @@ backend      : qt4agg
 #image.aspect : equal             # equal | auto | a number
 #image.interpolation  : bilinear  # see help(imshow) for options
 #image.cmap   : jet               # gray | jet etc...
+image.cmap   : viridis               # gray | jet etc...
 #image.lut    : 256               # the size of the colormap lookup table
 #image.origin : upper             # lower | upper
 #image.resample  : False
 
 ### CONTOUR PLOTS
 #contour.negative_linestyle :  dashed # dashed | solid
+contour.negative_linestyle :  solid # dashed | solid
 
 ### Agg rendering
 ### Warning: experimental, 2008/10/10
