@@ -45,7 +45,8 @@ import cdms2
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices,
     kwfilter, numod, GENERIC_VAR_NAMES, DS, set_atts, format_var,
-    match_known_var, ArgList)
+    match_known_var, ArgList, create_lon, regrid1d, grid2xy, create_lat,
+    create_time, create_dep)
 
 from .__init__ import sonat_warn, SONATError, get_logger
 
@@ -541,19 +542,19 @@ def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=Non
         id = var.getAxisIds()[i]
         if isinstance(member, slice):
             kw = {id:member}
-            var = var(squeeze=1, **kw)
+            var = var(**kw)
         else:
             axo = create_axis(member)
-            var = regrid1d(var, axo, iaxi=i)(squeeze=1)
+            var = regrid1d(var, axo, iaxi=i)(squeeze=N.isscalar(member))
 
     # Time interpolation
     if 't' in order and time is not None:
         axi = var.getTime()
         if isinstance(time, slice):
-            var = var(time=time, squeeze=1)
+            var = var(time=time)
         else:
             axo = create_time(time, axi.units)
-            var = regrid1d(var, axo)(squeeze=1)
+            var = regrid1d(var, axo)(squeeze=N.isscalar(time))
 
     # Depth interpolation
     if 'z' in order and depth is not None:
@@ -564,31 +565,31 @@ def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=Non
             if axo[:].max()>10:
                 sonat_warn('Interpolation depth is positive. Taking this opposite')
                 axo[:] *=-1
-            var = regrid1d(var, axo)(squeeze=1)
+            var = regrid1d(var, axo)(squeeze=N.isscalar(depth))
 
     # Point
     if (order.endswith('yx') and lon is not None and lat is not None and
             not isinstance(lat, slice) and not isinstance(lon, slice)):
 
-        var = grid2xy(var, lons=lon, lats=lat)
+        var = grid2xy(var, lon, lat)(squeeze=N.isscalar(lon))
 
     else:
 
         # Latitude interpolation
         if 'y' in order and lat:
             if isinstance(lat, slice):
-                var = var(lat=lat, squeeze=1)
+                var = var(lat=lat)
             else:
                 axo = create_lat(lat)
-                var = regrid1d(var, axo)(squeeze=1)
+                var = regrid1d(var, axo)(squeeze=N.isscalar(lat))
 
         # Longitude interpolation
-        if 'x' in order and lat:
+        if 'x' in order and lon:
             if isinstance(lon, slice):
-                var = var(lon=lon, squeeze=1)
+                var = var(lon=lon)
             else:
                 axo = create_lon(lon)
-                var = regrid1d(var, axo)(squeeze=1)
+                var = regrid1d(var, axo)(squeeze=N.isscalar(lon))
 
     return var
 

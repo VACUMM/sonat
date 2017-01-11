@@ -7,7 +7,7 @@ from util import (THISDIR, NCPAT_MANGA, NCFILE_MANGA0, NCFILE_MANGA1,
     assert_allclose, assert_raises, N, cdms2, cdtime)
 
 from sonat.misc import (scan_format_string, list_files_from_pattern,
-    DatePat2GlobFormatter, ncfiles_time_indices)
+    DatePat2GlobFormatter, ncfiles_time_indices, slice_gridded_var)
 
 def test_misc_scan_format_string():
 
@@ -67,8 +67,28 @@ def test_misc_ncfiles_time_indices():
     assert info['missed'] == [comptime('2013'), comptime('2016')]
 
 
+def test_slice_gridded_var():
+    # Get var
+    f = cdms2.open(NCFILE_MANGA0)
+    temp = f('TEMP', time=slice(0, 3))
+    f.close()
+
+    # Slice it
+    t = slice_gridded_var(temp, lon=-4.)
+    assert t.getOrder() == 'tzy'
+    t = slice_gridded_var(temp, lat=47.5)
+    assert t.getOrder() == 'tzx'
+    t = slice_gridded_var(temp, time='2014-01-01 15.')
+    assert t.getOrder() == 'zyx'
+    t = slice_gridded_var(temp, lat=47.5, lon=-4.)
+    assert t.getOrder() == 'tz'
+    t = slice_gridded_var(temp, lon=[-4., -4.1])
+    assert t.getOrder() == 'tzyx' and t.shape[-1] == 2
+
+
 if __name__=='__main__':
     test_misc_scan_format_string()
     test_misc_list_files_from_pattern()
     test_misc_datepat2globformatter()
     test_misc_ncfiles_time_indices()
+    test_slice_gridded_var()
