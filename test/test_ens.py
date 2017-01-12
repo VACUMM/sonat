@@ -48,7 +48,7 @@ def test_ens_generate_pseudo_ensemble():
 
     # Specs
     ncpat = NCPAT_MANGA
-    varnames = ['temp', 'sal']
+    varnames = ['temp', 'sal', 'u', 'v']
     time = ('2014-01-01 13', '2014-01-25 12')
     nrens = 14
     enrich = 1.5
@@ -57,7 +57,7 @@ def test_ens_generate_pseudo_ensemble():
 
     # Direct
     enrich = 0 # <= 1
-    (temp, sal) = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich,
+    (temp, sal, u, v) = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich,
         time=time, varnames=varnames, dtfile=dtfile, logger=LOGGER, anomaly=False)
     assert temp.shape[0]==nrens
     assert sal.shape[0]==nrens
@@ -70,15 +70,17 @@ def test_ens_generate_pseudo_ensemble():
     enrich = 1.5
     ens = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich, level='surf',
         varnames=varnames, time=time, dtfile=dtfile, logger=LOGGER, getmodes=True)
-    (temp, sal), modes = ens
-    (temp_eof, sal_eof) = modes['eofs']
+    (temp, sal, u, v), modes = ens
+    (temp_eof, sal_eof, u_eof, v_eof) = modes['eofs']
     ev = modes['eigenvalues']
-    temp_var, sal_var = modes['variance']
+    temp_var, sal_var, u_var, v_var = modes['variance']
     assert temp.shape[0]==nrens
     assert sal.shape[0]==nrens
-    eof0 = N.concatenate( (temp_eof[0].compressed(), sal_eof[0].compressed()))
+    eof0 = N.concatenate( (temp_eof[0].compressed(), sal_eof[0].compressed(),
+        u_eof[0].compressed(), v_eof[0].compressed()))
     assert_allclose((eof0**2).sum(), 1)
-    eof1 = N.concatenate( (temp_eof[1].compressed(), sal_eof[1].compressed()))
+    eof1 = N.concatenate( (temp_eof[1].compressed(), sal_eof[1].compressed(),
+        u_eof[1].compressed(), v_eof[1].compressed()))
     assert_allclose((eof0*eof1).sum(), 0, atol=1e-7)
     assert_allclose(ev.total_variance, eof0.size)
     expv = (ev**2).sum()/ev.total_variance
@@ -88,7 +90,8 @@ def test_ens_generate_pseudo_ensemble():
 
     # Save ensemble
     f = cdms2.open(ncfile, 'w')
-    for var in temp, sal, temp_eof, sal_eof, ev, temp_var, sal_var:
+    for var in (temp, sal, u, v, temp_eof, sal_eof, ev, temp_var, sal_var,
+            u_eof, v_eof, u_var, v_var):
         f.write(var)
     f.close()
 
