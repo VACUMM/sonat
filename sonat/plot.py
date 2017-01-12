@@ -33,16 +33,36 @@
 # knowledge of the CeCILL license and that you accept its terms.
 #
 
+import os
 import re
-from vcma import (regrid1d, regrid2d, create_time, create_dep, create_lon,
-    create_lat)
+import matplotlib.pyplot as P
+from matplotlib import rc_params_from_file, rcParams
+from vcmq import (map, hov, stick, curve, section, dict_check_defaults, plot2d)
 
 from .__init__ import SONATError, sonat_warn
 from .misc import slice_gridded_var
 
-RE_GRIDDED_ORDER_MATCH = re.compile(r'[\-][t][z]yx$').match
 
-def plot_gridded(var, member=None, time=None, depth=None, lat=None, lon=None, **kwargs):
+#: Matplotlib default configuration file
+HYCOMVALID_DEFAULT_MATPLOTLIBRC =  os.path.join(os.path.dirname(__file__), 'matplotlibrc')
+
+#: Matplotlib user configuration file
+HYCOMVALID_USER_MATPLOTLIBRC =  'matplotlibrc'
+
+#: Default arguments to plots
+DEFAULT_PLOT_KWARGS = dict(
+    contour_linewidths=.5,
+    colorbar_fraction=.1,
+    quiver_units='dots',
+    quiver_width=1.2,
+    fill='contourf',
+    quiver_norm=3,
+    proj='merc')
+
+RE_GRIDDED_ORDER_MATCH = re.compile(r'\-?t?z?y?x?$').match
+
+def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None,
+        plotfunc=None, **kwargs):
     """Generic 1D or 2D plot of a [T][Z]YX variable
 
     Parameters
@@ -68,11 +88,11 @@ def plot_gridded(var, member=None, time=None, depth=None, lat=None, lon=None, **
     order = var.getOrder()
     if not RE_GRIDDED_ORDER_MATCH(order):
         raise SONATError('Wrong order for variable: {}. '
-            'It must match -[t][z][yx]'.format(order))
+            'It must match [-][t][z][y][x]'.format(order))
 
     # Slice
-    vv = tuple([slice_gridded_var(var, member=member, time=time, depth=depth, lat=lat, lon=lon)
-        for var in vv])
+    vv = tuple([slice_gridded_var(var, member=member, time=time, depth=depth,
+            lat=lat, lon=lon)(squeeze=1)  for var in vv])
 
     # Scalar
     for var in vv:
@@ -99,17 +119,48 @@ def plot_gridded(var, member=None, time=None, depth=None, lat=None, lon=None, **
         raise SONATError('Variables to plot have incompatible shapes')
 
     # Select plot function
-    order = var.getOrder()
-    if var.ndim==1:
-        pfunc = stick if quiver else curve
-    elif 't' in order:
-        pfunc = hov
-    elif 'z' in order:
-        pfunc = section
+    if plotfunc is None:
+        order = var.getOrder()
+        if var.ndim==1:
+            plotfunc = stick if quiver else curve
+        elif 't' in order:
+            plotfunc = hov
+        elif 'z' in order:
+            plotfunc = section
+        elif order == 'xy':
+            plotfunc = map
+        else:
+            plotfunc = plot2d
+
+    # Positional arguments
+    if plotfunc is stick:
+        args = vv
     else:
-        pfunc = map
+        args = [vv]
+
+    # Default optional arguments
+    dict_check_defaults(kwargs, show=False, close=True,
+        **DEFAULT_PLOT_KWARGS)
 
     # Plot and return
-    return pfunc(vv, **kwargs)
+    return plotfunc(*args, **kwargs)
 
 
+def load_mplrc(userfile=None):
+    """Load a matplotlib or default user configuration file"""
+    # Load default file first
+    rcParams.update(rc_params_from_file(HYCOMVALID_DEFAULT_MATPLOTLIBRC, use_default_template=False))
+
+    # Load user file
+    userfile = str(userfile)
+    if userfile=='False':
+        return
+    if userfile=='True':
+        userfile = 'None'
+    if userfile=='None':
+        userfile = HYCOMVALID_USER_MATPLOTLIBRC
+    if not os.path.exists(userfile):
+        return
+    rcParams.update(rc_params_from_file(userfile, use_default_template=False))
+
+load_mplrc()
