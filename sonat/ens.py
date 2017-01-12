@@ -48,6 +48,8 @@ from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
 from .plot import plot_gridded_var
+from .render import register_html_template, render_and_export_html_template
+
 
 
 def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=None,
@@ -341,7 +343,8 @@ def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
 
     # Finalize
     getmodes = getmodes and witheofs
-    member_axis = create_axis(N.arange(nrens, dtype='i'), id='member')
+    member_axis = create_axis(N.arange(nrens, dtype='i'), id='member',
+        long_name='Member')
     if single:
         ens.setAxis(0, member_axis)
     else:
@@ -731,6 +734,7 @@ class Ensemble(Stacker, _CheckVariables_):
             figpat_merid='arm_ens_{diag}_merid_{lon:.2f}.png',
             figpat_generic='arm_ens_{diag}.png',
             figfir=None, show=False, cmaps={},
+            htmlfile=None,
             **kwargs):
         """Create figures for diagnostics"""
 
@@ -746,10 +750,10 @@ class Ensemble(Stacker, _CheckVariables_):
         kwcurve = kwfilter(kwargs, 'curve_')
 
         # Loop on diags
-        figs = {}
+        figs = OrderedDict()
         for diag, diagvar in diags.items():
 
-            diagname = diag.replace('_', '_')
+            diagname = diag.replace('_', ' ')
 
             # Explained variance
             if diag=='explained_variance':
@@ -787,9 +791,12 @@ class Ensemble(Stacker, _CheckVariables_):
                             plot_gridded_var(diagvar, title=title, **kwmap)
                         del toplot
 
+        # Export to html
+        if htmlfile:
+            render_and_export_html_template('dict2tree',
+                title="Ensemble diagnostics", content=figs)
+
         return figs
-
-
 
 
 def split_name(varname):
