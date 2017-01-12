@@ -46,7 +46,7 @@ from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices,
     kwfilter, numod, GENERIC_VAR_NAMES, DS, set_atts, format_var,
     match_known_var, ArgList, create_lon, regrid1d, grid2xy, create_lat,
-    create_time, create_dep)
+    create_time, create_dep, create_axis, cp_atts)
 
 from .__init__ import sonat_warn, SONATError, get_logger
 
@@ -66,7 +66,7 @@ def scan_format_string(format_string):
 
         - positional: list of positional field keys
         - keyword: list of keyword field keys
-        - with_time: list of keys that date pattern format
+        - with_time: list of keys that have a date pattern format
     """
     fields = {}
     props = {'with_time': [], 'positional':[], 'keyword':[]}
@@ -545,6 +545,7 @@ def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=Non
             var = var(**kw)
         else:
             axo = create_axis(member)
+            cp_atts(var.getAxis(i), axo)
             var = regrid1d(var, axo, iaxi=i)(squeeze=N.isscalar(member))
 
     # Time interpolation
