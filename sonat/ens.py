@@ -190,6 +190,7 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
                     vnameo = vname + '_' + vlev
                 else:
                     vlev = None
+                    vnameo = vname
 
                 # Slicing level and output depths
                 if vlev not in ['surf', 'bottom']:
@@ -220,11 +221,13 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
                     if interp and var.getLevel() is not None:
 
                         # Get depths
-                        if vardepth is None:
-                            vardepth = ds.get_depth(level=vlev, **kwvar)
+                        if True or vardepth is None: #FIXME: bad to always read it
+                            vardepth = ds.get_depth(level=vlev, zerolid=True,
+                                **kwvar)
 
                         # Interpolate
-                        var = ds._interp_at_depths_(var, vardepth, vdep)
+                        var = ds._interp_at_depths_(var, vardepth, vdep,
+                            extrap='top')
 
                     # Id with suffix
                     var.id = vnameo
@@ -727,8 +730,8 @@ class Ensemble(Stacker, _CheckVariables_):
     def plot_diags(self, mean=True, variance=True, kurtosis=True, skew=True,
             skewtest=True, kurtosistest=True, normaltest=True,
             titlepat = '{varname} - {diagname} - {locname}',
-            depths=None,
-            zonal_sections=None, meridional_sections=None, points=None,
+            depths=None, points=None,
+            zonal_sections=None, meridional_sections=None,
             figpat_map='arm_ens_{diag}_map_{depth}.png',
             figpat_zonal='arm_ens_{diag}_zonal_{lat:.2f}.png',
             figpat_merid='arm_ens_{diag}_merid_{lon:.2f}.png',
