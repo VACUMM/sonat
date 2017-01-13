@@ -4,7 +4,7 @@
 import os
 import shutil
 import re
-from jinja2 import Template, Environment
+from jinja2 import Template, Environment, DictLoader
 from jinja2.filters import FILTERS as JINJA_FILTERS
 from jinja2.utils import soft_unicode
 
@@ -35,38 +35,60 @@ TEMPLATE_HTML_BASE = """
 </html>
 """
 
-
 TEMPLATE_HTML_DICT2TREE = """
-{% extends base %}
+{% extends "base.html" %}
 
 {% block content %}
     <ul>
     {% for section_name, subcontent in content.iteritems() %}
-    {% if subcontent %}
+        {% if subcontent  %}
         <li>
             <span class="d2tSectionName">{{ section_name }}</span><br/>
-            {% if string(subcontent) %}
-            {{ item_content|checkimg }}
-            {% endif %}
-            {% if mapping(subcontent) %}
+            {% if subcontent is string %}
+            {{ subcontent|checkimg }}
+            {% elif subcontent is mapping %}
             <ul>
             {% for item_name, item_content in subcontent.iteritems() %}
+                {% if item_content %}
                 <li>
                     <span class="d2tItemName">{{ item_name }}</span><br/>
                     {{ item_content|checkimg }}
                 </li>
+                {% endif %}
             {% endfor %}
             </ul>
+            {% elif subcontent is sequence %}
+            <ul>
+            {% for item in subcontent %}
+                {% if item %}
+                <li>
+                    {{ item|checkimg }}
+                </li>
+                {% endif %}
+            {% endfor %}
+            </ul>
+
             {% endif %}
         </li>
-    {% endif %}
+        {% endif %}
     {% endfor %}
   </ul>
 
 {% endblock %}
 """
 
-#JINJA_ENV = Environment(trim_blocks=True)
+
+#: Mapping for the jinja loader
+JINJA_LOADER_MAPPING = {}
+
+#: Jinja loader
+JINJA_LOADER = DictLoader(JINJA_LOADER_MAPPING)
+
+#: Jinja environment
+JINJA_ENV = Environment(
+    trim_blocks=True,
+    lstrip_blocks=True,
+    loader=JINJA_LOADER)
 
 def copy_html_material(workdir=None):
     """Copy all the needed material for html rendering to the working dir"""
@@ -86,14 +108,16 @@ def copy_html_material(workdir=None):
 
 def register_html_template(name, content):
     """Register a jinja template into the :attr:`TEMPLATES` variable"""
-    HTML_TEMPLATES[name] = Template(content)
+    JINJA_LOADER_MAPPING[name] = content
+#    HTML_TEMPLATES[name] = Template(content)
 
 
 def render_html_template(name, **kwargs):
     """Render a jinja template"""
-    kwargs.update(HTML_TEMPLATES)
+#    kwargs.update(HTML_TEMPLATES)
     kwargs.setdefault('standalone', False)
-    return HTML_TEMPLATES[name].render(**kwargs)
+#    return HTML_TEMPLATES[name].render(**kwargs)
+    return JINJA_ENV.get_template(name).render(**kwargs)
 
 def render_and_export_html_template(name, htmlfile, **kwargs):
     """Render a jinja template and export it to an html file"""
@@ -112,10 +136,10 @@ def do_checkimg(obj):
     if RE_IMG_MATCH(sobj):
         return '<img src="{}"/>'.format(sobj)
     return obj
-JINJA_FILTERS['checkimg'] = do_checkimg
+JINJA_ENV.filters['checkimg'] = do_checkimg
 
 
-HTML_TEMPLATES = {}
-register_html_template('base', TEMPLATE_HTML_BASE)
-register_html_template('dict2tree', TEMPLATE_HTML_DICT2TREE)
+# 0HTML_TEMPLATES = {}
+register_html_template('base.html', TEMPLATE_HTML_BASE)
+register_html_template('dict2tree.html', TEMPLATE_HTML_DICT2TREE)
 
