@@ -204,14 +204,14 @@ def list_files_from_pattern(ncpat, time=None, dtfile=None, sort=True, **subst):
 def ncfiles_time_indices(ncfiles, dates, getinfo=False, asslices=False):
     """Get time indices corresponding to each dates for each files
 
-    The time axis is read only for the first two files.
-    All files must be obey the following rules:
+    .. warning:: The time axis is read only for the first two files.
+        All files must be obey the following rules:
 
-    - Be in chronological order.
-    - Have the same time step.
-    - Have the same number of time steps.
+        - Be in chronological order.
+        - Have the same time step.
+        - Have the same number of time steps.
 
-    Dates are sorted chronologically before processing.
+        Dates are sorted chronologically before processing.
 
     """
 
