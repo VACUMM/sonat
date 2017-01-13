@@ -127,7 +127,7 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
             plotfunc = hov
         elif 'z' in order:
             plotfunc = section
-        elif order == 'xy':
+        elif order == 'yx':
             plotfunc = map
         else:
             plotfunc = plot2d
