@@ -5,7 +5,7 @@ import sys
 import numpy as N
 import cdms2
 import cdtime
-from vcmq import comptime, netcdf4
+from vcmq import comptime, netcdf4, create_dep
 
 from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
     NCFILE_MANGA1)
@@ -36,6 +36,13 @@ def test_ens_load_model_at_regular_dates():
     assert ctimes[1] == comptime('2014-1-3 0:0:0.0')
     assert ctimes[-2] == comptime('2014-1-24 0:0:0.0')
 
+    # 3D with z interpolation
+    depths = create_dep([-40., -30, -20, -10, 0.])
+    temp = load_model_at_regular_dates(ncpat, varnames=varnames[0], time=time,
+        lat=lat, lon=lon, modeltype='mars', nt=2, dtfile=dtfile, sort=True,
+        depths=depths)
+    assert temp.shape == (2, len(depths), 10, 4)
+
     # Surf
     varnames = 'temp'
     level = {'temp':'surf'}
@@ -51,36 +58,49 @@ def test_ens_generate_pseudo_ensemble():
     varnames = ['temp', 'sal', 'u', 'v']
     time = ('2014-01-01 13', '2014-01-25 12')
     nrens = 14
+#    nrens = 2
     enrich = 1.5
     dtfile = (12, 'day')
     ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
+    level = {'temp':('3d', 'surf'), 'u':'surf', 'v':'surf'}
+    depths = create_dep([-40., -30, -20, -10, 0.])
 
     # Direct
     enrich = 0 # <= 1
-    (temp, sal, u, v) = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich,
-        time=time, varnames=varnames, dtfile=dtfile, logger=LOGGER, anomaly=False)
+    (temp, temp_surf, sal, u_surf, v_surf) = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich,
+        time=time, varnames=varnames, dtfile=dtfile, logger=LOGGER, anomaly=False,
+        level=level, depths=depths)
     assert temp.shape[0]==nrens
     assert sal.shape[0]==nrens
+    assert temp.ndim==4
+    assert temp.shape[1]==len(depths)
+    assert temp_surf.ndim==3
+    assert v_surf.ndim==3
     f = cdms2.open(NCFILE_MANGA0)
-    temp0 = f('TEMP', time=slice(1, 2), squeeze=1)
+    temp0 = f('TEMP', time=slice(1, 2), level=slice(-1, None), squeeze=1)
     f.close()
-    assert_allclose(temp0, temp[0])
+    assert_allclose(temp0, temp_surf[0])
+    tsum = temp.sum()
 
     # Enrichment
     enrich = 1.5
-    ens = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich, level='surf',
-        varnames=varnames, time=time, dtfile=dtfile, logger=LOGGER, getmodes=True)
-    (temp, sal, u, v), modes = ens
-    (temp_eof, sal_eof, u_eof, v_eof) = modes['eofs']
+    ens = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich,
+        varnames=varnames, time=time, dtfile=dtfile, logger=LOGGER, getmodes=True,
+        level=level, depths=depths)
+    (temp, temp_surf, sal, u_surf, v_surf), modes = ens
+    (temp_eof, temp_surf_eof, sal_eof, u_surf_eof, v_surf_eof) = modes['eofs']
     ev = modes['eigenvalues']
-    temp_var, sal_var, u_var, v_var = modes['variance']
+    temp_var, temp_surf_var, sal_var, u_surf_var, v_surf_var = modes['variance']
+    assert tsum!=temp.sum()
     assert temp.shape[0]==nrens
     assert sal.shape[0]==nrens
-    eof0 = N.concatenate( (temp_eof[0].compressed(), sal_eof[0].compressed(),
-        u_eof[0].compressed(), v_eof[0].compressed()))
+    eof0 = N.concatenate( (temp_eof[0].compressed(), temp_surf_eof[0].compressed(),
+        sal_eof[0].compressed(),
+        u_surf_eof[0].compressed(), v_surf_eof[0].compressed()))
     assert_allclose((eof0**2).sum(), 1)
-    eof1 = N.concatenate( (temp_eof[1].compressed(), sal_eof[1].compressed(),
-        u_eof[1].compressed(), v_eof[1].compressed()))
+    eof1 = N.concatenate( (temp_eof[1].compressed(), temp_surf_eof[1].compressed(),
+        sal_eof[1].compressed(),
+        u_surf_eof[1].compressed(), v_surf_eof[1].compressed()))
     assert_allclose((eof0*eof1).sum(), 0, atol=1e-7)
     assert_allclose(ev.total_variance, eof0.size)
     expv = (ev**2).sum()/ev.total_variance
@@ -90,8 +110,12 @@ def test_ens_generate_pseudo_ensemble():
 
     # Save ensemble
     f = cdms2.open(ncfile, 'w')
-    for var in (temp, sal, u, v, temp_eof, sal_eof, ev, temp_var, sal_var,
-            u_eof, v_eof, u_var, v_var):
+    for var in (
+            temp, temp_surf, sal, u_surf, v_surf,
+            temp_eof, temp_surf_eof, sal_eof, u_surf_eof, v_surf_eof,
+            temp_var, temp_surf_var, sal_var, u_surf_var, v_surf_var,
+            ev
+            ):
         f.write(var)
     f.close()
 
@@ -99,20 +123,22 @@ def test_ens_ensemble_init():
 
     # Load file from previous routine
     ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
+    varnames = ['temp', 'temp_surf', 'u_surf']
+    vars = []
     f = cdms2.open(ncfile)
-    temp = f('temp_surf')
-    sal = f('sal_surf')
+    for vname in varnames:
+        vv.append(f(vname))
     f.close()
 
     # Init from variables
-    ensv = Ensemble([temp, sal], checkvars=True)
+    ensv = Ensemble(vars, checkvars=True)
 
     # Init from file
     ensf = Ensemble.from_file(ncfile, checkvars=True)
 
     # Checks
-    assert [v.id for v in ensv.variables] == ['temp_surf', 'sal_surf']
-    assert [v.id for v in ensf.variables] == ['temp_surf', 'sal_surf']
+    assert [v.id for v in ensv.variables] == varnames
+    assert [v.id for v in ensf.variables] == varnames
     assert_allclose(ensv.stacked_data, ensf.stacked_data)
 
 def test_ens_ensemble_diags():
