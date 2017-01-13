@@ -1,5 +1,6 @@
 """Test script for module :mod:`sonat.misc`"""
 
+import os
 from vcmq import adatetime, comptime
 
 from util import (THISDIR, NCPAT_MANGA, NCFILE_MANGA0, NCFILE_MANGA1,
@@ -68,9 +69,13 @@ def test_misc_ncfiles_time_indices():
 
 
 def test_slice_gridded_var():
-    # Get var
+    # Get vars
     f = cdms2.open(NCFILE_MANGA0)
     temp = f('TEMP', time=slice(0, 3))
+    f.close()
+    ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
+    f = cdms2.open(ncfile)
+    sal = f('sal', member=slice(0, 3))
     f.close()
 
     # Slice it
@@ -80,10 +85,16 @@ def test_slice_gridded_var():
     assert t.getOrder() == 'tzx'
     t = slice_gridded_var(temp, time='2014-01-01 15.')
     assert t.getOrder() == 'zyx'
+    t = slice_gridded_var(temp, time='2014-01-01 15.', lon=-4.)
+    assert t.getOrder() == 'zy'
     t = slice_gridded_var(temp, lat=47.5, lon=-4.)
     assert t.getOrder() == 'tz'
     t = slice_gridded_var(temp, lon=[-4., -4.1])
     assert t.getOrder() == 'tzyx' and t.shape[-1] == 2
+    s = slice_gridded_var(sal, depth=-12)
+    assert s.getOrder() == '-yx'
+    assert not s.mask.all()
+
 
 
 if __name__=='__main__':
