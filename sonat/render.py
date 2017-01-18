@@ -15,13 +15,13 @@ TEMPLATE_HTML_BASE = """
 
     <head>
         <script type="text/javascript" src="runOnLoad.js"></script>
-        <script type="text/javascript" src="CollapsibleLists.js"></script>
+        <script type="text/javascript" src="CollapsibleLists.compressed.js"></script>
         <script type="text/javascript">
 
           runOnLoad(function(){ CollapsibleLists.apply(); });
 
         </script>
-        <link rel="stylesheet" href="render.css" type="text/css">
+        <link rel="stylesheet" href="sonat.css" type="text/css">
         <title>SONAT - {{ title }}</title>
     </head>
 
@@ -39,27 +39,80 @@ TEMPLATE_HTML_DICT2TREE = """
 {% extends "base.html" %}
 
 {% block content %}
-    <ul>
-    {% for section_name, subcontent in content.iteritems() %}
-        {% if subcontent  %}
+    <ul class="treeView collapsibleList">
+    {% for name0, content0 in content.iteritems() %}
+        {% if content0  %}
         <li>
-            <span class="d2tSectionName">{{ section_name }}</span><br/>
-            {% if subcontent is string %}
-            {{ subcontent|checkimg }}
-            {% elif subcontent is mapping %}
-            <ul>
-            {% for item_name, item_content in subcontent.iteritems() %}
-                {% if item_content %}
+            <span class="d2tSectionName">{{ name0 }}</span><br/>
+
+            {% if content0 is string %}
+            {{ content0|checkimg }}
+            {% elif content0 is mapping %}
+            <ul class="xxxcollapsibleList">
+            {% for name1, content1 in content0.iteritems() %}
+                {% if content1 %}
                 <li>
-                    <span class="d2tItemName">{{ item_name }}</span><br/>
-                    {{ item_content|checkimg }}
+                    <span class="d2tItemName">{{ name1 }}</span><br/>
+
+                    {% if content1 is string %}
+                    {{ content1|checkimg }}
+                    {% elif content1 is mapping %}
+                    <ul>
+                    {% for name2, content2 in content1.iteritems() %}
+                        {% if content2 %}
+                        <li>
+                            <span class="d2tItemName">{{ name2 }}</span><br/>
+
+                            {% if content2 is string %}
+                            {{ content2|checkimg }}
+                            {% elif content2 is mapping %}
+                            <ul>
+                            {% for name3, content3 in content2.iteritems() %}
+                                {% if content3 %}
+                                <li>
+                                    <span class="d2tItemName">{{ name3 }}</span><br/>
+
+                                    {{ content3|checkimg }}
+
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+                            </ul>
+                            {% elif content2 is sequence %}
+                            <ul>
+                            {% for item in content2 %}
+                                {% if item %}
+                                <li>
+                                    {{ item|checkimg }}
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+                            </ul>
+                            {% endif %}
+
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+                    </ul>
+                    {% elif content1 is sequence %}
+                    <ul>
+                    {% for item in content1 %}
+                        {% if item %}
+                        <li>
+                            {{ item|checkimg }}
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+                    </ul>
+                    {% endif %}
+
                 </li>
                 {% endif %}
             {% endfor %}
             </ul>
-            {% elif subcontent is sequence %}
-            <ul>
-            {% for item in subcontent %}
+            {% elif content0 is sequence %}
+            <ul class="collapsibleList">
+            {% for item in content0 %}
                 {% if item %}
                 <li>
                     {{ item|checkimg }}
@@ -67,8 +120,8 @@ TEMPLATE_HTML_DICT2TREE = """
                 {% endif %}
             {% endfor %}
             </ul>
-
             {% endif %}
+
         </li>
         {% endif %}
     {% endfor %}
@@ -77,6 +130,18 @@ TEMPLATE_HTML_DICT2TREE = """
 {% endblock %}
 """
 
+#: Html dependecies
+HTML_DEPS = ["runOnLoad.js", "CollapsibleLists.compressed.js", "sonat.css",
+    "button-closed.png",
+    "button-open.png",
+    "button.png",
+    "list-item-contents.png",
+    "list-item-last-open.png",
+    "list-item-last.png",
+    "list-item-open.png",
+    "list-item-root.png",
+    "list-item.png",
+]
 
 #: Mapping for the jinja loader
 JINJA_LOADER_MAPPING = {}
@@ -99,7 +164,7 @@ def copy_html_material(workdir=None):
         workdir = os.getcwd()
 
     # Copies
-    for bfile in ["runOnLoad.js", "CollapsibleLists.js", "sonat.css"]:
+    for bfile in HTML_DEPS:
         sfile = os.path.join(thisdir, bfile)
         dfile = os.path.join(workdir, bfile)
         if not os.path.exists(dfile):
@@ -128,6 +193,10 @@ def render_and_export_html_template(name, htmlfile, **kwargs):
     f = open(htmlfile, 'w')
     f.write(shtml.encode('utf8'))
     f.close
+
+    # Check material
+    copy_html_material(os.path.dirname(htmlfile))
+
 
 
 RE_IMG_MATCH = re.compile(r'.*(png|jpg|jpeg)$', re.I).match
