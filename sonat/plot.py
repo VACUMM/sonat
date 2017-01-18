@@ -44,10 +44,10 @@ from .misc import slice_gridded_var
 
 
 #: Matplotlib default configuration file
-HYCOMVALID_DEFAULT_MATPLOTLIBRC =  os.path.join(os.path.dirname(__file__), 'matplotlibrc')
+SONAT_DEFAULT_MATPLOTLIBRC =  os.path.join(os.path.dirname(__file__), 'matplotlibrc')
 
 #: Matplotlib user configuration file
-HYCOMVALID_USER_MATPLOTLIBRC =  'matplotlibrc'
+SONAT_USER_MATPLOTLIBRC =  'matplotlibrc'
 
 #: Default arguments to plots
 DEFAULT_PLOT_KWARGS = dict(
@@ -57,7 +57,14 @@ DEFAULT_PLOT_KWARGS = dict(
     quiver_width=1.2,
     fill='contourf',
     quiver_norm=3,
-    proj='merc')
+    proj='merc',
+    cmap=False, # default to mpl
+    autoresize='y',
+    autoresize_minaspect=.5,
+    colorbar_shrink=.8,
+    fillcontinents_zorder=10,
+    figsize=(5, 3),
+    )
 
 RE_GRIDDED_ORDER_MATCH = re.compile(r'\-?t?z?y?x?$').match
 
@@ -149,7 +156,7 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
 def load_mplrc(userfile=None):
     """Load a matplotlib or default user configuration file"""
     # Load default file first
-    rcParams.update(rc_params_from_file(HYCOMVALID_DEFAULT_MATPLOTLIBRC, use_default_template=False))
+    rcParams.update(rc_params_from_file(SONAT_DEFAULT_MATPLOTLIBRC, use_default_template=False))
 
     # Load user file
     userfile = str(userfile)
@@ -158,7 +165,7 @@ def load_mplrc(userfile=None):
     if userfile=='True':
         userfile = 'None'
     if userfile=='None':
-        userfile = HYCOMVALID_USER_MATPLOTLIBRC
+        userfile = SONAT_USER_MATPLOTLIBRC
     if not os.path.exists(userfile):
         return
     rcParams.update(rc_params_from_file(userfile, use_default_template=False))
