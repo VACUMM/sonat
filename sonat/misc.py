@@ -404,13 +404,31 @@ class _Base_(object):
 
             self.logger.debug('Instantiate '+self.__class__.__name__)
 
-    def warn(self, msg):
-        """Issue a :class:`SONATWarning`"""
-        sonat_warn(msg, stacklevel=3)
+    def created(self, path):
+        """Issue an :meth:`info` message about the creation of a file"""
+        path = os.path.abspath(path)
+        self.info('Created: '+path)
 
     def error(self, msg):
         """Raise a :class:`SONARError`"""
         raise SONARError(msg)
+
+    def warn(self, msg):
+        """Issue a :class:`SONATWarning`"""
+        sonat_warn(msg, stacklevel=3)
+
+    def notice(self, msg):
+        self.logger.notice(msg)
+
+    def info(self, msg):
+        self.logger.info(msg)
+
+    def verbose(self, msg):
+        self.logger.verbose(msg)
+
+    def debug(self, msg):
+        self.logger.debug(msg)
+
 
 class _XYT_(object):
     """Needs lons, lats and times to be defined"""
