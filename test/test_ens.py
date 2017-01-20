@@ -5,7 +5,7 @@ import sys
 import numpy as N
 import cdms2
 import cdtime
-from vcmq import comptime, netcdf4, create_dep
+from vcmq import comptime, netcdf4, create_dep, func_name
 
 from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
     NCFILE_MANGA1)
@@ -141,19 +141,51 @@ def test_ens_ensemble_init():
     assert [v.id for v in ensf.variables] == varnames
     assert_allclose(ensv.stacked_data, ensf.stacked_data)
 
-def test_ens_ensemble_diags():
 
-    # Load from file
+CACHE = {}
+def get_ens():
+
+    # From cache
+    if 'ens' in CACHE:
+        return CACHE['ens']
+
+     # Load from file
     ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
     ens = Ensemble.from_file(ncfile)
+    CACHE['ens'] = ens
+    return ens
+
+def test_ens_ensemble_get_diags():
+
+    # Get ens
+    ens = get_ens()
 
     # Diags
     diags = ens.get_diags()
-    pass
+
+def test_ens_ensemble_plot_diags():
+
+    # Get ens
+    ens = get_ens()
+
+    # Diags
+    figs = ens.plot_diags(zonal_sections=[47.5], meridional_sections=[-4],
+        depths=['surf', -15.5])
+
+def test_ens_ensemble_export_diags():
+
+    # Get ens
+    ens = get_ens()
+
+    # Plot and export diags
+    ens.export_diags(func_name()+'.html', depths='surf', variance=True,
+        mean=False, skewtest=False, kurtosistest=False, normaltest=False)
 
 
 if __name__=='__main__':
     test_ens_load_model_at_regular_dates()
     test_ens_generate_pseudo_ensemble()
     test_ens_ensemble_init()
-    test_ens_ensemble_diags()
+    test_ens_ensemble_get_diags()
+    test_ens_ensemble_plot_diags()
+    test_ens_ensemble_export_diags()

@@ -40,15 +40,49 @@ from collections import OrderedDict
 import scipy.stats as SS
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
     MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var,
-    CaseChecker)
+    CaseChecker, curve, bar, dict_check_defaults, dict_merge)
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
     validate_varnames, _CheckVariables_, check_variables)
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
-from .plot import plot_gridded_var
+from .plot import (plot_gridded_var, DEFAULT_PLOT_KWARGS)
 from .render import register_html_template, render_and_export_html_template
+
+#: Default plotting keyword per ensemble diagnostic
+DEFAULT_PLOT_KWARGS_PER_ENS_DIAG = {
+    'explained_variance':dict(
+        xmin=.5, ymin=0,
+        title='Explained variance', width=.5,
+        xlabel="%(long_name)s",
+        bottom=.2,
+    ),
+    'local_explained_variance':{
+        'cmap':'speed',
+        'levels_mode':'positive',
+    },
+    'skew':{
+        'cmap':'symetric',
+        'levels_mode':'symetric',
+    },
+    'kurtosis':{
+        'cmap':'symetric',
+        'levels_mode':'symetric',
+    },
+    'skewtest':{
+        'cmap':'symetric',
+        'levels_mode':'symetric',
+    },
+    'kurtosistest':{
+        'cmap':'symetric',
+        'levels_mode':'symetric',
+    },
+    'normaltest':{
+        'cmap':'positive',
+        'levels_mode':'positive',
+    },
+}
 
 
 
@@ -526,7 +560,9 @@ class Ensemble(Stacker, _CheckVariables_):
 
         if single:
             data = data[0]
-        return cls(data, **kwargs)
+        ens = cls(data, **kwargs)
+        ens.debug('From file: '+ncfile)
+        return ens
 
     @property
     def varnames(self):
@@ -645,7 +681,8 @@ class Ensemble(Stacker, _CheckVariables_):
         if (not mean and not variance and not kurtosis and not skewness and
                 not skewtest and not kurtosistest and not normaltest):
             return {}
-        diags = {}
+        diags = OrderedDict()
+        self.verbose('Getting ensemble diagnostics')
 
         # Inputs
         if not self._meananoms:
@@ -729,43 +766,49 @@ class Ensemble(Stacker, _CheckVariables_):
 
     def plot_diags(self, mean=True, variance=True, kurtosis=True, skew=True,
             skewtest=True, kurtosistest=True, normaltest=True,
-            titlepat = '{varname} - {diagname} - {locname}',
+            titlepat = '{varname} - {diaglongname} - {loc}',
             depths=None, points=None,
             zonal_sections=None, meridional_sections=None,
-            figpat_map='arm_ens_{diag}_map_{depth}.png',
-            figpat_zonal='arm_ens_{diag}_zonal_{lat:.2f}.png',
-            figpat_merid='arm_ens_{diag}_merid_{lon:.2f}.png',
-            figpat_generic='arm_ens_{diag}.png',
+            figpat_slice='arm_ens_{diagname}_{varname}_{slicename}_{loc}.png',
+            figpat_generic='arm_ens_{diagname}.png',
+            fmtlonlat='{:.2f}', fmtdep='{:04.0f}m',
             figfir=None, show=False, cmaps={},
             htmlfile=None,
             **kwargs):
         """Create figures for diagnostics"""
 
         # Diags
-        diags = self.get_diags(**kwargs)
+        diags = self.get_diags(mean=mean, variance=variance, kurtosis=kurtosis, skew=skew,
+            skewtest=skewtest, kurtosistest=kurtosistest, normaltest=normaltest)
 
         # Inits
-        figs = {}
-        if maps and not isinstance(maps, list):
-            maps = [maps]
-        check_depth = CaseChecker(casename='depth')
+        self.verbose('Plotting ensemble diagnostics')
+        figs = OrderedDict()
+        if depths and not isinstance(depths, list):
+            depths = [depths]
         kwmap = kwfilter(kwargs, 'map_')
         kwcurve = kwfilter(kwargs, 'curve_')
+        kwprops = dict_merge(kwargs, DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
+        depths = ArgList(depths).get()
+        depths3d = [dd for dd in depths if dd not in ['surf', 'bottom']]
 
         # Loop on diags
         figs = OrderedDict()
-        for diag, diagvar in diags.items():
+        for diagname, diagvar in diags.items():
 
-            diagname = diag.replace('_', ' ')
+            diaglongname = diagname.title().replace('_', ' ')
+            self.debug('Plotting ens diag: '+diaglongname)
 
             # Explained variance
-            if diag=='explained_variance':
+            if diagname=='explained_variance':
 
                 figfile = figpat_generic.format(**locals())
-                curve(diagvar, xmin=.5, xmax=len(diagvar)+.5, ymin=0,
-                    savefig=figfile, show=show, close=True,
-                    title='Explained variance')
-                figs[diag] = figfile
+                kw = kwprops.get(diagname, {})
+                dict_check_defaults(kw, xmax=len(diagvar)+.5, savefig=figfile,
+                    **DEFAULT_PLOT_KWARGS)
+                bar(diagvar, **kw)
+                self.created(figfile)
+                figs[diaglongname] = figfile
 
             # Loop on variables
             else:
@@ -773,47 +816,104 @@ class Ensemble(Stacker, _CheckVariables_):
                 for diagvar in ArgList(diagvar).get():
                     order = diagvar.getOrder()
 
-                    varname, depth, vdiagname = split_name(diagvar)
+                    varname, vdepth, vdiagname = split_varname(diagvar)
                     id = diagvar.id
+                    self.debug(' Variable: '+varname)
+
 
                     # Maps
                     if depths is not False:
                         toplot = []
+                        slicename = 'map'
 
                         # Get what to plot
-                        if ((vdepth=='surf' and check_case(depths, 'surf')) or
-                                (vdepth=='bottom' and check_case(depths, 'bottom'))):
-                            toplot.apppend((vdepth, diagvar))
-                        else:
-                            for i, depth in enumerate(diagvar.getLevel()):
-                                toplot.apppend(('{.0f}'.format(depth), diagvar[i]))
+                        if ((vdepth=='surf' and 'surf' in depths) or
+                                (vdepth=='bottom' and 'bottom' in depths)): # 2D
+
+                            toplot.append(dict(loc=vdepth, var=diagvar))
+
+                        elif diagvar.getLevel() is not None and depths3d: # 3D
+
+                            # Loop on 3D depths specs
+                            for d3d in depths3d:
+
+                                if d3d in [None, '3d']: # simple slices
+
+                                    levels = diagvar.getLevel()[::-1]
+                                    for i, level in enumerate(levels):
+                                        toplot.append(dict(
+                                            loc=fmtdep.format(abs(level)),
+                                            var=diagvar[len(levels)-i-1]))
+
+                                else: # interpolations
+
+                                    levels = N.sort(N.atleast_1d(d3d))
+                                    for i, level in enumerate(levels):
+                                        toplot.append(dict(
+                                            loc=fmtdep.format(abs(level)),
+                                            var=diagvar,
+                                            kw=dict(depth=level)))
+
+                        # Init dict
+                        if toplot:
+                            dd = figs.setdefault(
+                                diaglongname, OrderedDict()).setdefault(
+                                varname.upper(),  OrderedDict()).setdefault(
+                                slicename.title(), OrderedDict())
 
                         # Plot them
-                        for locname, var in toplot.items():
+                        for spec in toplot:
+                            loc = spec['loc']
+                            var = spec['var']
+                            self.debug('  Location: '+loc)
                             title = titlepat.format(**locals())
-                            plot_gridded_var(diagvar, title=title, **kwmap)
+                            figfile = figpat_slice.format(**locals())
+                            kw = kwprops.get(diagname, {})
+                            if 'kw' in spec:
+                                kw.update(**spec['kw'])
+                            kw.update(title=title, savefig=figfile, **kwmap)
+                            dict_check_defaults(kw, **DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
+                            plot_gridded_var(diagvar, **kw)
+                            self.created(figfile)
+                            dd[loc] = figfile
                         del toplot
 
         # Export to html
+        print figs
         if htmlfile:
-            render_and_export_html_template('dict2tree',
+            render_and_export_html_template('dict2tree.html', htmlfile,
                 title="Ensemble diagnostics", content=figs)
+            self.created(htmlfile)
 
         return figs
 
+    def export_diags(self, htmlfile, **kwargs):
+        """Make and export diagnostics as an html file
 
-def split_name(varname):
+        Parameters
+        ----------
+        htmlfile: string
+            Output html file name
+        **kwargs
+            All other params are passed to :meth:`plot_diags`
+
+        """
+        kwargs['htmlfile'] = htmlfile
+        self.plot_diags(**kwargs)
+
+
+def split_varname(varname):
     """Split a variable name in three parts (physical, depth, others)
 
     The separator is the underscore sign.
 
     Examples
     --------
-    >>> print split_name('temp_surf_std_dev')
+    >>> print split_varname('temp_surf_std_dev')
     ('temp', 'surf', 'std_dev')
-    >>> print split_name('temp_variance')
+    >>> print split_varname('temp_variance')
     ('temp', None, 'variance')
-    >>> print split_name('temp')
+    >>> print split_varname('temp')
     ('temp', None, 'None')
     """
     if cdms2.isVariable(varname):
@@ -821,13 +921,15 @@ def split_name(varname):
     svname = varname.split('_')
     physical = svname[0]
     depth = others = None
-    if len(svname)>2:
+    if len(svname)>1:
         if svname[1] in ['surf', 'bottom']:
             depth = svname[1]
-            svnames = svnames[2:]
+            svname = svname[2:]
+            if depth=='3d':
+                depth = None
         else:
-            svnames = svnames[1:]
-        if svnames:
-            others = '_'.join(svnames)
+            svname = svname[1:]
+        if svname:
+            others = '_'.join(svname)
     return physical, depth, others
 
