@@ -58,12 +58,14 @@ DEFAULT_PLOT_KWARGS = dict(
     fill='contourf',
     quiver_norm=3,
     proj='merc',
-    cmap=False, # default to mpl
+    cmap='auto',
     autoresize='y',
     autoresize_minaspect=.5,
     colorbar_shrink=.8,
     fillcontinents_zorder=10,
     figsize=(5, 3),
+    show=False,
+    close=True,
     )
 
 RE_GRIDDED_ORDER_MATCH = re.compile(r'\-?t?z?y?x?$').match
@@ -146,8 +148,7 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
         args = [vv]
 
     # Default optional arguments
-    dict_check_defaults(kwargs, show=False, close=True,
-        **DEFAULT_PLOT_KWARGS)
+    dict_check_defaults(kwargs,  **DEFAULT_PLOT_KWARGS)
 
     # Plot and return
     return plotfunc(*args, **kwargs)
