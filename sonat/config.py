@@ -46,13 +46,20 @@ from vcmq import (ConfigManager, cfgargparse,
 SONAT_INIFILE = os.path.join(os.path.dirname(__file__), 'sonat.ini')
 
 #: Default user configuration file
-HYCOMVALID_DEFAULT_CFGFILE = 'sonat.cfg'
+SONAT_DEFAULT_CFGFILE = 'sonat.cfg'
 
-#: Matplotlib default configuration file
-SONAT_DEFAULT_MATPLOTLIBRC =  os.path.join(os.path.dirname(__file__), 'matplotlibrc')
+##: Config manager instance
+#SONAT_CFGM = ConfigManager(SONAT_INIFILE, interpolation=False)
+#
+#def load_cfg(cfgfile):
+#    """Load a configuration file"""
+#    return HYCOMVALID_CFGM.load(cfgfile)
 
-#: Matplotlib user configuration file
-SONAT_USER_MATPLOTLIBRC =  'matplotlibrc'
+def parse_args_cfg(parser, cfgfilter=None):
+    """Generate parse arguments,
+    then return parsed arguments and configuration"""
+    return cfgargparse(HYCOMVALID_INIFILE, parser, cfgfile=HYCOMVALID_DEFAULT_CFGFILE,
+        interpolation=False, cfgfilter=cfgfilter)
 
 def get_cfg_cmap(cfg, param):
     """Get the config colormap for a given parameter"""
