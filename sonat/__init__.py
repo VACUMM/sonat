@@ -134,7 +134,7 @@ def get_logger(name=None, cfg=None, **kwargs):
 #: Current root :class:`~vacumm.misc.io.Logger` instance
 LOGGER = None
 
-def help(text=None, url=None):
+def sonat_help(text=None, url=None):
     """Open sonat website in a web browser and optionally search for a string
 
     :Params:

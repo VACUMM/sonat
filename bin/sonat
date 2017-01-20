@@ -1,0 +1,15 @@
+#!/bin/env python
+"""Commandline user interface"""
+
+import sys
+import path
+
+if (os.path.dirname(__file__)=='bin' and
+        os.path.exists(os.path.join('..', 'sonat'))):
+    sys.path.insert(os.path.abspath('..'))
+
+from sonat.cui import main
+
+main()
+
+
