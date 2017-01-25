@@ -40,7 +40,7 @@ from collections import OrderedDict
 import scipy.stats as SS
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
     MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var,
-    CaseChecker, curve, bar, dict_check_defaults, dict_merge)
+    CaseChecker, curve, bar, dict_check_defaults, dict_merge, checkdir)
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
@@ -283,8 +283,9 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
         return out[0]
     return out
 
-def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
-        getmodes=False, logger=None, asdicts=False, anomaly=True, **kwargs):
+def generate_pseudo_ensemble(ncpat, varnames=None, nrens=50, enrich=2., norms=None,
+        getmodes=False, logger=None, asdicts=False, anomaly=True, ncensfile=None,
+        **kwargs):
     """Generate a static pseudo-ensemble from a single simulation
 
 
@@ -318,18 +319,23 @@ def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
     kwlog = kwfilter(kwargs, 'logger_')
     if logger is None:
         logger = get_logger(**kwlog)
+    logger.verbose('Generating pseudo-ensemble')
 
     # Ensembe size
     enrich = max(enrich, 1.)
     nt = int(nrens * enrich)
+    logger.debug(' enrich={enrich},  nt={nt}, ncpat={ncpat}, varnames={varnames}'.format(**locals()))
 
     # Read variables
-    data = load_model_at_regular_dates(ncpat, nt=nt, asdict=False, **kwargs)
+    logger.debug('Reading the model at {} dates'.format(nt))
+    data = load_model_at_regular_dates(ncpat, varnames=varnames, nt=nt,
+        asdict=False, **kwargs)
     single = not isinstance(data, list)
 
     # Enrichment
     witheofs = nrens!=nt
     if witheofs:
+        logger.debug('Computing reduced rank ensemble with EOFs analysis')
 
         # Stack packed variables together
         stacker = Stacker(data, norms=norms, logger=logger)
@@ -368,6 +374,7 @@ def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
 
     else: # No enrichment -> take the anomaly if requested
 
+        logger.debug('Getting the anomaly to build the ensemble')
         ens = data
 
         if anomaly:
@@ -387,15 +394,39 @@ def generate_pseudo_ensemble(ncpat, nrens=50, enrich=2., norms=None,
     else:
         for var in ens:
             var.setAxis(0, member_axis)
+
+    # Dump to file
+    if ncensfile:
+        logger.debug('Dump the ensemble to netcdf')
+        checkdir(ncensfile)
+        f = cdms2.open(ncensfile, 'w')
+        ensvars = list(ens) if not single else [ens]
+        if getmodes:
+            if single:
+                ensvars.append(eofs)
+                ensvars.append(variance)
+            else:
+                ensvars.extend(eofs)
+                ensvars.extend(variance)
+            ensvars.append(svals)
+        for var in ensvars:
+            f.write(var)
+        f.close()
+        logger.created(ncensfile)
+
+    # As dicts
     if asdicts:
         if single:
             ens = OrderedDict([(ens.id, ens)])
             if getmodes:
                 eofs = OrderedDict([(eofs.id, eofs)])
+                variance = OrderedDict([(variance.id, variance)])
         else:
             ens = OrderedDict([(var.id, var) for var in ens])
             if getmodes:
                 eofs = OrderedDict([(var.id, var) for var in eofs])
+                variance = OrderedDict([(var.id, var) for var in variance])
+
 
     # Return
     if not getmodes:
@@ -769,8 +800,8 @@ class Ensemble(Stacker, _CheckVariables_):
             titlepat = '{varname} - {diaglongname} - {loc}',
             depths=None, points=None,
             zonal_sections=None, meridional_sections=None,
-            figpat_slice='arm_ens_{diagname}_{varname}_{slicename}_{loc}.png',
-            figpat_generic='arm_ens_{diagname}.png',
+            figpat_slice='sonat.ens.{diagname}_{varname}_{slicename}_{loc}.png',
+            figpat_generic='sonat.ens.{diagname}.png',
             fmtlonlat='{:.2f}', fmtdep='{:04.0f}m',
             figfir=None, show=False, cmaps={},
             htmlfile=None,
@@ -803,6 +834,7 @@ class Ensemble(Stacker, _CheckVariables_):
             if diagname=='explained_variance':
 
                 figfile = figpat_generic.format(**locals())
+                checkdir(figfile)
                 kw = kwprops.get(diagname, {})
                 dict_check_defaults(kw, xmax=len(diagvar)+.5, savefig=figfile,
                     **DEFAULT_PLOT_KWARGS)
@@ -868,6 +900,7 @@ class Ensemble(Stacker, _CheckVariables_):
                             self.debug('  Location: '+loc)
                             title = titlepat.format(**locals())
                             figfile = figpat_slice.format(**locals())
+                            checkdir(figfile)
                             kw = kwprops.get(diagname, {})
                             if 'kw' in spec:
                                 kw.update(**spec['kw'])
@@ -881,6 +914,12 @@ class Ensemble(Stacker, _CheckVariables_):
         # Export to html
         print figs
         if htmlfile:
+
+            # Figure paths
+            figs = dicttree_relpath(figs, os.path.dirname(htmlfile))
+
+            # Render with template
+            checkdir(htmlfile)
             render_and_export_html_template('dict2tree.html', htmlfile,
                 title="Ensemble diagnostics", content=figs)
             self.created(htmlfile)
