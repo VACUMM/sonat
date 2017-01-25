@@ -8,7 +8,8 @@ from util import (THISDIR, NCPAT_MANGA, NCFILE_MANGA0, NCFILE_MANGA1,
     assert_allclose, assert_raises, N, cdms2, cdtime)
 
 from sonat.misc import (scan_format_string, list_files_from_pattern,
-    DatePat2GlobFormatter, ncfiles_time_indices, slice_gridded_var)
+    DatePat2GlobFormatter, ncfiles_time_indices, slice_gridded_var,
+    dicttree_relpath)
 
 def test_misc_scan_format_string():
 
@@ -96,6 +97,22 @@ def test_slice_gridded_var():
     assert not s.mask.all()
 
 
+def test_misc_dicttree_relpath():
+
+    assert (dicttree_relpath(os.path.abspath('../data/myfile.nc'), '.')==
+        '../data/myfile.nc')
+
+    print dicttree_relpath(os.path.abspath('../data/myfile.nc'), '.')
+
+    dd = {'sec1': {
+        'key1':'ENS/sub/file.f90',
+        'dict':{
+            'key':os.path.abspath('../data/myfile.nc'),
+            'list':[os.path.abspath('../data/ens/fig1.nc'), 'fig2.nc'],
+            }
+        }
+    }
+    print dicttree_relpath(dd, 'ENS')
 
 if __name__=='__main__':
     test_misc_scan_format_string()
@@ -103,3 +120,4 @@ if __name__=='__main__':
     test_misc_datepat2globformatter()
     test_misc_ncfiles_time_indices()
     test_slice_gridded_var()
+    test_misc_dicttree_relpath()
