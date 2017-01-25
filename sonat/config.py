@@ -38,7 +38,7 @@
 
 import os
 from matplotlib import rcParams, rc_params_from_file
-from vcmq import (ConfigManager, cfgargparse,
+from vcmq import (ConfigManager, cfgargparse, ArgList,
     adatetime, get_cmap, kwfilter)
 
 
@@ -48,17 +48,14 @@ SONAT_INIFILE = os.path.join(os.path.dirname(__file__), 'sonat.ini')
 #: Default user configuration file
 SONAT_DEFAULT_CFGFILE = 'sonat.cfg'
 
-##: Config manager instance
-#SONAT_CFGM = ConfigManager(SONAT_INIFILE, interpolation=False)
-#
-#def load_cfg(cfgfile):
-#    """Load a configuration file"""
-#    return HYCOMVALID_CFGM.load(cfgfile)
+def load_cfg(cfgfile):
+    """Load a configuration file"""
+    return ConfigManager(SONAT_INIFILE, interpolation=False).load(cfgfile)
 
 def parse_args_cfg(parser, cfgfilter=None):
     """Generate parse arguments,
     then return parsed arguments and configuration"""
-    return cfgargparse(HYCOMVALID_INIFILE, parser, cfgfile=HYCOMVALID_DEFAULT_CFGFILE,
+    return cfgargparse(SONAT_INIFILE, parser, cfgfile=SONAT_DEFAULT_CFGFILE,
         interpolation=False, cfgfilter=cfgfilter)
 
 def get_cfg_cmap(cfg, param):
@@ -112,25 +109,34 @@ def _get_domain_minmax_(cfg, key, defmin, defmax, bounds, none=True):
          itv += bounds,
     return itv
 
+def get_cfg_path(cfg, secname, secpathname, format=False, *args, **kwargs):
+    """Format a relative path from the config with optional subtitutions
 
-def load_mplrc(userfile=None):
-    """Load a matplotlib or default user configuration file"""
-    # Load default file first
-    rcParams.update(rc_params_from_file(SONAT_DEFAULT_MATPLOTLIBRC, use_default_template=False))
+    This path is either absolute or relative to the "wordir" entry of the
+    "session" config section.
 
-    # Load user file
-    userfile = str(userfile)
-    if userfile=='False':
+    Example
+    -------
+    >>> path = get_cfg_secpath(cfg, 'ens', 'htmlfile')
+
+    """
+    paths = cfg[secname][secpathname]
+    if paths is None:
         return
-    if userfile=='True':
-        userfile = 'None'
-    if userfile=='None':
-        userfile = SONAT_USER_MATPLOTLIBRC
-    if not os.path.exists(userfile):
-        return
-    rcParams.update(rc_params_from_file(userfile, use_default_template=False))
+    wdir = cfg['session']['workdir']
+    if not wdir:
+        wdir = os.getcwd()
+    al = ArgList(paths)
+    opaths = []
+    for path in al.get():
+        if not os.path.isabs(path):
+            path = os.path.abspath(os.path.join(wdir, path))
+        if format:
+            path = path.format(*args, **kwargs)
+        opaths.append(path)
+    return al.put(opaths)
 
-#load_mplrc()
+
 
 
 
