@@ -1,12 +1,16 @@
 #!/bin/env python
-"""Commandline user interface"""
+"""Commandline user interface to SONAT"""
 
+import os
 import sys
-import path
 
-if (os.path.dirname(__file__)=='bin' and
-        os.path.exists(os.path.join('..', 'sonat'))):
-    sys.path.insert(os.path.abspath('..'))
+THISFILE = os.path.abspath(__file__)
+THISDIR = os.path.dirname(THISFILE)
+THISBASEDIR = os.path.basename(THISDIR)
+
+if (THISBASEDIR=='bin' and
+        os.path.exists(os.path.join(THISDIR, '..', 'sonat'))):
+    sys.path.insert(0, os.path.abspath(os.path.join(THISDIR, '..')))
 
 from sonat.cui import main
 
