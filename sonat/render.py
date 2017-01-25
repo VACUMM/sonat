@@ -39,7 +39,7 @@ TEMPLATE_HTML_DICT2TREE = """
 {% extends "base.html" %}
 
 {% block content %}
-    <ul class="treeView collapsibleList">
+    <ul class="treeView">
     {% for name0, content0 in content.iteritems() %}
         {% if content0  %}
         <li>
@@ -48,7 +48,7 @@ TEMPLATE_HTML_DICT2TREE = """
             {% if content0 is string %}
             {{ content0|checkimg }}
             {% elif content0 is mapping %}
-            <ul class="xxxcollapsibleList">
+            <ul class="collaspibleList">
             {% for name1, content1 in content0.iteritems() %}
                 {% if content1 %}
                 <li>
