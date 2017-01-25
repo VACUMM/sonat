@@ -613,3 +613,18 @@ def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=Non
     return var
 
 #def _take_first_index_(var,
+
+def dicttree_relpath(dd, refdir):
+    """Make paths stored in a tree of dictionaries relative to another one
+
+    A dict entry must be either a string, a list of strings or another dict
+    """
+    if isinstance(dd, basestring):
+        dd = os.path.relpath(dd, refdir)
+    elif isinstance(dd, list):
+        for i, d in enumerate(dd):
+            dd[i] = os.path.relpath(d, refdir)
+    else:
+        for key, val in dd.items():
+            dd[key] = dicttree_relpath(val, refdir)
+    return dd
