@@ -98,7 +98,7 @@ def get_logger(name=None, cfg=None, **kwargs):
 
         # Create new generic logger
         name = 'SONAT'
-        sonat.LOGGER = Logger(name, **kwargs)
+        sonat.LOGGER = SONATLogger(name, **kwargs)
         return sonat.LOGGER
 
     elif isinstance(name, Logger):
@@ -115,9 +115,9 @@ def get_logger(name=None, cfg=None, **kwargs):
 
          if sonat.LOGGER: # Existing logger
 
-             if sonat.LOGGER.logger.name != name: # Create a child
+             if sonat.LOGGER.name != name: # Create a child
 
-                 name = '{}.{}'.format(sonat.LOGGER.logger.name, name)
+                 name = '{}.{}'.format(sonat.LOGGER.name, name)
                  return SONATLogger(name, console=False, logfile=None)
 
              # Same logger to use it
