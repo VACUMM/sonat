@@ -26,6 +26,11 @@ def test_render_html_template_dict2tree():
         'Dict':{
             'key1':'value1',
             'key2':'value2',
+            },
+        'Sub':{
+            'SubDict':{
+                'subkey1':'subvalue1'
+                }
             }
         }
 
