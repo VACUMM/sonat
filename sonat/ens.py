@@ -35,6 +35,7 @@ Ensembles
 # knowledge of the CeCILL license and that you accept its terms.
 #
 
+import os
 import re
 from collections import OrderedDict
 import scipy.stats as SS
@@ -44,7 +45,7 @@ from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
-    validate_varnames, _CheckVariables_, check_variables)
+    validate_varnames, _CheckVariables_, check_variables, dicttree_relpath)
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
 from .plot import (plot_gridded_var, DEFAULT_PLOT_KWARGS)
@@ -806,7 +807,20 @@ class Ensemble(Stacker, _CheckVariables_):
             figfir=None, show=False, cmaps={},
             htmlfile=None,
             **kwargs):
-        """Create figures for diagnostics"""
+        """Create figures for diagnostics
+
+        Parameters
+        ----------
+        depths: string, floats
+            List of depths for horizontal slices. All by default.
+            It accepts scalars or list of floats and of the two special values
+            "bottom" and "surf". In the latter case, these variable must
+            be explicitely included in the ensemble, like "temp_surf". A depth
+            of 0 is not equivalent to "surf", despite results may be similar,
+            or equivalent when the sea level is always 0.
+            In the case of floats, the
+            ensemble must contain 3d variables.
+        """
 
         # Diags
         diags = self.get_diags(mean=mean, variance=variance, kurtosis=kurtosis, skew=skew,
@@ -938,7 +952,8 @@ class Ensemble(Stacker, _CheckVariables_):
 
         """
         kwargs['htmlfile'] = htmlfile
-        self.plot_diags(**kwargs)
+        figs = self.plot_diags(**kwargs)
+        return htmlfile, figs
 
 
 def split_varname(varname):
