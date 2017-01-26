@@ -2,10 +2,10 @@
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from .__init__ import sonat_help, get_logger
+from .__init__ import sonat_help, get_logger, SONATError
 from .config import (parse_args_cfg, get_cfg_xminmax, get_cfg_yminmax,
     get_cfg_tminmax, get_cfg_path)
-from .ens import generate_pseudo_ensemble
+from .ens import generate_pseudo_ensemble, Ensemble
 
 
 def main():
@@ -37,7 +37,7 @@ def main():
     # - ensemble plot_diags
     epparser = esubparsers.add_parser('plot_diags',
         help='make and plot ensemble diagnostics')
-    epparser.add_argument('ncfile', nargs='?',
+    epparser.add_argument('ncensfile', nargs='?',
         help='ensemble netcdf file')
     pgparser.set_defaults(func=ens_plot_diags)
 
@@ -54,26 +54,24 @@ def open_help(args):
 
 ## ENSEMBLE
 
-ERRMSG_NOMODFILES = ('No model file specified. Please specify it as arguments '
-    'to the command line, or in the configuration file')
-
-def ens_gen_pseudo(parser, args):
+def ens_gen_pseudo_from_args(parser, args):
     """ens gen_pseudo subcommand"""
     # Get the config
     cfg = args.vacumm_cfg
 
     # List of model files from args and config
-    ncmodfiles = (args.ncmodfile if args.ncmoddile else
+    ncmodfiles = (args.ncmodfile if args.ncmodfile else
         get_cfg_path(cfg, 'ens', 'ncmodfiles'))
     cfg['ens']['ncmodfiles'] = ncmodfiles
     if not ncmodfiles:
-        parser.error(ERRMSG_NOMODFILES)
+        parser.error('No model file specified. Please specify it as arguments '
+    'to the command line, or in the configuration file')
 
     # Execute using config only
-    ens_gen_pseudo_from_cfg(cfg)
+    return ens_gen_pseudo_from_cfg(cfg)
 
 def ens_gen_pseudo_from_cfg(cfg):
-    """Take model output netcdf files and create a ensemble netcdf file"""
+    """Take model output netcdf files and create an ensemble netcdf file"""
     # Config
     cfgd = cfg['domain']
     cfge = cfg['ens']
@@ -82,10 +80,12 @@ def ens_gen_pseudo_from_cfg(cfg):
     logger = get_logger(cfg=cfg)
 
     # Arguments from options
-    ncfile = get_cfg_path(cfg, 'ens', 'ncfile')
+    ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
     ncmodfiles = get_cfg_path(cfg, 'ens', 'ncmodfiles')
     if not ncmodfiles:
-        logger.error(ERRMSG_NOMODFILES)
+        raise SONATError('No model file specified')
+    if not ncensfile:
+        raise SONATError('No ensemble file specified')
     lon = get_cfg_xminmax(cfg)
     lat = get_cfg_yminmax(cfg)
     time = get_cfg_tminmax(cfg, bounds=False)
@@ -97,53 +97,88 @@ def ens_gen_pseudo_from_cfg(cfg):
     getmodes = enrich > 1
 
     # Run and save
-    ensvars = generate_pseudo_ensemble(ncmodfiles, nrens=nens, enrich=enrich,
+    generate_pseudo_ensemble(ncmodfiles, nrens=nens, enrich=enrich,
         norms=None, lon=lon, lat=lat, time=time, depths=depths, varnames=varnames,
         getmodes=getmodes, logger=logger, asdicts=False, anomaly=True,
-        ncensfile=ncfile)
+        ncensfile=ncensfile)
+
+    return ncensfile
 
 
-def ens_plot_diags(args):
+def ens_plot_diags_from_args(args):
     """ens plot_diags subcommand"""
-    ens_plot_diags_from_cfg(args.vacumm_cfg)
+    # Get the config
+    cfg = args.vacumm_cfg
+
+    # List of model files from args and config
+    ncensfile = (args.ncensfile if args.ncensfile else
+        get_cfg_path(cfg, 'ens', 'ncensfile'))
+    cfg['ens']['ncensfile'] = ncensfile
+    if not ncensfile:
+        parser.error('No ensemble file specified. Please specify it as an argument '
+    'to the command line, or in the configuration file')
+
+    # Execute using config only
+    return ens_plot_diags_from_cfg(CFG)
+
+
 
 def ens_plot_diags_from_cfg(cfg):
     # Config
     cfgd = cfg['domain']
     cfge = cfg['ens']
+    cfged = cfge['diags']
 
     # Logger
-    logger = get_logger('ENSPLOTDIAGS', cfg=cfg)
+    logger = get_logger(cfg=cfg)
 
     # Arguments from options
-    ncfile = (args.ncfile if args.ncfile else
-        get_cfg_path(cfg, 'ens', 'ncfile'))
-    if not ncfile:
-        msg = ('No ensemble file specified. Please specify it as the first argument '
-            'to the command line, or in the configuration file')
-        logger.error(msg)
-        parser.error(msg)
+    ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
+    if not ncensfile:
+        raise SONATError('No ensemble file specified')
     lon = get_cfg_xminmax(cfg)
     lat = get_cfg_yminmax(cfg)
-    time = get_cfg_tminmax(cfg)
-    nens = cfge['nens']
-    enrich = cfge['enrich']
-    norms = cfge['norms']
-    depths = cfge['depths']
     varnames = cfge['varnames'] or None
-    getmodes = enrich > 1
     figpatslice = get_cfg_path(cfg, 'ens', 'figpatslice')
     figpatgeneric = get_cfg_path(cfg, 'ens', 'figpatgeneric')
     htmlfile = get_cfg_path(cfg, 'ens', 'htmlfile')
+    depths = cfg2depth(cfged.pop('depths'))
+    kwargs = cfged.copy()
 
     # Setup ensemble from file
-    ens = Ensemble.from_file(ncfile, varnames=varnames, logger=logger)
+    ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
+        lon=lon, lat=lat)
 
     # Plot diags
-    ens.plot_diags(htmlfile=htmlfile, figpatslice=figpatslice,
-        figpatgeneric=figpatgeneric)
+    return ens.export_diags(htmlfile, figpat_slice=figpatslice,
+        figpat_generic=figpatgeneric, depths=depths, **kwargs)
 
 
+## MISC
+
+def cfg2depth(depth):
+    """Convert depth option to valid depth
+
+    List are returned as lists.
+    Non strings are returned whithout change.
+    Strings are lower cased.
+    Special "surf" and "bottom" values are returned whithout change.
+    Others are converted to floats.
+    """
+
+    # From list
+    if isinstance(depth, list):
+        for i, d in enumerate(depth):
+            depth[i] = cfg2depth(d)
+        return depth
+
+    # Scalar
+    if not isinstance(depth, basestring):
+        return depth
+    depth = depth.lower()
+    if depth not in ('bottom', 'surf'):
+        depth = float(depth)
+    return depth
 
 if __name__=='__main__':
     main()
