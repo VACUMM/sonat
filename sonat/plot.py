@@ -63,7 +63,7 @@ DEFAULT_PLOT_KWARGS = dict(
     autoresize_minaspect=.5,
     colorbar_shrink=.8,
     fillcontinents_zorder=10,
-    figsize=(5, 3),
+#    figsize=(5, 3), # in matplotlibrc
     show=False,
     close=True,
     )
