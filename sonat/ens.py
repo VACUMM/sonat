@@ -804,9 +804,8 @@ class Ensemble(Stacker, _CheckVariables_):
             figpat_slice='sonat.ens.{diagname}_{varname}_{slicename}_{loc}.png',
             figpat_generic='sonat.ens.{diagname}.png',
             fmtlonlat='{:.2f}', fmtdep='{:04.0f}m',
-            figfir=None, show=False, cmaps={},
-            htmlfile=None,
-            **kwargs):
+            figfir=None, show=False,
+            htmlfile=None, props=None):
         """Create figures for diagnostics
 
         Parameters
@@ -820,6 +819,10 @@ class Ensemble(Stacker, _CheckVariables_):
             or equivalent when the sea level is always 0.
             In the case of floats, the
             ensemble must contain 3d variables.
+        props: dict, None
+            Dictionary of graphic properties passed as keywords to plotting
+            functions. The keys must be valid diagnostics names such as
+            "mean", or one of the follow plotting function: map, curve.
         """
 
         # Diags
@@ -831,11 +834,14 @@ class Ensemble(Stacker, _CheckVariables_):
         figs = OrderedDict()
         if depths and not isinstance(depths, list):
             depths = [depths]
-        kwmap = kwfilter(kwargs, 'map_')
-        kwcurve = kwfilter(kwargs, 'curve_')
-        kwprops = dict_merge(kwargs, DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
+        if props is None:
+            props = {}
+        kwmap = props.get('map', {})
+        kwcurve = props.get('curve', {})
+        kwprops = dict_merge(props, DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
         depths = ArgList(depths).get()
         depths3d = [dd for dd in depths if dd not in ['surf', 'bottom']]
+        depths3d.sort(reverse=True)
 
         # Loop on diags
         figs = OrderedDict()

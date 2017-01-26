@@ -79,7 +79,7 @@ def ens_gen_pseudo_from_cfg(cfg):
     # Logger
     logger = get_logger(cfg=cfg)
 
-    # Arguments from options
+    # Options from config
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
     ncmodfiles = get_cfg_path(cfg, 'ens', 'ncmodfiles')
     if not ncmodfiles:
@@ -128,11 +128,12 @@ def ens_plot_diags_from_cfg(cfg):
     cfgd = cfg['domain']
     cfge = cfg['ens']
     cfged = cfge['diags']
+    cfgc = cfg['cmaps']
 
     # Logger
     logger = get_logger(cfg=cfg)
 
-    # Arguments from options
+    # Options from config
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
     if not ncensfile:
         raise SONATError('No ensemble file specified')
@@ -144,6 +145,26 @@ def ens_plot_diags_from_cfg(cfg):
     htmlfile = get_cfg_path(cfg, 'ens', 'htmlfile')
     depths = cfg2depth(cfged.pop('depths'))
     kwargs = cfged.copy()
+    props = {
+        'local_explained_variance':{
+            'cmap':cfgc['pos'],
+        },
+        'skew':{
+            'cmap':cfgc['anom'],
+        },
+        'kurtosis':{
+            'cmap':cfgc['anom'],
+        },
+        'skewtest':{
+            'cmap':cfgc['anom'],
+        },
+        'kurtosistest':{
+            'cmap':cfgc['anom'],
+        },
+        'normaltest':{
+            'cmap':cfgc['pos'],
+        },
+    }
 
     # Setup ensemble from file
     ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
@@ -151,7 +172,7 @@ def ens_plot_diags_from_cfg(cfg):
 
     # Plot diags
     return ens.export_diags(htmlfile, figpat_slice=figpatslice,
-        figpat_generic=figpatgeneric, depths=depths, **kwargs)
+        figpat_generic=figpatgeneric, depths=depths, props=props, **kwargs)
 
 
 ## MISC
