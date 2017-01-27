@@ -5,6 +5,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from .__init__ import sonat_help, get_logger, SONATError
 from .config import (parse_args_cfg, get_cfg_xminmax, get_cfg_yminmax,
     get_cfg_tminmax, get_cfg_path)
+from .obs import load_obs_platform
 from .ens import generate_pseudo_ensemble, Ensemble
 
 
@@ -122,13 +123,13 @@ def ens_plot_diags_from_args(args):
     return ens_plot_diags_from_cfg(CFG)
 
 
-
 def ens_plot_diags_from_cfg(cfg):
     # Config
     cfgd = cfg['domain']
     cfge = cfg['ens']
     cfged = cfge['diags']
     cfgc = cfg['cmaps']
+    cfgo = cfg['obs']
 
     # Logger
     logger = get_logger(cfg=cfg)
@@ -166,6 +167,16 @@ def ens_plot_diags_from_cfg(cfg):
         },
     }
 
+    # Specs from obs
+    if cfg['ens']['fromobs']['activate']:
+
+        # Load obs manager
+        obsmanager = load_obs_from_cfg(cfg)
+
+        # Get specs
+        specs = obsmanager.get_model_specs()
+    xxx
+
     # Setup ensemble from file
     ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
         lon=lon, lat=lat)
@@ -200,6 +211,43 @@ def cfg2depth(depth):
     if depth not in ('bottom', 'surf'):
         depth = float(depth)
     return depth
+
+def load_obs_from_cfg(cfg):
+    """Setup an :class:`~sonat.obs.ObsManager` using the configuration"""
+    # Logger
+    logger = get_logger(cfg=cfg)
+    logger.verbose('Loading observations')
+
+    # Loop on platform types
+    obsplats = []
+    for platform_type, platform_type_section in cfg['obs'].items():
+        logger.debug('Loading platforms of type: ' + platform_type)
+
+        # Loop on plaforms to load
+        for platform_name, platform_section in platform_type_section.items():
+
+            # Check file
+            pfile = platform_section['file']
+            logger.debug('Loading obs file: '+pfile)
+            if not pfile or not os.path.exists(pfile):
+                raise SONATError('Observation platform file not found: ' +
+                    pfile)
+
+            # Arguments
+            kwargs = platform_section.copy()
+            del platform_section['file']
+            kwargs['name'] = platform_name
+
+            # Load
+            obs = load_obs_platform(platformp, file, **kwargs)
+            obsplats.append(obs)
+
+    # Init manager
+    manager = ObsManager(obsplats)
+
+    return manager
+
+
 
 if __name__=='__main__':
     main()
