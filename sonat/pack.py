@@ -272,7 +272,7 @@ class Packer(_Base_):
 
         else: # Don't pack, just reshape
 
-            if nxdim+self.nsdim > 2:
+            if self.nsdim > 1:
                 data_num.shape = data_num.shape[:nxdim]+(-1, )
             pdata = data_num.T
 
