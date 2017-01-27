@@ -246,3 +246,96 @@ class ARM(_Base_):
             id='arm_rep_{id}')
         return self._results['rep']
 
+    def get_score(self, type='nev'):
+        """Get the score for the current analysis
+
+        Parameters
+        ----------
+        type: string
+            Score type
+       """
+        return get_arm_score_function(type)(self.spect, self.arm, self.rep)
+
+
+
+ARM_SCORE_FUNCTION_PREFIX = 'arm_score_'
+
+def arm_score_nev(spect, arm, rep):
+    """ARM score as the number of eigen values greater than one"""
+    return (spect>=1).sum()
+
+def arm_score_fnev(spect, arm, rep):
+    """ARM score as the fractional number of eigen values greater than one"""
+    # Integer value
+    nev = arm_score_nev(spect, arm, rep)
+
+    # Linear interpolation
+    if nev==0 or nev==len(spect):
+        return float(nev)
+    return float(nev) + spect[nev-1] / (spect[nev-1] - spect[nev])
+
+
+def arm_score_relvar(spect, arm, rep):
+    """ARM score as the fractional number of eigen values greater than one"""
+    # Float value
+    fnev = arm_score_fnev(spect, arm, rep)
+    if fnev==0:
+        return 0.
+    nev = int(fnev)
+
+    # One-based spectum
+    spect = spect - 1
+
+    # Base
+    var = spect[:nev].sum()
+    var -= spect[0] * .5
+    var -= spect[-1] * .5
+    if int(fnev)==len(spect):
+        return var
+
+    # Fraction
+    var += fnev//1 * spect[-1] * .5
+
+
+ARM_SCORE_FUNCTIONS = {}
+
+def register_arm_score_function(func):
+    """Register a new score function"""
+
+    # Get the generic name
+    fname = func.__name__.lower()
+    prefix = 'arm_score_'
+    if fname.startswith(prefix):
+        fname = fname[len(prefix):]
+
+    # Inspect
+    argspec = inspect.getargspec(func)
+    nargs = len(argspec[0])
+    if argspec[3] is not None:
+        nargs -= len(argspec[3])
+    if nargs != 3:
+        raise SONATError("You score function must exactly 3 positional "
+            "arguments,  not {}: spect, arm, rep".format(nargs))
+
+    # Save it
+    if fname in ARM_SCORE_FUNCTIONS:
+        sonat_warn('ARM score function "{}" is already registered. Replacing...'.format(
+            fname))
+    ARM_SCORE_FUNCTIONS[fname] = func
+
+    return fname, func
+
+def get_arm_score_function(fname):
+    """Get a score function from its name"""
+
+    fname = fname.lower()
+    if fname not in ARM_SCORE_FUNCTIONS:
+        raise SONATError('Unkown score function "{}". Valid names: {}'.format(
+            fname, ', '.join(ARM_SCORE_FUNCTIONS.keys())))
+
+    return ARM_SCORE_FUNCTIONS[fname]
+
+# Register default score functions
+register_arm_score_function(arm_score_nev)
+register_arm_score_function(arm_score_fnev)
+register_arm_score_function(arm_score_relvar)
