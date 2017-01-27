@@ -16,6 +16,8 @@ NCFILE_MANGA1 = os.path.abspath(os.path.join(THISDIR, '../data/manga-2014-01-16.
 NCGLOB_MANGA = os.path.abspath(os.path.join(THISDIR, '../data/manga-*-[01][0-9]-??.nc'))
 NCPATGLOB_MANGA = os.path.abspath(os.path.join(THISDIR, '../data/manga-*-{date:%m-%d}.nc'))
 NCFILE_OBS_SURF = os.path.abspath(os.path.join(THISDIR, '../data/obs.surf.nc'))
+NCFILE_OBS_SURF_UV = os.path.abspath(os.path.join(THISDIR, '../data/obs.surf.uv.nc'))
+NCFILE_OBS_3D_TS = os.path.abspath(os.path.join(THISDIR, '../data/obs.3d.ts.nc'))
 CFGFILE = os.path.abspath(os.path.join(THISDIR, 'sonat.cfg'))
 
 LIBDIR = os.path.abspath(os.path.join(THISDIR, '..', 'sonat'))
