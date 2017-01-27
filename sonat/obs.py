@@ -44,7 +44,7 @@ from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     ncget_time, ncget_level, ArgList, ncfind_obj, itv_intersect, intersect,
     MV2_axisConcatenate, transect, create_axis)
 
-from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES
+from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES, get_logger
 from .misc import xycompress, _Base_, _XYT_, check_variables, _CheckVariables_
 from .stack import Stacker, _StackerMapIO_
 
@@ -52,7 +52,67 @@ npy = N
 
 RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
 
-class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
+OBS_PLATFORM_TYPES = {}
+
+def register_obs_platform(cls):
+    """Register a new observation platform type"""
+
+    # Check class
+    if not issubclass(cls, ObsPlatformBase):
+        raise SONATError('Platform cannot be registered: '
+            'it must be a subclass of ObsPlatformBase')
+
+    # Check platform_type existence and type
+    if (not hasattr(cls, 'platform_type') or
+            not isinstance(cls.platform_type, basestring)):
+        raise SONATError('Platform cannot be registered: no attribute '
+            '"platform_type"')
+
+    # Check platform_type value
+    if cls.platform_type in OBS_PLATFORM_TYPES:
+        sonat_warn('Plaform already registered: {}. Overwriting it.'.format(
+            cls.platform_type))
+
+    OBS_PLATFORM_TYPES[cls.platform_type]
+
+def get_obs_platform(self, platform_type, *args, **kwargs):
+    """Get the class or instance for a given platform type
+
+    If extra arguments are passed, they are used to create a instance
+    which is then return. Otherwise, the class is return.
+    """
+
+    # Get the class
+    if platform_type not in OBS_PLATFORM_TYPES:
+        raise SONATError('Observation platform type not registered: '+platform_type)
+    cls = OBS_PLATFORM_TYPES[platform_type]
+
+    # Instance
+    if args or kwargs:
+        return cls(*args, **kwargs)
+    return cls
+
+def load_obs_platform(self, platform_type, pfile, varnames=None, name=None, **kwargs):
+    """Load an aobservation platform instance from its type and its file"""
+    obs = get_obs_platform(platform_type, pfile, varnames=varnames, **kwargs)
+    obs.name = name
+    return obs
+
+class ObsPlatformBase(Stacker, _XYT_, _CheckVariables_):
+
+    name = None
+
+    @property
+    def platform_type(self):
+        raise SONATError('"platform_type" must declared as a string attribute')
+
+    def __init__(self, *args, **kwargs):
+        raise SONATError('This method must be overwritten')
+
+    def project_model(self, *args, **kwargs):
+        raise SONATError('This method must be overwritten')
+
+class NcObsPlatform(ObsPlatformBase):
     """Generic observation platform class
 
 
@@ -66,9 +126,10 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
 
     nc_error_suffix = '_error'
     nc_mobility_name = 'mobility'
+    platform_type = 'generic'
 
     def __init__(self, ncfile, varnames=None, logger=None, norms=None,
-            time=None, lon=None, lat=None, levels=None,
+            time=None, lon=None, lat=None, levels=None, name=None,
             singlevar=False, **kwargs):
 
         # Init logger
@@ -83,6 +144,7 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
         self.levels = levels
         self.errors = OrderedDict()
         self._orig = {}
+        self.name = name
 
         # Load positions and variables
         self.load(singlevar=singlevar)
@@ -99,11 +161,21 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
 
         # List of error variables
         if self.varnames is None:
+
+            # List from file without error suffix
             self.varnames = [vname.rstrip(self.nc_error_suffix)
                 for vname in f.listvariables()
                     if vname.endswith(self.nc_error_suffix)]
         else:
-            self.varnames = [vname.rstrip(self.nc_error_suffix) for vname in self.varnames]
+
+            # Remove error suffix
+            self.varnames = [vname.rstrip(self.nc_error_suffix)
+                for vname in self.varnames]
+
+            # Keep valid names
+            self.varnames = [vname for vname in self.varnames
+                if vname+self.nc_error_suffix in f.listvariables()]
+
         if not self.varnames:
             raise SONATError(('No valid error variable with suffix "{0.nc_error_suffix}"'
                 ' in file: {0.ncfile}').format(self))
@@ -151,12 +223,13 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
                 if self.lat:
                     mask |= lats < self.lat[0]
                     mask |= lats > self.lat[1]
-            mask = mask.filled(False)
+                if self.lon or self.lat:
+                    mask = mask.filled(False)
             order = order[:-1]
 
             # Vertical dimension
             if 'z' in order:
-                order.remove('z')
+                order = order.replace('z', '')
                 self.depths = fs.getLevel().clone()
                 self.axes1d.append(self.depths)
             else:
@@ -176,7 +249,7 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
             # Time selection
             if 't' in order: # 1D axis
                 kwread.update(time=time)
-                order.remove('t')
+                order = order.replace('t', '')
                 self.times = fs.getTime().clone()
                 self.axes1d.append(self.times)
             else: # Aux axis
@@ -454,7 +527,7 @@ class NcObsPlatform(Stacker, _XYT_, _CheckVariables_):
 class ObsManager(_Base_, _StackerMapIO_, _XYT_):
     """Class to manage several observation platform instances"""
 
-    def __init__(self, input, logger=None, **kwargs):
+    def __init__(self, input, logger=None, syncnorms=True, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -468,10 +541,17 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
                     'list of NcObsPlatform instances')
             self.obsplats.append(obsplat)
 
+        # Synchronise norms
+        self._norm_synced = False
+        if syncnorms:
+            self.sync_norms()
+
         # Stack stacked data
         self._core_stack_()
         self.splits = npy.cumsum([obs.stacked_data.shape[0]
             for obs in self.obsplats[:-1]])
+
+
 
     def _core_stack_(self):
         self.stacked_data = npy.asfortranarray(
@@ -598,6 +678,44 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
         self._core_stack_()
         return notnormed
 
+    def sync_norms(self, force=True):
+        """Synchronise norms accross platforms between variables with the same name
+
+        Parameters
+        ----------
+        force: bool
+            Force sync even if it seems at has already been synced.
+        """
+        if not force and self._norm_synced:
+            return False
+
+        # Renorm for each variable
+        for varname in self.varnames:
+
+            # Unified norm
+            psize = 0.
+            sqnorms = 0.
+            packers = []
+            for obs in self.obsplats:
+                if varname in obs.varnames:
+                    i = obs.varnames.index(varname)
+                    packers.append(obs[i])
+                    psize += obs[i].psize
+                    sqnorms += obs[i].psize * obs[i].norm**2
+            if len(packers)==1: # nothing to unify
+                continue
+            norm = N.sqrt(sqnorms / psize)
+
+            # Set it (same as self.set_named_norms({'varname':norm})
+            for packer in packers:
+                packer.set_norm(norm)
+
+        self._norm_synced = True
+        if hasattr(self, 'stacked_data'):
+            self._core_stack_()
+        return True
+
+
     def get_model_specs(self):
         """Get specifications for reading model
 
@@ -662,3 +780,18 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
         return self.unmap([obs.project_model(var) for obs in self])
 
 
+def load_obs(ncfiles, plattypes='generic', varnames=None, lon=None, lat=None,
+        logger=None):
+    """Quickly load all observations with one file per platform"""
+    # Logger
+    if logger is None:
+        logger = get_logger()
+
+    # Load platforms
+    if isinstance(ncfiles, basestring):
+        ncfiles = [ncfiles]
+    obsplats = [NcObsPlatform(ncfile, varnames=varnames, lon=lon, lat=lat,
+        logger=logger) for ncfile in ncfiles]
+
+    # Init ObsManager
+    return ObsManager(obsplats, logger=logger)

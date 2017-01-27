@@ -7,9 +7,10 @@ import cdms2
 import cdtime
 from vcmq import comptime, netcdf4, DS
 
-from util import (assert_allclose, LOGGER, NCFILE_OBS_SURF, NCFILE_MANGA0)
+from util import (assert_allclose, LOGGER, NCFILE_OBS_SURF, NCFILE_MANGA0,
+    NCFILE_OBS_SURF_UV, NCFILE_OBS_3D_TS)
 
-from sonat.obs import (NcObsPlatform, ObsManager)
+from sonat.obs import (NcObsPlatform, ObsManager, load_obs)
 
 
 def test_obs_ncobsplatform_surf():
@@ -37,8 +38,8 @@ def test_obs_ncobsplatform_surf():
     temp = f('temp')
     sal = f('sal')
     f.close()
-    otemp = obs.interp_model(temp)
-    osal = obs.interp_model(sal)
+    otemp = obs.project_model(temp)
+    osal = obs.project_model(sal)
     otem_true = [12.97311556, 12.91558515, 10.58179214]
     assert_allclose(otemp[0], otem_true)
 
@@ -50,6 +51,15 @@ def test_obs_ncobsplatform_surf():
     assert_allclose(stacked_data[:3,0]*obs.norms[0] + 11.5, otem_true)
 
     return obs
+
+
+def test_obs_ncobsplatform_surf_gridded():
+
+    # Load and stack obs
+    obs = NcObsPlatform(NCFILE_OBS_SURF_UV)
+    stacked = obs.stacked_data.copy()
+    assert stacked.ndim==1
+
 
 def test_obs_obsmanager_init():
 
@@ -81,7 +91,14 @@ def test_obs_obsmanager_init():
 
     return manager
 
-def test_obs_obsmanager_interp_model():
+def test_obs_load_obs():
+
+    # Setup manager
+    manager = load_obs([NCFILE_OBS_3D_TS, NCFILE_OBS_SURF_UV])
+
+    return manager
+
+def test_obs_obsmanager_project_model():
 
     # Load manager
     manager = test_obs_obsmanager_init()
@@ -90,12 +107,14 @@ def test_obs_obsmanager_interp_model():
     f = DS(NCFILE_MANGA0, 'mars', level=manager.obsplats[0].depths)
     temp = f('temp')
     f.close()
-    otemp = manager.interp_model(temp)
+    otemp = manager.project_model(temp)
     assert_allclose(otemp[1][0], [12.91558515, 10.58179214])
 
     return manager
 
 if __name__=='__main__':
     res = test_obs_ncobsplatform_surf()
+    res = test_obs_ncobsplatform_surf_gridded()
     res = test_obs_obsmanager_init()
-    res = test_obs_obsmanager_interp_model()
+    res = test_obs_load_obs()
+    res = test_obs_obsmanager_project_model()
