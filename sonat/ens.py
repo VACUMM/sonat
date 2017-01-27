@@ -182,7 +182,7 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
     for ncfile, tslices in iidict.items():
 
         # Dataset instance
-        ds = DS(ncfile, modeltype, logger=logger)
+        ds = DS(ncfile, modeltype, logger_name='SONAT.Dataset', logger_level='error')
 
         # List of well known variables
         if varnames is None:
