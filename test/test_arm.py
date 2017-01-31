@@ -12,7 +12,8 @@ from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
 
 from sonat.ens import Ensemble
 from sonat.obs import NcObsPlatform, ObsManager
-from sonat.arm import ARM
+from sonat.arm import (ARM, register_arm_score_function, get_arm_score_function,
+    ARM_SCORE_FUNCTIONS)
 
 netcdf4()
 
@@ -88,6 +89,24 @@ def test_arm_arm_results():
 
     return
 
+def test_arm_register_arm_score_function():
+
+    def arm_score_myfunc(ev, arm, rep):
+        return 1
+
+    register_arm_score_function(arm_score_myfunc)
+
+    assert "myfunc" in ARM_SCORE_FUNCTIONS
+    return arm_score_myfunc
+
+def test_arm_get_arm_score_function():
+
+    myfunc = test_arm_register_arm_score_function()
+
+    func = get_arm_score_function('myfunc')
+
+    assert func is myfunc
+
 
 if __name__=='__main__':
     res = test_arm_arm_init()
@@ -95,6 +114,8 @@ if __name__=='__main__':
     res = test_arm_arm_inputs()
     res = test_arm_arm_analyse()
     res = test_arm_arm_results()
+    res = test_arm_register_arm_score_function()
+    res = test_arm_get_arm_score_function()
 
 
 
