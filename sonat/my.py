@@ -40,7 +40,7 @@ import inspect
 
 #from vcmq import register_cf_variable
 
-from ..__init__ import SONATError, sonat_warn
+from .__init__ import SONATError, sonat_warn
 from .obs import register_obs_platform, ObsPlatformBase
 from .arm import register_arm_score_function, ARM_SCORE_FUNCTION_PREFIX
 
@@ -50,7 +50,24 @@ SONAT_USER_CODE_FILE = 'mysonat.py'
 
 def load_user_code_file(myfile=None):
     """Load a user code file as a module name :mod:`mysonat` and
-    register its stuff"""
+    register its stuff
+
+    Observation platforms
+        It registers as new observation platform all subclasses of
+        :class:`sonat.obs.ObsPlatformBase` with a valid :
+        :attr:`platform_type` attribute, using function
+        :func:`~sonat.obs.register_platform`.
+    ARM score functions
+        It registers as new ARM score function all functions whose name
+        starts with :attr:`~sonat.arm.ARM_SCORE_FUNCTION_PREFIX` and
+        who takes 3 mandatory arguments (ev, arm, rep), using the
+        :func:`~sonat.arm.register_arm_score_function`.
+    CF variables
+        It registers as new standard :mod:`vacumm.data.cf` variables
+        declared in the dictionary :attr:`vacumm_cf_variables`, with
+        the key as the short name and the value as specifications passed
+        as arguments to :func:`vacumm.data.cf.register_cf_variable`.
+    """
 
     # Load module
     if myfile is None:
@@ -78,7 +95,7 @@ def load_user_code_file(myfile=None):
             register_obs_platform(obj)
 
         # User defined vacumm.cf variables
-        if False and name.lower() == 'vacumm_cf_variables':
+        elif False and name.lower() == 'vacumm_cf_variables':
 
             # Check type
             if not isinstance(obj, dict):
@@ -90,6 +107,6 @@ def load_user_code_file(myfile=None):
                 register_cf_variable(varname, **specs)
 
         # User defined ARM score functions
-        elif name.lower().startswith('ARM_SCORE_FUNCTION_PREFIX'):
+        elif name.lower().startswith(ARM_SCORE_FUNCTION_PREFIX):
 
             register_arm_score_function(name, obj)
