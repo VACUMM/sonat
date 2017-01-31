@@ -54,7 +54,7 @@ RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
 
 OBS_PLATFORM_TYPES = {}
 
-def register_obs_platform(cls):
+def register_obs_platform(cls, warn=True, replace=True):
     """Register a new observation platform type"""
 
     # Check class
@@ -70,12 +70,17 @@ def register_obs_platform(cls):
 
     # Check platform_type value
     if cls.platform_type in OBS_PLATFORM_TYPES:
-        sonat_warn('Plaform already registered: {}. Overwriting it.'.format(
-            cls.platform_type))
+        if warn:
+            msg = 'Plaform already registered: {}'.format(cls.platform_type)
+            if replace:
+                msg = msg + '. Replacing it...'
+            sonat_warn(msg)
+        if not replace:
+            return
 
-    OBS_PLATFORM_TYPES[cls.platform_type]
+    OBS_PLATFORM_TYPES[cls.platform_type] = cls
 
-def get_obs_platform(self, platform_type, *args, **kwargs):
+def get_obs_platform(platform_type, *args, **kwargs):
     """Get the class or instance for a given platform type
 
     If extra arguments are passed, they are used to create a instance
@@ -92,7 +97,7 @@ def get_obs_platform(self, platform_type, *args, **kwargs):
         return cls(*args, **kwargs)
     return cls
 
-def load_obs_platform(self, platform_type, pfile, varnames=None, name=None, **kwargs):
+def load_obs_platform(platform_type, pfile, varnames=None, name=None, **kwargs):
     """Load an aobservation platform instance from its type and its file"""
     obs = get_obs_platform(platform_type, pfile, varnames=varnames, **kwargs)
     obs.name = name

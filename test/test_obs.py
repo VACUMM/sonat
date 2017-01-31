@@ -10,7 +10,9 @@ from vcmq import comptime, netcdf4, DS
 from util import (assert_allclose, LOGGER, NCFILE_OBS_SURF, NCFILE_MANGA0,
     NCFILE_OBS_SURF_UV, NCFILE_OBS_3D_TS)
 
-from sonat.obs import (NcObsPlatform, ObsManager, load_obs)
+from sonat.obs import (NcObsPlatform, ObsManager, load_obs,
+    register_obs_platform, get_obs_platform, OBS_PLATFORM_TYPES,
+    load_obs_platform)
 
 
 def test_obs_ncobsplatform_surf():
@@ -112,9 +114,41 @@ def test_obs_obsmanager_project_model():
 
     return manager
 
+
+def test_obs_register_obs_platform():
+
+    class MyNcObsPlatform(NcObsPlatform):
+        platform_type = 'myplatform'
+
+    register_obs_platform(MyNcObsPlatform, warn=False)
+
+    assert MyNcObsPlatform.platform_type in OBS_PLATFORM_TYPES
+    return MyNcObsPlatform
+
+def test_obs_get_obs_platform():
+
+    clso = test_obs_register_obs_platform()
+
+    clsg = get_obs_platform('myplatform')
+
+    assert clso is clsg
+
+
+def test_obs_load_obs_platform():
+
+    clso = test_obs_register_obs_platform()
+
+    obs = load_obs_platform('myplatform', NCFILE_OBS_SURF)
+    assert obs.varnames == ['temp', 'sal']
+    return obs
+
+
 if __name__=='__main__':
     res = test_obs_ncobsplatform_surf()
     res = test_obs_ncobsplatform_surf_gridded()
     res = test_obs_obsmanager_init()
     res = test_obs_load_obs()
     res = test_obs_obsmanager_project_model()
+    res = test_obs_register_obs_platform()
+    res = test_obs_get_obs_platform()
+    res = test_obs_load_obs_platform()
