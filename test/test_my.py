@@ -12,3 +12,10 @@ def test_my_load_user_code_file():
     load_user_code_file(os.path.join(THISDIR, 'mysonat.cfg'))
 
 
+
+if __name__=='__main__':
+    test_my_load_user_code_file()
+
+
+
+
