@@ -134,7 +134,7 @@ class NcObsPlatform(ObsPlatformBase):
     platform_type = 'generic'
 
     def __init__(self, ncfile, varnames=None, logger=None, norms=None,
-            time=None, lon=None, lat=None, levels=None, name=None,
+            time=None, lon=None, lat=None, level=None, name=None,
             singlevar=False, **kwargs):
 
         # Init logger
@@ -146,7 +146,7 @@ class NcObsPlatform(ObsPlatformBase):
         self.time = time
         self.lon = lon
         self.lat = lat
-        self.levels = levels
+        self.level = level
         self.errors = OrderedDict()
         self._orig = {}
         self.name = name
@@ -193,22 +193,28 @@ class NcObsPlatform(ObsPlatformBase):
         # Inspect
         grid = fs.getGrid()
         order = fs.getOrder()
+        kwread = {}
         if grid and len(grid.shape)==2: # Structured grid
 
             self.pshape = 'gridded'
-            kwread = dict(time=self.time, lat=self.lat, lon=self.lon)
+            kwread = dict(time=self.time, lat=self.lat, lon=self.lon, level=self.level)
             if '-' in order:
                 raise SONATError("There are unkown dimensions in your gridded variable. "
                     "Current order: "+order)
-            self.axes1d = order[:-2]
+            order = order[:-2]
 
 
         else: # Unstructured grid
 
             mask = N.ma.nomask #zeros(fs.shape[-1], '?')
             self.pshape = 'xy'
-            self.axes1d = []
             kwread = {}
+
+            # Check order
+            order = order[:-1]
+            if '-' in order:
+                raise SONATError("There are unkown dimensions in your gridded variable. "
+                    "Current order: "+order)
 
             # Lon/lat selection
             if grid:
@@ -228,35 +234,23 @@ class NcObsPlatform(ObsPlatformBase):
                 if self.lat:
                     mask |= lats < self.lat[0]
                     mask |= lats > self.lat[1]
-                if self.lon or self.lat:
-                    mask = mask.filled(False)
-            order = order[:-1]
 
             # Vertical dimension
-            if 'z' in order:
-                order = order.replace('z', '')
-                self.depths = fs.getLevel().clone()
-                self.axes1d.append(self.depths)
-            else:
+            if 'z' in order: # 1D axis
+                kwread.update(level=level)
+            else: # Aux axis
                 self.depths = ncget_level(f)
                 if self.depths is not None:
                     raise SONATError("Scattered Z dimension not yet supported")
-                    self.pshape = self.pshape+'z'
-                elif hasattr(f, 'depth'): # depth from file attribute
-                    self.depths = f.depth
-                    if not isinstance(self.depths, basestring):
-                        raise SONATError("Depth must be a string if specified as an attribute")
-                elif fs.id in BOTTOM_VARNAMES: # 2D: bottom
-                    self.depths = 'bottom'
-                else: # 2D: surf
-                    self.depths = 'surf'
+                    depths = self.depths.asma()
+                    if self.level:
+                        mask |= depths < self.level[0]
+                        mask |= depths > self.level[1]
+                    self.pshape = self.pshape + 'z'
 
             # Time selection
             if 't' in order: # 1D axis
                 kwread.update(time=time)
-                order = order.replace('t', '')
-                self.times = fs.getTime().clone()
-                self.axes1d.append(self.times)
             else: # Aux axis
                 self.times = ncget_time(f)
                 if self.times is not None:
@@ -267,12 +261,11 @@ class NcObsPlatform(ObsPlatformBase):
                     self.pshape = self.pshape + 't'
 
             # Check mask
+            if N.ma.isMA(mask):
+                mask = mask.filled(False)
             if mask.all():
                 SONATError("All your observation data are masked")
 
-            # Check remaining dims
-            if order:
-                SONATError("There are unkown dimensions in your scattered obs variable")
 
 
         # Read
@@ -280,6 +273,8 @@ class NcObsPlatform(ObsPlatformBase):
         for vname in self.varnames:
             self.errors[vname] = f(vname + self.nc_error_suffix, **kwread)
         self._sample = sample = self.errors[vname]
+        order = sample.getOrder()
+        self.axes1d = []
         # - lon/lat
         if grid:
             self.lons = sample.getLongitude()[:]
@@ -287,6 +282,26 @@ class NcObsPlatform(ObsPlatformBase):
         else:
             self.lons = lons
             self.lats = lats
+        # - times
+        if 't' in order:
+            self.times = sample.getTime()
+            self.axes1d.append(self.times)
+        else:
+            self.times = None
+        # - depths
+        if 'z' in order:
+            self.depths = sample.getLevel()
+            self.axes1d.append(self.depths)
+        elif hasattr(f, 'depth'): # depth from file attribute
+            self.depths = f.depth
+            if not isinstance(self.depths, basestring):
+                raise SONATError("Depth must be a string if specified as an attribute")
+        elif fs.id in BOTTOM_VARNAMES: # 2D: bottom
+            self.depths = 'bottom'
+        elif sample.ndim==2: # 2D: surf
+            self.depths = 'surf'
+        else:
+            self.depths = None
         # - mobility
         if self.nc_mobility_name in f.listvariables():
             self.mobility = f(self.nc_mobility_name, **kwread)
@@ -299,7 +314,7 @@ class NcObsPlatform(ObsPlatformBase):
             self.mobility = MV2.ones(shape, 'i')
         self.mobile = (N.ma.asarray(self.mobility)==1).all()
 
-        # Compression to remove masked point
+        # Compression to remove masked points
         if self.pshape != 'gridded' and mask.any():
             valid = ~mask
             self.lons = xycompress(valid, self.lons)
@@ -800,3 +815,6 @@ def load_obs(ncfiles, plattypes='generic', varnames=None, lon=None, lat=None,
 
     # Init ObsManager
     return ObsManager(obsplats, logger=logger)
+
+
+register_obs_platform(NcObsPlatform)
