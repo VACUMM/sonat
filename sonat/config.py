@@ -38,8 +38,11 @@
 
 import os
 from matplotlib import rcParams, rc_params_from_file
+from validate import VdtTypeError, force_list
 from vcmq import (ConfigManager, cfgargparse, ArgList,
-    adatetime, get_cmap, kwfilter)
+    adatetime, get_cmap, kwfilter, register_config_validator)
+
+from .misc import interpret_level
 
 
 #: Config specification file
@@ -138,5 +141,14 @@ def get_cfg_path(cfg, secname, secpathname, format=False, *args, **kwargs):
 
 
 
+def is_level(value, default=None):
+    """Validate a string that can be evaluated"""
+    interpret_level(tuple(force_list(value, 1, 3)))
+    try:
+        return interpret_level(tuple(force_list(value, 1, 3)))
+    except:
+        raise VdtTypeError(value)
+
+register_config_validator(level=is_level)
 
 
