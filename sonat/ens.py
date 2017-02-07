@@ -41,11 +41,13 @@ from collections import OrderedDict
 import scipy.stats as SS
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
     MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var,
-    CaseChecker, curve, bar, dict_check_defaults, dict_merge, checkdir)
+    CaseChecker, curve, bar, dict_check_defaults, dict_merge, checkdir,
+    dicttree_get)
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
-    validate_varnames, _CheckVariables_, check_variables, dicttree_relpath)
+    validate_varnames, _CheckVariables_, check_variables, dicttree_relpath,
+    interpret_level)
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
 from .plot import (plot_gridded_var, DEFAULT_PLOT_KWARGS)
@@ -198,19 +200,12 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
         kwvar = dict(lat=lat, lon=lon, verbose=False, bestestimate=False)
         for vname in list(varnames):
 
-            # Level selector
-            # - variable level
+            # Level selector for this variable
             if vname in vlevels: # cached
                 vlevel = vlevels[vname]
             else:
-                if isinstance(level, dict): # variable specific
-                    vlevel = level.get(vname, None)
-                else:
-                    vlevel = level # same for all variables
+                vlevel = interpret_level(dicttree_get(level, vname))
                 vlevels[vname] = vlevel # cache it
-            # - as tuple
-            if not isinstance(vlevel, tuple):
-                vlevel = vlevel,
 
             # Loop on level specs
             for vlev in vlevel:
