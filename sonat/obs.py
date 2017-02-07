@@ -237,7 +237,7 @@ class NcObsPlatform(ObsPlatformBase):
 
             # Vertical dimension
             if 'z' in order: # 1D axis
-                kwread.update(level=level)
+                kwread.update(level=self.level)
             else: # Aux axis
                 self.depths = ncget_level(f)
                 if self.depths is not None:
@@ -250,7 +250,7 @@ class NcObsPlatform(ObsPlatformBase):
 
             # Time selection
             if 't' in order: # 1D axis
-                kwread.update(time=time)
+                kwread.update(time=self.time)
             else: # Aux axis
                 self.times = ncget_time(f)
                 if self.times is not None:
