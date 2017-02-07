@@ -628,3 +628,56 @@ def dicttree_relpath(dd, refdir):
         for key, val in dd.items():
             dd[key] = dicttree_relpath(val, refdir)
     return dd
+
+def interpret_level(level):
+    """Interpret a level and format it
+
+    List are returned as lists.
+    Non strings are returned whithout change.
+    Strings are lower cased.
+    Special "surf" and "bottom" values are returned whithout change.
+    Others are converted to floats.
+
+    Formats::
+
+        None
+        'surf'
+        1.3
+        [1.2, 5.6]
+        (1.3, 'bottom')
+        {'var1': ('surf', -53., [-100, -50])}
+
+    """
+
+    # From dict
+    if isinstance(level, dict):
+        for key, val in level.items():
+            if not isinstance(val, tuple):
+                val = (val, )
+            level[key] = interpret_level(val)
+        return level
+
+    # From tuple
+    if isinstance(level, tuple):
+        out = ()
+        for lev in level:
+            out += interpret_level(lev),
+        return out
+
+    # From list
+    if isinstance(level, list):
+        for i, d in enumerate(level):
+            level[i] = interpret_level(d)
+        return level
+
+    # Scalar
+    if not isinstance(level, basestring):
+        return level
+    level = level.lower()
+    if level not in ('bottom', 'surf', '3d'):
+        try:
+            level = float(level)
+        except:
+            pass
+    return level
+
