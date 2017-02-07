@@ -1,12 +1,51 @@
 """Commandline user interface module"""
+#
+# Copyright IFREMER (2016-2017)
+#
+# This software is a computer program whose purpose is to provide
+# utilities for handling oceanographic and atmospheric data,
+# with the ultimate goal of validating the MARS model from IFREMER.
+#
+# This software is governed by the CeCILL license under French law and
+# abiding by the rules of distribution of free software.  You can  use,
+# modify and/ or redistribute the software under the terms of the CeCILL
+# license as circulated by CEA, CNRS and INRIA at the following URL
+# "http://www.cecill.info".
+#
+# As a counterpart to the access to the source code and  rights to copy,
+# modify and redistribute granted by the license, users are provided only
+# with a limited warranty  and the software's author,  the holder of the
+# economic rights,  and the successive licensors  have only  limited
+# liability.
+#
+# In this respect, the user's attention is drawn to the risks associated
+# with loading,  using,  modifying and/or developing or reproducing the
+# software by the user in light of its specific status of free software,
+# that may mean  that it is complicated to manipulate,  and  that  also
+# therefore means  that it is reserved for developers  and  experienced
+# professionals having in-depth computer knowledge. Users are therefore
+# encouraged to load and test the software's suitability as regards their
+# requirements in conditions enabling the security of their systems and/or
+# data to be ensured and,  more generally, to use and operate it in the
+# same conditions as regards security.
+#
+# The fact that you are presently reading this means that you have had
+# knowledge of the CeCILL license and that you accept its terms.
+#
 
+
+import os
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+
+from vcmq import dict_merge, itv_intersect
 
 from .__init__ import sonat_help, get_logger, SONATError
 from .config import (parse_args_cfg, get_cfg_xminmax, get_cfg_yminmax,
     get_cfg_tminmax, get_cfg_path)
-from .obs import load_obs_platform
+from .misc import interpret_level
+from .obs import load_obs_platform, ObsManager
 from .ens import generate_pseudo_ensemble, Ensemble
+from .my import load_user_code_file, SONAT_USER_CODE_FILE
 
 
 def main():
@@ -76,9 +115,13 @@ def ens_gen_pseudo_from_cfg(cfg):
     # Config
     cfgd = cfg['domain']
     cfge = cfg['ens']
+    cfgef = cfge['fromobs']
 
     # Logger
     logger = get_logger(cfg=cfg)
+
+    # My
+    load_my_sonat_from_cfg(cfg, logger)
 
     # Options from config
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
@@ -93,13 +136,62 @@ def ens_gen_pseudo_from_cfg(cfg):
     nens = cfge['nens']
     enrich = cfge['enrich']
     norms = cfge['norms']
+    level = interpret_level(cfge['level'])
     depths = cfge['depths']
     varnames = cfge['varnames'] or None
     getmodes = enrich > 1
 
+    # Options from obs
+    if cfgef['activate']:
+
+        # Load obs manager
+        obsmanager = load_obs_from_cfg(cfg)
+
+        # Get specs
+        specs = obsmanager.get_model_specs()
+
+        # Intervals
+        margin = cfgef['margin']
+        if cfgef['lon'] and specs['lon']:
+            olon = specs['lon']
+            if margin:
+                olon = (olon[0]-margin, olon[1]+margin, olon[2])
+            if lon is not None and cfgef['lon']==2:
+                lon = itv_intersect(olon, lon)
+            else:
+                lon = olon
+        if cfgef['lat'] and specs['lat']:
+            olat = specs['lat']
+            if margin:
+                olat = (olat[0]-margin, olat[1]+margin, olat[2])
+            if lat is not None and cfgef['lat']==2:
+                lat = itv_intersect(olat, lat)
+            else:
+                lat = olat
+
+        # Varnames
+        if cfgef['varnames'] and specs['varnames']:
+            if varnames is None or cfgef['varnames']==1:
+                varnames = cfgef['varnames']
+            else:
+                varnames = list(set(varnames + specs['varnames']))
+
+        # Depths
+        olevel = interpret_level(specs['depths'])
+        if cfgef['level']==1: # from obs only
+
+            level = olevel
+
+        elif cfgef['level']==2: # merge
+
+            level = dict_merge(olevel, level, mergetuples=True,
+                unique=True, cls=dict)
+            level.setdefault('__default__', "3d") # default defaults to 3d
+
     # Run and save
     generate_pseudo_ensemble(ncmodfiles, nrens=nens, enrich=enrich,
-        norms=None, lon=lon, lat=lat, time=time, depths=depths, varnames=varnames,
+        norms=None, lon=lon, lat=lat, time=time, level=level, depths=depths,
+        varnames=varnames,
         getmodes=getmodes, logger=logger, asdicts=False, anomaly=True,
         ncensfile=ncensfile)
 
@@ -129,10 +221,13 @@ def ens_plot_diags_from_cfg(cfg):
     cfge = cfg['ens']
     cfged = cfge['diags']
     cfgc = cfg['cmaps']
-    cfgo = cfg['obs']
+    cfgef = cfge['fromobs']
 
     # Logger
     logger = get_logger(cfg=cfg)
+
+    # My
+    load_my_sonat_from_cfg(cfg, logger)
 
     # Options from config
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
@@ -144,7 +239,7 @@ def ens_plot_diags_from_cfg(cfg):
     figpatslice = get_cfg_path(cfg, 'ens', 'figpatslice')
     figpatgeneric = get_cfg_path(cfg, 'ens', 'figpatgeneric')
     htmlfile = get_cfg_path(cfg, 'ens', 'htmlfile')
-    depths = cfg2depth(cfged.pop('depths'))
+    depths = interpret_level(cfged.pop('depths'))
     kwargs = cfged.copy()
     props = {
         'local_explained_variance':{
@@ -167,16 +262,6 @@ def ens_plot_diags_from_cfg(cfg):
         },
     }
 
-    # Specs from obs
-    if cfg['ens']['fromobs']['activate']:
-
-        # Load obs manager
-        obsmanager = load_obs_from_cfg(cfg)
-
-        # Get specs
-        specs = obsmanager.get_model_specs()
-    xxx
-
     # Setup ensemble from file
     ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
         lon=lon, lat=lat)
@@ -188,30 +273,6 @@ def ens_plot_diags_from_cfg(cfg):
 
 ## MISC
 
-def cfg2depth(depth):
-    """Convert depth option to valid depth
-
-    List are returned as lists.
-    Non strings are returned whithout change.
-    Strings are lower cased.
-    Special "surf" and "bottom" values are returned whithout change.
-    Others are converted to floats.
-    """
-
-    # From list
-    if isinstance(depth, list):
-        for i, d in enumerate(depth):
-            depth[i] = cfg2depth(d)
-        return depth
-
-    # Scalar
-    if not isinstance(depth, basestring):
-        return depth
-    depth = depth.lower()
-    if depth not in ('bottom', 'surf'):
-        depth = float(depth)
-    return depth
-
 def load_obs_from_cfg(cfg):
     """Setup an :class:`~sonat.obs.ObsManager` using the configuration"""
     # Logger
@@ -220,34 +281,43 @@ def load_obs_from_cfg(cfg):
 
     # Loop on platform types
     obsplats = []
-    for platform_type, platform_type_section in cfg['obs'].items():
-        logger.debug('Loading platforms of type: ' + platform_type)
+    for platform_name, platform_section in cfg['obs'].items():
+        logger.debug('Loading platform named: ' + platform_name)
+        logger.debug(' Type: '+platform_section['type'])
+        pfile = platform_section['file']
+        logger.debug(' File: '+pfile)
+        logger.debug(' Variable names: {}'.format(platform_section['varnames']))
 
-        # Loop on plaforms to load
-        for platform_name, platform_section in platform_type_section.items():
+        # Check file
+        if not pfile or not os.path.exists(pfile):
+            raise SONATError('Observation platform file not found: ' +
+                pfile)
 
-            # Check file
-            pfile = platform_section['file']
-            logger.debug('Loading obs file: '+pfile)
-            if not pfile or not os.path.exists(pfile):
-                raise SONATError('Observation platform file not found: ' +
-                    pfile)
+        # Arguments
+        kwargs = platform_section.copy()
+        kwargs['name'] = platform_name
 
-            # Arguments
-            kwargs = platform_section.copy()
-            del platform_section['file']
-            kwargs['name'] = platform_name
-
-            # Load
-            obs = load_obs_platform(platformp, file, **kwargs)
-            obsplats.append(obs)
+        # Load
+        obs = load_obs_platform(platform_section['type'], pfile, **kwargs)
+        obsplats.append(obs)
+    if not obsplats:
+        raise SONATError('No observation platform to load were found!')
 
     # Init manager
     manager = ObsManager(obsplats)
 
     return manager
 
+def load_my_sonat_from_cfg(cfg, logger):
 
+    # My file
+    myfile = cfg['session']['usercodefile']
+    myfile = myfile or SONAT_USER_CODE_FILE
+
+    # Load it
+    logger.debug('Load user code file: '+myfile)
+    load_user_code_file(myfile)
+    logger.verbose('Loaded user code file: '+myfile)
 
 if __name__=='__main__':
     main()
