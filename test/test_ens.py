@@ -67,7 +67,8 @@ def test_ens_generate_pseudo_ensemble():
 
     # Direct
     enrich = 0 # <= 1
-    (temp, temp_surf, sal, u_surf, v_surf) = generate_pseudo_ensemble(ncpat, nrens=nrens, enrich=enrich,
+    (temp, temp_surf, sal, u_surf, v_surf) = generate_pseudo_ensemble(ncpat,
+        nrens=nrens, enrich=enrich,
         time=time, varnames=varnames, dtfile=dtfile, logger=LOGGER, anomaly=False,
         level=level, depths=depths)
     assert temp.shape[0]==nrens
@@ -123,18 +124,20 @@ def test_ens_ensemble_init():
 
     # Load file from previous routine
     ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
-    varnames = ['temp', 'temp_surf', 'u_surf']
+    varnames = ['sal', 'temp', 'temp_surf', 'u_surf',  'v_surf']
     vars = []
     f = cdms2.open(ncfile)
-    for vname in varnames:
-        vv.append(f(vname))
+    for vname in f.listvariables():
+        if vname in varnames:
+            vars.append(f(vname))
     f.close()
+    varnames = [v.id for v in vars]
 
     # Init from variables
     ensv = Ensemble(vars, checkvars=True)
 
     # Init from file
-    ensf = Ensemble.from_file(ncfile, checkvars=True)
+    ensf = Ensemble.from_file(ncfile, checkvars=True, logger=LOGGER)
 
     # Checks
     assert [v.id for v in ensv.variables] == varnames
@@ -151,7 +154,7 @@ def get_ens():
 
      # Load from file
     ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
-    ens = Ensemble.from_file(ncfile)
+    ens = Ensemble.from_file(ncfile, logger=LOGGER)
     CACHE['ens'] = ens
     return ens
 

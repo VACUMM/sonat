@@ -8,7 +8,7 @@ import cdtime
 from vcmq import comptime, netcdf4
 
 from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
-    NCFILE_MANGA1, NCFILE_OBS_SURF)
+    NCFILE_MANGA1, NCFILE_OBS_HFRADARS, NCFILE_OBS_PROFILES, NCFILE_OBS_SATSST)
 
 from sonat.ens import Ensemble
 from sonat.obs import NcObsPlatform, ObsManager
@@ -28,21 +28,20 @@ def test_arm_arm_init():
 
     # Load ensemble
     ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
-    ens = Ensemble.from_file(ncfile, checkvars=True)
+    ens = Ensemble.from_file(ncfile, checkvars=True, logger=LOGGER)
 
     # Load observations
-    obs_surf0 = NcObsPlatform(NCFILE_OBS_SURF, lon=(-7, -5), varnames=['temp'],
-        norms=0.3)
-    obs_surf1 = NcObsPlatform(NCFILE_OBS_SURF, lon=(-5, 0), varnames=['temp', 'sal'],
-        norms=[0.2, 0.1])
-    obsmanager = ObsManager([obs_surf0, obs_surf1])
+    obs0 = NcObsPlatform(NCFILE_OBS_HFRADARS)
+    obs1 = NcObsPlatform(NCFILE_OBS_PROFILES)
+    obs2 = NcObsPlatform(NCFILE_OBS_SATSST)
+    obsmanager = ObsManager([obs0, obs1, obs2])
 
     # Init ARM
     arm = ARM(ens, obsmanager, syncnorms=True)
 
     # Checks
-    assert_allclose(arm.obsmanager[0].norms + arm.obsmanager[1].norms[:1],
-        arm.ens.norms[0])
+    assert_allclose(arm.obsmanager[2].norms + arm.obsmanager[1].norms[:1],
+        arm.ens.norms[arm.ens.varnames.index('temp')])
 
     return arm
 

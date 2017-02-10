@@ -8,7 +8,7 @@ import cdtime
 from vcmq import comptime, netcdf4, DS
 
 from util import (assert_allclose, LOGGER, NCFILE_OBS_SURF, NCFILE_MANGA0,
-    NCFILE_OBS_SURF_UV, NCFILE_OBS_3D_TS)
+    NCFILE_OBS_HFRADARS, NCFILE_OBS_PROFILES)
 
 from sonat.obs import (NcObsPlatform, ObsManager, load_obs,
     register_obs_platform, get_obs_platform, OBS_PLATFORM_TYPES,
@@ -36,7 +36,7 @@ def test_obs_ncobsplatform_surf():
     obs.set_named_norms(temp=0.2)
 
     # Interpolate model
-    f = DS(NCFILE_MANGA0, 'mars', level=obs.depths)
+    f = DS(NCFILE_MANGA0, 'mars', level=obs.depths, logger_level='error')
     temp = f('temp')
     sal = f('sal')
     f.close()
@@ -58,7 +58,7 @@ def test_obs_ncobsplatform_surf():
 def test_obs_ncobsplatform_surf_gridded():
 
     # Load and stack obs
-    obs = NcObsPlatform(NCFILE_OBS_SURF_UV)
+    obs = NcObsPlatform(NCFILE_OBS_HFRADARS)
     stacked = obs.stacked_data.copy()
     assert stacked.ndim==1
 
@@ -96,7 +96,7 @@ def test_obs_obsmanager_init():
 def test_obs_load_obs():
 
     # Setup manager
-    manager = load_obs([NCFILE_OBS_3D_TS, NCFILE_OBS_SURF_UV])
+    manager = load_obs([NCFILE_OBS_PROFILES, NCFILE_OBS_HFRADARS])
 
     return manager
 
@@ -106,7 +106,8 @@ def test_obs_obsmanager_project_model():
     manager = test_obs_obsmanager_init()
 
     # Interpolate model
-    f = DS(NCFILE_MANGA0, 'mars', level=manager.obsplats[0].depths)
+    f = DS(NCFILE_MANGA0, 'mars', level=manager.obsplats[0].depths,
+        logger_level='error')
     temp = f('temp')
     f.close()
     otemp = manager.project_model(temp)

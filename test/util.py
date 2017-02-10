@@ -16,8 +16,9 @@ NCFILE_MANGA1 = os.path.abspath(os.path.join(THISDIR, '../data/manga-2014-01-16.
 NCGLOB_MANGA = os.path.abspath(os.path.join(THISDIR, '../data/manga-*-[01][0-9]-??.nc'))
 NCPATGLOB_MANGA = os.path.abspath(os.path.join(THISDIR, '../data/manga-*-{date:%m-%d}.nc'))
 NCFILE_OBS_SURF = os.path.abspath(os.path.join(THISDIR, '../data/obs.surf.nc'))
-NCFILE_OBS_SURF_UV = os.path.abspath(os.path.join(THISDIR, '../data/obs.surf.uv.nc'))
-NCFILE_OBS_3D_TS = os.path.abspath(os.path.join(THISDIR, '../data/obs.3d.ts.nc'))
+NCFILE_OBS_HFRADARS = os.path.abspath(os.path.join(THISDIR, '../data/obs.hfradars.nc'))
+NCFILE_OBS_PROFILES = os.path.abspath(os.path.join(THISDIR, '../data/obs.profiles.nc'))
+NCFILE_OBS_SATSST = os.path.abspath(os.path.join(THISDIR, '../data/obs.satsst.nc'))
 CFGFILE = os.path.abspath(os.path.join(THISDIR, 'sonat.cfg'))
 
 LIBDIR = os.path.abspath(os.path.join(THISDIR, '..', 'sonat'))
@@ -25,7 +26,7 @@ if os.path.exists(os.path.join(LIBDIR, '__init__.py')):
     sys.path.insert(0, os.path.dirname(LIBDIR))
 from sonat import get_logger
 
-LOGGER = get_logger(level="debug")
+LOGGER = get_logger(level="error")
 
 
 def create_mv2_gridder_xyzt(nx=8, ny=7, nz=6, nt=5, xmin=-6., xmax=-3, ymin=46,
