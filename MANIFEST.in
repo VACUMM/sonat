@@ -1,0 +1,5 @@
+include Makefile
+include data/*.nc
+include CHANGES.rst
+include setup.*.cfg
+#recursive-include etc *
