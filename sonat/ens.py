@@ -181,6 +181,8 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
         varnames = [varnames]
     out = OrderedDict()
     vlevels = {}
+    if not isinstance(level, dict):
+        level = {'__default__':level}
     for ncfile, tslices in iidict.items():
 
         # Dataset instance
@@ -204,7 +206,7 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
             if vname in vlevels: # cached
                 vlevel = vlevels[vname]
             else:
-                vlevel = interpret_level(dicttree_get(level, vname))
+                vlevel = interpret_level(dicttree_get(level, vname), astuple=True)
                 vlevels[vname] = vlevel # cache it
 
             # Loop on level specs
@@ -486,7 +488,7 @@ class Ensemble(Stacker, _CheckVariables_):
         """Init the class with a netcdf file"""
 
         # Open
-        f = NcReader(ncfile, readertype)
+        f = NcReader(ncfile, readertype, logger_level='error')
         allvars = f.get_variables()
 
         # Get the list of variables
@@ -955,6 +957,58 @@ class Ensemble(Stacker, _CheckVariables_):
         kwargs['htmlfile'] = htmlfile
         figs = self.plot_diags(**kwargs)
         return htmlfile, figs
+
+    def project_on_obs(self, obsmanager):
+        """Interpolate the variables onto the observation locations or the
+        :class:`~sonat.obs.ObsManager`
+        """
+        out = []
+        for obs in obsmanager:
+            vmod = [self.get_variable(vname, obs) for vname in obs.varnames]
+            out.append(obs.project_model(vmod))
+        return out
+
+
+    def assert_compatible_with(self, obsmanager, syncnorms=True,
+            sync_missing_values=True):
+        """Assert that the :class:`Ensemble` current instance is compatible
+        with a :class:`~sonat.obs.ObsManager` instance
+
+        It checks that observed variable are provided by the ensemble.
+        It optinonally synchonise norms between model and observations.
+        """
+
+        # Check varnames
+        for varname in obsmanager.suffixed_varnames:
+            if varname not in self.varnames:
+                raise SONATError(('Observed variable name "{}" not found '
+                    ' in ensemble').format(varname))
+
+        # Sync norms
+        if syncnorms:
+            self.sync_norms(force=False)
+            dnorms = self.get_named_norms()
+            obsmanager.set_named_norms(dnorms)
+
+        # Missing values
+        if sync_missing_values and self.missing_value != obsmanager.missing_value:
+            obsmanager.missing_value = self.missing_value
+
+        # Check projection
+        oens = self.project_on_obs(obsmanager)
+        poens = obsmanager.restack(oens)
+        mask = N.isclose(poens, obsmanager.missing_value)
+        if mask.ndim > 1:
+            mask = mask.any(axis=1)
+        valid = ~mask
+        if not valid.any():
+            raise SONATError("Ensemble does project at all onto observations")
+        if not valid.all():
+            self.warning("Ensemble does not fully projects onto observations")
+
+        return dict(ens_on_obs=oens, packed_ens_on_obs=poens,
+            packed_ens_on_obs_valid=valid)
+
 
 
 def split_varname(varname):
