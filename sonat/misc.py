@@ -413,9 +413,10 @@ class _Base_(object):
         """Raise a :class:`SONARError`"""
         raise SONARError(msg)
 
-    def warn(self, msg):
+    def warning(self, msg):
         """Issue a :class:`SONATWarning`"""
         sonat_warn(msg, stacklevel=3)
+    warn = warning
 
     def notice(self, msg):
         self.logger.notice(msg)
@@ -629,7 +630,7 @@ def dicttree_relpath(dd, refdir):
             dd[key] = dicttree_relpath(val, refdir)
     return dd
 
-def interpret_level(level):
+def interpret_level(level, astuple=False):
     """Interpret a level and format it
 
     List are returned as lists.
@@ -668,16 +669,15 @@ def interpret_level(level):
     if isinstance(level, list):
         for i, d in enumerate(level):
             level[i] = interpret_level(d)
-        return level
 
     # Scalar
-    if not isinstance(level, basestring):
-        return level
-    level = level.lower()
-    if level not in ('bottom', 'surf', '3d'):
-        try:
-            level = float(level)
-        except:
-            pass
-    return level
+    elif isinstance(level, basestring):
+        level = level.lower()
+        if level not in ('bottom', 'surf', '3d'):
+            try:
+                level = float(level)
+            except:
+                pass
+
+    return (level, ) if astuple else level
 
