@@ -99,7 +99,8 @@ class Stacker(_Base_, _StackerMapIO_):
         They must all have the same record length if any.
     """
 
-    def __init__(self, input, norms=None, means=None, nordim=None, logger=None, **kwargs):
+    def __init__(self, input, norms=None, means=None, nordim=None, logger=None,
+            missing_value=default_missing_value, **kwargs):
 
         # Logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -117,12 +118,14 @@ class Stacker(_Base_, _StackerMapIO_):
         if self.nvar==1 and norms[0] is None: norms = [False]
         self.masked = False
         self.nordim = nordim
+        self._missing_value = missing_value
 
         # Loop on inputs
         for idata, data in enumerate(inputs):
 
             # Create the Packer instance and pack array
-            packer = Packer(data, norm=norms[idata], mean=means[idata], nordim=nordim)
+            packer = Packer(data, norm=norms[idata], mean=means[idata],
+                nordim=nordim, missing_value=missing_value)
             self.packers.append(packer)
             self.masked |= packer.masked
             self.datas.append(packer.data)
@@ -137,8 +140,14 @@ class Stacker(_Base_, _StackerMapIO_):
         # Merge
         self._core_stack_()
         self.splits = npy.cumsum([p.packed_data.shape[0] for p in self.packers[:-1]])
-        self.ns = self.stacked_data.shape[0]
-        self.nrv = (self.stacked_data!=default_missing_value).any(axis=0).sum()
+
+    @property
+    def ns(self):
+        return self.stacked_data.shape[0]
+
+    @property
+    def nrv(self):
+        return (self.stacked_data!=self.missing_value).any(axis=0).sum()
 
     def __len__(self):
         return self.nvar
@@ -153,6 +162,19 @@ class Stacker(_Base_, _StackerMapIO_):
     @property
     def data(self):
         return self.unmap(self.datas)
+
+    def set_missing_value(self, missing_value):
+        if missing_value != self._missing_value:
+            for pack in self:
+                pack.set_missing_value(missing_value)
+            self._missing_value = missing_value
+
+    def get_missing_value(self):
+        return self._missing_value
+
+    missing_value = property(fget=get_missing_value, fset=set_missing_value)
+    fill_value = missing_value
+
 
     def get_norms(self, idata=None):
         """Get :attr:`norms` for one or all input variables"""
@@ -188,7 +210,7 @@ class Stacker(_Base_, _StackerMapIO_):
         self.stacked_data = npy.asfortranarray(
             npy.concatenate([p.packed_data for p in self.packers], axis=0))
 
-    def restack(self, input, scale=True):
+    def restack(self, input, scale=True, missing_value=None):
         """Stack new variables as a fortran array
 
         It has the opposite effect of :meth:`unstack`.
@@ -206,7 +228,7 @@ class Stacker(_Base_, _StackerMapIO_):
         inputs = self.remap(input, reshape=False)
 
         # Pack
-        packs = [self[idata].repack(data, scale=scale)
+        packs = [self[idata].repack(data, scale=scale, missing_value=missing_value)
             for idata, data in enumerate(inputs)]
 
         # Check record length (first axis)
