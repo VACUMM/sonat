@@ -42,10 +42,11 @@ import MV2
 import numpy as N
 from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     ncget_time, ncget_level, ArgList, ncfind_obj, itv_intersect, intersect,
-    MV2_axisConcatenate, transect, create_axis)
+    MV2_axisConcatenate, transect, create_axis, regrid1d)
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES, get_logger
 from .misc import xycompress, _Base_, _XYT_, check_variables, _CheckVariables_
+from .pack import default_missing_value
 from .stack import Stacker, _StackerMapIO_
 
 npy = N
@@ -305,6 +306,8 @@ class NcObsPlatform(ObsPlatformBase):
         # - mobility
         if self.nc_mobility_name in f.listvariables():
             self.mobility = f(self.nc_mobility_name, **kwread)
+        elif hasattr(f, self.nc_mobility_name): # as an attribute
+            self.mobility = getattr(f, self.nc_mobility_name)
         elif self.pshape=='gridded': # don't move grid for the moment
             self.mobility = 0.
         else:
@@ -547,7 +550,8 @@ class NcObsPlatform(ObsPlatformBase):
 class ObsManager(_Base_, _StackerMapIO_, _XYT_):
     """Class to manage several observation platform instances"""
 
-    def __init__(self, input, logger=None, syncnorms=True, **kwargs):
+    def __init__(self, input, logger=None, syncnorms=True,
+            missing_value=default_missing_value, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -559,7 +563,9 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
             if not isinstance(obsplat, NcObsPlatform):
                 raise SONATError('ObsManager must be initialised with a single or '
                     'list of NcObsPlatform instances')
+            obsplat.set_missing_value(missing_value)
             self.obsplats.append(obsplat)
+        self._missing_value = missing_value
 
         # Synchronise norms
         self._norm_synced = False
@@ -587,11 +593,30 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
         for obs in self.obsplats:
             yield obs
 
+    def set_missing_value(self, missing_value):
+        if missing_value != self._missing_value:
+            for obsplats in self.obsplats:
+                obsplats.set_missing_value(missing_value)
+            self._missing_value = missing_value
+
+    def get_missing_value(self):
+        return self._missing_value
+
+    missing_value = property(fget=get_missing_value, fset=set_missing_value)
+    fill_value = missing_value
+
     @property
     def varnames(self):
         vv = []
         for obs in self:
             vv.extend(obs.varnames)
+        return list(set(vv))
+
+    @property
+    def suffixed_varnames(self):
+        vv = []
+        for obs in self:
+            vv.extend(obs.suffixed_varnames)
         return list(set(vv))
 
     def check_variables(self, searchmode='ns'):
@@ -799,6 +824,15 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
         """Project model variables to observations positions"""
         return self.unmap([obs.project_model(var) for obs in self])
 
+
+    def assert_compatible_with(self, ens, syncnorms=True):
+        """Assert that an :class:`~sonat.obs.Ensemble` current instance is compatible
+        with the current :class:`ObsManager` instance
+
+        It checks that observed variable are provided by the ensemble.
+        It optinonally synchonise norms between model and observations.
+        """
+        ens.assert_compatible_with(self, syncnorms=syncnorms)
 
 def load_obs(ncfiles, plattypes='generic', varnames=None, lon=None, lat=None,
         logger=None):
