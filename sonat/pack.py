@@ -66,7 +66,8 @@ class Packer(_Base_):
     mask:
         Integer mask where valid data = 1
     """
-    def __init__(self, data, norm=None, mean=None, nordim=None, logger=None, **kwargs):
+    def __init__(self, data, norm=None, mean=None, nordim=None, logger=None,
+            missing_value=None, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -135,10 +136,14 @@ class Packer(_Base_):
 
         # - missing value
         if self.isma:
-            self.missing_value = data.get_fill_value()
+            if missing_value is not None:
+                data.set_fill_value(missing_value)
+            self._missing_value = data.get_fill_value()
         else:
-            self.missing_value = default_missing_value
-            data = numpy.ma.masked_values(data, default_missing_value)
+            if missing_value is None:
+                missing_value = default_missing_value
+            self._missing_value = missing_value
+            data = numpy.ma.masked_values(data, self._missing_value)
 
 
         # Masking nans
@@ -156,11 +161,8 @@ class Packer(_Base_):
         self.good = ~npy.ma.getmaskarray(data)
         if self.withrdim:
             self.good = self.good.all(axis=0)
-        self.ns = self.good.sum()
-        self.compress = self.ns != self.good.size
 
         # Scale unpacked data
-        self.masked = not self.good.any()
         if self.masked:
             self.logger.warning('all your data are masked')
             self._norm = 1.
@@ -186,11 +188,26 @@ class Packer(_Base_):
             self.scale(data)
 
         # Fill data
-        data_num = data.filled(self.missing_value)
+        data_num = data.filled(self._missing_value)
 
         # Pack
         self.packed_data = self.core_pack(data_num, force2d=False)
-        self.psize = self.packed_data.size
+
+    @property
+    def ns(self):
+        return self.good.sum()
+
+    @property
+    def compress(self):
+        return self.ns != self.good.size
+
+    @property
+    def masked(self):
+        return not self.good.any()
+
+    @property
+    def psize(self):
+        return self.packed_data.size
 
     @property
     def withrdim(self):
@@ -249,6 +266,19 @@ class Packer(_Base_):
         return self._norm
 
     norm = property(fget=get_norm, fset=set_norm, doc="Normalisation factor")
+
+
+    def set_missing_value(self, missing_value):
+        if missing_value != self._missing_value:
+            self.packed_data[N.isclose(self.packed_data, self._missing_value)] = \
+                missing_value
+            self._missing_value = missing_value
+
+    def get_missing_value(self):
+        return self._missing_value
+
+    missing_value = property(fget=get_missing_value, fset=set_missing_value)
+    fill_value = missing_value
 
 
     def core_pack(self, data_num, force2d=False):
@@ -331,7 +361,7 @@ class Packer(_Base_):
         return data
 
 
-    def repack(self, data, scale=True, force2d=False):
+    def repack(self, data, scale=True, force2d=False, missing_value=None):
         """Pack a variable using previously computed mask array"""
 
         # Scale
@@ -340,7 +370,9 @@ class Packer(_Base_):
 
         # Numpy
         if npy.ma.isMA(data):
-            data = data.filled(default_missing_value)
+            if missing_value is None:
+                missing_value = self._missing_value
+            data = data.filled(missing_value)
 
         # Check shape
         nsdim = self.ndim-1
@@ -445,9 +477,9 @@ class Packer(_Base_):
         # - missing values
         if self.isnumpy:
             data[:] = npy.ma.masked
-            data.set_fill_value(self.missing_value)
+            data.set_fill_value(self._missing_value)
         else:
-            data[:] = self.missing_value
+            data[:] = self._missing_value
 
         # Format CDAT variables
         if self.ismv2 and format:
@@ -588,4 +620,34 @@ class Packer(_Base_):
         elif isinstance(axis, int) and nr is not None and axis!=nr:
             return nr
         return axis
+
+class Simple1DPacker(object):
+    """Packer pure numpy fortran arrays along the first axis"""
+
+    def __init__(self, data, missing_value, valid=None, **kwargs):
+
+        if valid is None:
+            self.valid = ~N.isclose(data, missing_value, **kwargs).any(axis=0)
+        else:
+            self.valid = valid
+        self.compressible = not valid.all()
+        self.packed_data = self.pack(data)
+        self.missing_value = missing_value
+
+    def pack(self, data, copy=False):
+        if not self.compressible:
+            if copy:
+                data = data.copy()
+            return data
+        return N.asfortranarray(data[self.valid])
+
+    def unpack(self, pdata, copy=False):
+        if not self.compressible:
+            if copy:
+                pdata = pdata.copy()
+            return pdata
+        data = N.zeros(self.valid.shape[:1] + pdata.shape[1:])
+        data += self.missing_value
+        data[self.valid] = pdata
+        return N.asfortranarray(data)
 
