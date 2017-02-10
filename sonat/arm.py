@@ -42,6 +42,7 @@ from .misc import _Base_
 from .ens import Ensemble
 from .obs import ObsManager, NcObsPlatform
 from ._fcore import f_arm
+from .pack import Simple1DPacker, default_missing_value
 
 class ARM(_Base_):
     """Interface to the ARM assessment algorithm
@@ -69,7 +70,7 @@ class ARM(_Base_):
 
     """
     def __init__(self, ens, obsmanager, logger=None, checkvars=True,
-            syncnorms=True, **kwargs):
+            syncnorms=True, missing_value=default_missing_value, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -90,34 +91,56 @@ class ARM(_Base_):
         self.ens = ens
         self.obsmanager = obsmanager
 
+        # Sync missing values
+        self._missing_value = missing_value
+        self.set_missing_value(missing_value)
+
         # Check variables
         if checkvars:
             self.ens.check_variables()
             self.obsmanager.check_variables()
 
-        # Make sure that ens norms are synced with obs norms
-        if syncnorms:
-            self.ens.sync_norms(force=False)
-            dnorms = self.ens.get_named_norms()
-            self.obsmanager.set_named_norms(dnorms)
-
-        # Dims
-        self.nstate, self.nens = self.ens.stacked_data.shape
-        self.nobs = self.obsmanager.stacked_data.shape[0]
+        # Check compatibility (names, norms, projection)
+        diags = self.ens.assert_compatible_with(self.obsmanager,
+            syncnorms=syncnorms)
+        self._ens_on_obs = diags['ens_on_obs']
+        self._packed_ens_on_obs = diags['packed_ens_on_obs']
+        self._packed_ens_on_obs_valid = diags['packed_ens_on_obs_valid']
+        self._final_packer = Simple1DPacker(self._packed_ens_on_obs,
+            self.missing_value, valid=diags['packed_ens_on_obs_valid'])
 
         # Inits
         self._inputs = {} # indirect input matrices
         self._results = {} # results
 
+    @property
+    def nstate(self):
+        return self.ens.stacked_data.shape[0]
+
+    @property
+    def nens(self):
+        return self.ens.stacked_data.shape[1]
+
+    @property
+    def nobs(self):
+        return self._final_packer.packed_data.shape[0]
+
+    def set_missing_value(self, missing_value):
+        if missing_value != self._missing_value:
+            self.ens.missing_value = missing_value
+            self.obsmanager.missing_value = missing_value
+
+    def get_missing_value(self):
+        return self._missing_value
+
+    missing_value = property(fget=get_missing_value, fset=set_missing_value)
+    fill_value = missing_value
+
     def project_ens_on_obs(self):
         """Interpolate the variables of an :class:`~sonat.ens.Ensemble` onto
         observation locations
         """
-        out = []
-        for obs in self.obsmanager:
-            vmod = [self.ens.get_variable(vname, obs) for vname in obs.varnames]
-            out.append(obs.project_model(vmod))
-        return out
+        return self.ens.project_on_obs(self.obsmanager)
 
     @property
     def Af(self):
@@ -127,16 +150,13 @@ class ARM(_Base_):
     @property
     def Yf(self):
         """Ensemble states at observation locations"""
-        if 'Yf' not in self._inputs:
-            oens = self.project_ens_on_obs()
-            self._inputs['Yf'] = self.obsmanager.restack(oens)
-        return self._inputs['Yf']
+        return self._final_packer.packed_data
 
     @property
     def R(self):
         """Observation errors"""
         if 'R' not in self._inputs:
-            err = self.obsmanager.stacked_data
+            err = self._final_packer.pack(self.obsmanager.stacked_data)
             self._inputs['R'] = N.asfortranarray(N.diag(err))
         return self._inputs['R']
 
@@ -262,7 +282,8 @@ class ARM(_Base_):
         self._check_analysis_()
 
         # Unstack/pack/format
-        self._results['arm'] = self.obsmanager.unstack(arm, rescale=False,
+        uarm = self._final_packer.unpack(self.raw_arm)
+        self._results['arm'] = self.obsmanager.unstack(uarm, rescale=False,
             format=1, id='arm_{id}')
         return self._results['arm']
 
@@ -277,7 +298,7 @@ class ARM(_Base_):
         self._check_analysis_()
 
         # Unstack/pack/format
-        self._results['rep'] = self.ens.unstack(rep, rescale=False, format=1,
+        self._results['rep'] = self.ens.unstack(self.raw_rep, rescale=False, format=1,
             id='arm_rep_{id}')
         return self._results['rep']
 
