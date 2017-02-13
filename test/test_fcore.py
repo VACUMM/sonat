@@ -21,6 +21,7 @@ def test_fcore_arm():
 
     # Sample states
     ssamples = N.array([[0.24, -0.38, 0.14], [0.51, -0.75, 0.24]], order='F')
+    nens = ssamples.shape[1]
 
     # Observation operator
     H = N.array([[0.0, 1.0], [1.0, 0.0]], order='F')
@@ -36,7 +37,7 @@ def test_fcore_arm():
     arm_spect, arm, arm_rep, status = f_arm(ndof, ssamples, dsamples, R)
 
     # PCs
-    pcs = N.dot(St, arm)
+    pcs = N.dot(dsamples.T/N.sqrt(0.1 * (nens-1)), arm)
 
     # True values
     arm_spect_true = N.loadtxt(os.path.join(THISDIR,
