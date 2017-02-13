@@ -742,6 +742,7 @@ class Ensemble(Stacker, _CheckVariables_):
                 vars = self.fill_arrays(vars, firstdims=False,
                     id='{id}_variance', format=2)
                 diags['variance'] = self._diags['variance'] = self.unmap(vars)
+                diags['vars'] = vars
 
             # Explained variance
             if self.ev is not None and hasattr(self.ev, 'total_variance'):
@@ -749,23 +750,25 @@ class Ensemble(Stacker, _CheckVariables_):
                     diags['explained_variance'] = self._diags['explained_variance']
                 else:
                     diags['explained_variance'] = self._diags['explained_variance'] = \
-                        (self.ev**2)/self.ev.total_variance
+                        100 * (self.ev**2) / self.ev.total_variance
                     diags['explained_variance'].id = 'explained_variance'
+                    diags['explained_variance'].units = '%'
 
             # Local explained variance
             if self.variance is not None:
                 if 'local_explained_variance' in self._diags:
                     diags['local_explained_variance'] = self._diags['local_explained_variance']
                 else:
-                    lvars = self.remap(self.variance)
                     evars = []
-                    for lvar, var in zip(self.remap(self.variance), vars):
+                    for lvar, var in zip(diags['vars'], self.remap(self.variance)):
                         if cdms2.isVariable(lvar):
                             evar = lvar.clone()
-                            evar.id = var.id.replace('_variance', '_expl_variance')
+                            evar.id = var.id + '_variance'
+                            evar.units = '%'
                         else:
                             evar = lvar.copy()
                         evar[:] /= var
+                        evar[:] *= 100
                         evars.append(evar)
                     diags['local_explained_variance'] = self._diags['local_explained_variance'] = \
                         self.unmap(evars)
@@ -795,7 +798,7 @@ class Ensemble(Stacker, _CheckVariables_):
 
     def plot_diags(self, mean=True, variance=True, kurtosis=True, skew=True,
             skewtest=True, kurtosistest=True, normaltest=True,
-            titlepat = '{varname} - {diaglongname} - {loc}',
+            titlepat = '%(long_name)s - {diaglongname} - {loc}',
             depths=None, points=None,
             zonal_sections=None, meridional_sections=None,
             figpat_slice='sonat.ens.{diagname}_{varname}_{slicename}_{loc}.png',
@@ -929,7 +932,6 @@ class Ensemble(Stacker, _CheckVariables_):
                         del toplot
 
         # Export to html
-        print figs
         if htmlfile:
 
             # Figure paths
