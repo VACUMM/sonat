@@ -37,6 +37,7 @@
 import os
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
+from pylab import register_cmap, get_cmap
 from vcmq import dict_merge, itv_intersect
 
 from .__init__ import sonat_help, get_logger, SONATError
@@ -117,11 +118,8 @@ def ens_gen_pseudo_from_cfg(cfg):
     cfge = cfg['ens']
     cfgef = cfge['fromobs']
 
-    # Logger
-    logger = get_logger(cfg=cfg)
-
-    # My
-    load_my_sonat_from_cfg(cfg, logger)
+    # Init
+    logger = init_from_cfg(cfg)
 
     # Options from config
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
@@ -222,6 +220,7 @@ def ens_plot_diags_from_cfg(cfg):
     cfged = cfge['diags']
     cfgc = cfg['cmaps']
     cfgef = cfge['fromobs']
+    cfgedp = cfged['plots']
 
     # Logger
     logger = get_logger(cfg=cfg)
@@ -240,7 +239,8 @@ def ens_plot_diags_from_cfg(cfg):
     figpatgeneric = get_cfg_path(cfg, 'ens', 'figpatgeneric')
     htmlfile = get_cfg_path(cfg, 'ens', 'htmlfile')
     depths = interpret_level(cfged.pop('depths'))
-    kwargs = cfged.copy()
+    kwargs = cfged.dict().copy()
+    del kwargs['plots']
     props = {
         'local_explained_variance':{
             'cmap':cfgc['pos'],
@@ -261,6 +261,7 @@ def ens_plot_diags_from_cfg(cfg):
             'cmap':cfgc['pos'],
         },
     }
+    props = dict_merge(props, cfgedp.dict())
 
     # Setup ensemble from file
     ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
@@ -318,6 +319,33 @@ def load_my_sonat_from_cfg(cfg, logger):
     logger.debug('Load user code file: '+myfile)
     load_user_code_file(myfile)
     logger.verbose('Loaded user code file: '+myfile)
+
+
+def register_cmaps_from_cfg(cfg, logger):
+    """Register cmap aliases into matplotlib"""
+    logger.debug('Registering colormaps')
+    for name, cmap in cfg['cmaps']:
+        register_cmap(name, cmap)
+
+
+def init_from_cfg(cfg, logger):
+    """Init stuff that is always performed
+
+
+    Return
+    ------
+    logger
+    """
+    # Logger
+    logger = get_logger(cfg=cfg)
+
+    # Colormaps
+    register_cmaps_from_cfg(cfg, logger)
+
+    # User stuff
+    load_my_sonat_from_cfg(cfg, logger)
+
+    return logger
 
 if __name__=='__main__':
     main()
