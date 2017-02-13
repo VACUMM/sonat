@@ -43,16 +43,16 @@ TEMPLATE_HTML_DICT2TREE = """
     {% for name0, content0 in content.iteritems() %}
         {% if content0  %}
         <li>
-            <span class="d2tSectionName">{{ name0 }}</span><br/>
+            <span class="tlevel0">{{ name0 }}</span><br/>
 
             {% if content0 is string %}
             {{ content0|checkimg }}
             {% elif content0 is mapping %}
-            <ul class="collaspibleList">
+            <ul class="collapsibleList">
             {% for name1, content1 in content0.iteritems() %}
                 {% if content1 %}
                 <li>
-                    <span class="d2tItemName">{{ name1 }}</span><br/>
+                    <span class="tlevel1">{{ name1 }}</span><br/>
 
                     {% if content1 is string %}
                     {{ content1|checkimg }}
@@ -61,7 +61,7 @@ TEMPLATE_HTML_DICT2TREE = """
                     {% for name2, content2 in content1.iteritems() %}
                         {% if content2 %}
                         <li>
-                            <span class="d2tItemName">{{ name2 }}</span><br/>
+                            <span class="tlevel2">{{ name2 }}</span><br/>
 
                             {% if content2 is string %}
                             {{ content2|checkimg }}
@@ -70,7 +70,7 @@ TEMPLATE_HTML_DICT2TREE = """
                             {% for name3, content3 in content2.iteritems() %}
                                 {% if content3 %}
                                 <li>
-                                    <span class="d2tItemName">{{ name3 }}</span><br/>
+                                    <span class="tlevel3">{{ name3 }}</span><br/>
 
                                     {{ content3|checkimg }}
 
