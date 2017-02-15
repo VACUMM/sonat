@@ -36,6 +36,7 @@ Observations
 #
 
 from collections import OrderedDict
+import os
 import re
 import cdms2
 import MV2
@@ -209,6 +210,7 @@ class NcObsPlatform(ObsPlatformBase):
 
             mask = N.ma.nomask #zeros(fs.shape[-1], '?')
             self.pshape = 'xy'
+            paxis = fs.getAxis(-1)
             kwread = {}
 
             # Check order
@@ -224,9 +226,15 @@ class NcObsPlatform(ObsPlatformBase):
                 lons = ncget_lon(f)
                 if lons is None:
                     raise SONATError("Longitudes not found")
+                if lons.getAxis(0).id is not paxis.id:
+                    raise SONATError("Longitudes dimension must be the same"
+                                     " as last variable dimension")
                 lats = ncget_lat(f)
                 if lats is None:
                     raise SONATError("Latitudes not found")
+                if lats.getAxis(0).id is not paxis.id:
+                    raise SONATError("Latitudes dimension must be the same"
+                                     " as last variable dimension")
                 lons = lons.asma()
                 lats = lats.asma()
                 if self.lon:
@@ -239,15 +247,17 @@ class NcObsPlatform(ObsPlatformBase):
             # Vertical dimension
             if 'z' in order: # 1D axis
                 kwread.update(level=self.level)
-            else: # Aux axis
+            else: # Aux axis or variable
                 self.depths = ncget_level(f)
                 if self.depths is not None:
-                    raise SONATError("Scattered Z dimension not yet supported")
+                    if (self.depths[:].ndim==1 and
+                            self.depths.getAxis(0).id is paxis.id):
+                        raise SONATError("Scattered Z dimension not yet supported")
+                        self.pshape = self.pshape + 'z'
                     depths = self.depths.asma()
                     if self.level:
                         mask |= depths < self.level[0]
                         mask |= depths > self.level[1]
-                    self.pshape = self.pshape + 'z'
 
             # Time selection
             if 't' in order: # 1D axis
@@ -267,15 +277,13 @@ class NcObsPlatform(ObsPlatformBase):
             if mask.all():
                 SONATError("All your observation data are masked")
 
-
-
         # Read
         # - errors
         for vname in self.varnames:
             self.errors[vname] = f(vname + self.nc_error_suffix, **kwread)
         self._sample = sample = self.errors[vname]
         order = sample.getOrder()
-        self.axes1d = []
+        self.axes = []
         # - lon/lat
         if grid:
             self.lons = sample.getLongitude()[:]
@@ -286,13 +294,16 @@ class NcObsPlatform(ObsPlatformBase):
         # - times
         if 't' in order:
             self.times = sample.getTime()
-            self.axes1d.append(self.times)
+            if self.times is not paxis:
+                self.axes.append(self.times)
         else:
             self.times = None
         # - depths
         if 'z' in order:
             self.depths = sample.getLevel()
-            self.axes1d.append(self.depths)
+            self.axes.append(self.depths)
+        elif 'z' not in self.pshape: # depths that vary with position
+            self.axes.append(self.depths)
         elif hasattr(f, 'depth'): # depth from file attribute
             self.depths = f.depth
             if not isinstance(self.depths, basestring):
@@ -324,12 +335,18 @@ class NcObsPlatform(ObsPlatformBase):
             self.lats = xycompress(valid, self.lats)
             for vname, var in self.errors.items():
                 self.errors[vname] = xycompress(valid, var)
-            if self.times is not None and self.times not in self.axes1d:
+            if self.times is not None and self.times not in self.axes:
                 self.times = xycompress(valid, self.times)
-            if (self.depths is not None and self.depths not in self.axes1d and
+            if (self.depths is not None and not isaxis(self.depths) and
                     not isinstance(self.depths, basestring)):
                 self.depths = xycompress(valid, self.depths)
 
+        # Name
+        if self.name is None:
+            if hasattr(f, 'platform_name'): # name from attribute
+                self.name = f.platform_name
+            else: # name from file name
+                self.name = os.path.splitext(os.path.basename(self.ncfile))[0]
         f.close()
 
     def get_suffixed_varname(self, vname):
@@ -359,6 +376,30 @@ class NcObsPlatform(ObsPlatformBase):
     @property
     def grid(self):
         return self._sample.getGrid()
+
+    @property
+    def is_surf(self):
+        return self.depths is 'surf'
+
+    @property
+    def is_bottom(self):
+        return self.depths is 'bottom'
+
+    @property
+    def is_zscattered(self):
+        return 'z' in self.pshape
+
+    @property
+    def is_tscattered(self):
+        return 't' in self.pshape
+
+    @property
+    def is_gridded(self):
+        return self.pshape is 'gridded'
+
+    @property
+    def mask(self):
+        return N.ma.getmaskarray(self._sample)
 
     def check_variables(self, searchmode='ns'):
         """Check that all input variables have known properties
@@ -537,15 +578,74 @@ class NcObsPlatform(ObsPlatformBase):
 
 
             # Auxilary axes
-            for axis in self.axes1d:
-                var = regrid1d(var, axis, method='linear')
+            for axis in self.axes:
+                kw = {}
+                if axis[:].ndim==2: # varying depths
+                    kw.update(axis=-2, iaxi=0)
+                var = regrid1d(var, axis, method='linear', **kw)
 
             out.append(var)
 
         return al.put(out)
 
-#    def plot(self):
-#        pass
+    def plot(self, variables=None,
+             full3d=True, surf=None, bottom=None, horiz_sections=None,
+             zonal_sections=None, merid_sections=None,
+             lon_margin=0.1, lat_margin=0.1, dep_margin=0.1,
+             bathy=None, m=None, fig=None, profile_line=True, close=True,
+             figpat='sonat.obs.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png'):
+        """Plot observation location or data
+
+        Parameters
+        ----------
+        variables: strings, arrays
+            May be variable names, or array that are comptible
+            with this platform.
+            The special value "location" just plot the locations.
+        """
+        # Inits
+        self.verbose('Plotting observations for '+self.name)
+        figs = OrderedDict()
+
+        # Data
+        if variables is None:
+            variables = [('location', self.mask)]
+        else:
+            variables = []
+            if not isinstance(variables, list):
+                variables = [variables]
+            for var in variables:
+                if var == 'location':
+                    var_name = var
+                    var = self.mask
+                elif isinstance(var, string_types):
+                    var_name = var.id
+                else:
+                    var_name = var
+                    var = self.get_error(var)
+                variables.append((var_name, var))
+
+        if full3d:
+            slice_type = 'map'
+            slice_loc = '3d'
+
+            for var_name, var in variables:
+
+
+                varname = var_name
+                this_m = dicttree_get(m, var_name, slice_type, slice_loc)
+                this_fig = dicttree_get(fig, var_name, slice_type, slice_loc)
+
+                thism = plot_scattered_locs(self.lons, self.lats, self.depths,
+                                    slice_type="3d", m=thism, map_fig=this_fig,
+                                    data=var, warn=False, bathy=bathy,
+                                    profile_line=profile_line, **kwargs)
+                figfile = figpat.format(**locals())
+                this_m.savefig(figfile)
+                self.created(figfile)
+                figs[var_name] = {slice_type: {slice_loc:figfile}}
+        # TODO: plot other slices in obs
+        return figs
 
 class ObsManager(_Base_, _StackerMapIO_, _XYT_):
     """Class to manage several observation platform instances"""

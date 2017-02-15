@@ -14,6 +14,7 @@ from sonat.obs import (NcObsPlatform, ObsManager, load_obs,
     register_obs_platform, get_obs_platform, OBS_PLATFORM_TYPES,
     load_obs_platform)
 
+CACHE = {}
 
 def test_obs_ncobsplatform_surf():
 
@@ -91,6 +92,7 @@ def test_obs_obsmanager_init():
     manager.set_named_norms(temp=0.1)
     assert manager.stacked_data[0] == 2 * stacked[0]
 
+    CACHE['manager'] = manager
     return manager
 
 def test_obs_load_obs():
@@ -141,7 +143,24 @@ def test_obs_load_obs_platform():
 
     obs = load_obs_platform('myplatform', NCFILE_OBS_SURF)
     assert obs.varnames == ['temp', 'sal']
+
+
     return obs
+
+def get_manager():
+    if 'manager' not in CACHE:
+        CACHE['manager'] = test_obs_obsmanager_init()
+    return CACHE['manager']
+
+def test_obs_ncobsplatform_profiles_plot():
+
+    # Load platform
+    obs = NcObsPlatform(NCFILE_OBS_PROFILES)
+
+    # Plots
+    figs = obs.plot(variables=['locations', 'temp'], full3d=True)
+
+    return figs
 
 
 if __name__=='__main__':
@@ -153,3 +172,4 @@ if __name__=='__main__':
     res = test_obs_register_obs_platform()
     res = test_obs_get_obs_platform()
     res = test_obs_load_obs_platform()
+    res = test_obs_ncobsplatform_profiles_plot()
