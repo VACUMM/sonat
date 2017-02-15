@@ -220,6 +220,7 @@ def ens_plot_diags_from_cfg(cfg):
     cfged = cfge['diags']
     cfgc = cfg['cmaps']
     cfgef = cfge['fromobs']
+    cfgeds = cfged['slices']
     cfgedp = cfged['plots']
 
     # Logger
@@ -238,9 +239,11 @@ def ens_plot_diags_from_cfg(cfg):
     figpatslice = get_cfg_path(cfg, 'ens', 'figpatslice')
     figpatgeneric = get_cfg_path(cfg, 'ens', 'figpatgeneric')
     htmlfile = get_cfg_path(cfg, 'ens', 'htmlfile')
-    depths = interpret_level(cfged.pop('depths'))
+    depths = interpret_level(cfgeds('depths').dict())
+    zonal_sections =  cfgeds('zonal_sections')
+    merid_sections =  cfgeds('merid_sections')
     kwargs = cfged.dict().copy()
-    del kwargs['plots']
+    del kwargs['plots'], kwargs['slices']
     props = {
         'local_explained_variance':{
             'cmap':cfgc['pos'],
@@ -269,7 +272,9 @@ def ens_plot_diags_from_cfg(cfg):
 
     # Plot diags
     return ens.export_diags(htmlfile, figpat_slice=figpatslice,
-        figpat_generic=figpatgeneric, depths=depths, props=props, **kwargs)
+        figpat_generic=figpatgeneric, depths=depths, props=props,
+        zonal_sections=zonal_sections, merid_sections=merid_sections,
+        **kwargs)
 
 
 ## MISC
