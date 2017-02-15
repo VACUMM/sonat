@@ -798,11 +798,11 @@ class Ensemble(Stacker, _CheckVariables_):
 
     def plot_diags(self, mean=True, variance=True, kurtosis=True, skew=True,
             skewtest=True, kurtosistest=True, normaltest=True,
-            titlepat = '%(long_name)s - {diaglongname} - {loc}',
+            titlepat = '%(long_name)s - {diag_longname} - {slice_loc}',
             depths=None, points=None,
-            zonal_sections=None, meridional_sections=None,
-            figpat_slice='sonat.ens.{diagname}_{varname}_{slicename}_{loc}.png',
-            figpat_generic='sonat.ens.{diagname}.png',
+            zonal_sections=None, merid_sections=None,
+            figpat_slice='sonat.ens.{diag_name}_{var_name}_{slice_type}_{slice_loc}.png',
+            figpat_generic='sonat.ens.{diag_name}.png',
             fmtlonlat='{:.2f}', fmtdep='{:04.0f}m',
             figfir=None, show=False,
             htmlfile=None, props=None):
@@ -845,57 +845,58 @@ class Ensemble(Stacker, _CheckVariables_):
 
         # Loop on diags
         figs = OrderedDict()
-        for diagname, diagvar in diags.items():
+        for diag_name, diag_var in diags.items():
 
-            diaglongname = diagname.title().replace('_', ' ')
-            self.debug('Plotting ens diag: '+diaglongname)
+            diag_longname = diag_name.title().replace('_', ' ')
+            self.debug('Plotting ens diag: '+diag_longname)
 
             # Explained variance
-            if diagname=='explained_variance':
+            if diag_name=='explained_variance':
 
                 figfile = figpat_generic.format(**locals())
                 checkdir(figfile)
-                kw = kwprops.get(diagname, {})
-                dict_check_defaults(kw, xmax=len(diagvar)+.5, savefig=figfile,
+                kw = kwprops.get(diag_name, {})
+                dict_check_defaults(kw, xmax=len(diag_var)+.5, savefig=figfile,
                     **DEFAULT_PLOT_KWARGS)
-                bar(diagvar, **kw)
+                bar(diag_var, **kw)
                 self.created(figfile)
-                figs[diaglongname] = figfile
+                figs[diag_longname] = figfile
 
             # Loop on variables
             else:
 
-                for diagvar in ArgList(diagvar).get():
-                    order = diagvar.getOrder()
+                for diag_var in ArgList(diag_var).get():
+                    order = diag_var.getOrder()
 
-                    varname, vdepth, vdiagname = split_varname(diagvar)
-                    id = diagvar.id
-                    self.debug(' Variable: '+varname)
+                    var_name, vdepth, vdiag_name = split_varname(diag_var)
+                    varname = var_name
+                    id = diag_var.id
+                    self.debug(' Variable: '+var_name)
 
 
                     # Maps
                     if depths is not False:
                         toplot = []
-                        slicename = 'map'
+                        slice_type = 'map'
 
                         # Get what to plot
                         if ((vdepth=='surf' and 'surf' in depths) or
                                 (vdepth=='bottom' and 'bottom' in depths)): # 2D
 
-                            toplot.append(dict(loc=vdepth, var=diagvar))
+                            toplot.append(dict(loc=vdepth, var=diag_var))
 
-                        elif diagvar.getLevel() is not None and depths3d: # 3D
+                        elif diag_var.getLevel() is not None and depths3d: # 3D
 
                             # Loop on 3D depths specs
                             for d3d in depths3d:
 
                                 if d3d in [None, '3d']: # simple slices
 
-                                    levels = diagvar.getLevel()[::-1]
+                                    levels = diag_var.getLevel()[::-1]
                                     for i, level in enumerate(levels):
                                         toplot.append(dict(
                                             loc=fmtdep.format(abs(level)),
-                                            var=diagvar[len(levels)-i-1]))
+                                            var=diag_var[len(levels)-i-1]))
 
                                 else: # interpolations
 
@@ -903,32 +904,32 @@ class Ensemble(Stacker, _CheckVariables_):
                                     for i, level in enumerate(levels):
                                         toplot.append(dict(
                                             loc=fmtdep.format(abs(level)),
-                                            var=diagvar,
+                                            var=diag_var,
                                             kw=dict(depth=level)))
 
                         # Init dict
                         if toplot:
                             dd = figs.setdefault(
-                                diaglongname, OrderedDict()).setdefault(
-                                varname.upper(),  OrderedDict()).setdefault(
-                                slicename.title(), OrderedDict())
+                                diag_longname, OrderedDict()).setdefault(
+                                    var_name.upper(),  OrderedDict()).setdefault(
+                                        slice_type.title(), OrderedDict())
 
                         # Plot them
                         for spec in toplot:
-                            loc = spec['loc']
+                            slice_loc = spec['loc']
                             var = spec['var']
-                            self.debug('  Location: '+loc)
+                            self.debug('  Location: '+slice_loc)
                             title = titlepat.format(**locals())
                             figfile = figpat_slice.format(**locals())
                             checkdir(figfile)
-                            kw = kwprops.get(diagname, {})
+                            kw = kwprops.get(diag_name, {})
                             if 'kw' in spec:
                                 kw.update(**spec['kw'])
                             kw.update(title=title, savefig=figfile, **kwmap)
                             dict_check_defaults(kw, **DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
-                            plot_gridded_var(diagvar, **kw)
+                            plot_gridded_var(diag_var, **kw)
                             self.created(figfile)
-                            dd[loc] = figfile
+                            dd[slice_loc] = figfile
                         del toplot
 
         # Export to html
