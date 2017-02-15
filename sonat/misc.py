@@ -38,15 +38,17 @@ import os
 import codecs
 import string
 from string import Formatter
+from six import string_types
 from glob import has_magic, glob
 from collections import OrderedDict
 import numpy as N
 import cdms2
+from genutil import minmax as cdminmax
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices,
     kwfilter, numod, GENERIC_VAR_NAMES, DS, set_atts, format_var,
     match_known_var, ArgList, create_lon, regrid1d, grid2xy, create_lat,
-    create_time, create_dep, create_axis, cp_atts)
+    create_time, create_dep, create_axis, cp_atts, isaxis)
 
 from .__init__ import sonat_warn, SONATError, get_logger
 
@@ -613,7 +615,73 @@ def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=Non
 
     return var
 
-#def _take_first_index_(var,
+def slice_scattered_locs(lons, lats, depths, slice_type, interval, data=None,
+        asdict=False):
+    """Extract coordinates that fall within a given interval of lon, lat or depth
+
+    Parameters
+    ----------
+    lons: n-D array
+    lats: n-D array
+    depths: n-D array
+    slice_type: one of "zonal", "meridional", "horizontal"
+    interval: tuple of float
+        Interval for selecting valid data
+
+    Return
+    ------
+    None or dict
+        If not intersect if found, it returns None.
+        Else, it returns a dict of lons, lats and depths.
+
+    Todo
+    ----
+    Add time support.
+    """
+    # Check slice type
+    valid_slice_types = ['zonal', 'meridional', 'horizonal']
+    assert slice_type in valid_slice_types, ('Invalid slice type. '
+        'It must be one of: '+', '.join(valid_slice_types))
+
+
+    # Config
+    zscattered = len(depths)==len(lons) and not isaxis(depths)
+    if cdms2.isVariable(data):
+        data = data.asma()
+
+    # Valid locs
+    if slice_type is 'horizontal':
+        valid = depths[:] >interval[0]
+        valid &= depths[:] <= interval[1]
+    else:
+        against = lons[:] if slice_type=='meridional' else lats[:]
+        valid = against >= interval[0]
+        valid &= against <= interval[1]
+
+    # Slices
+    if slice_type is 'horizontal' and not zscattered:
+        if isaxis(depths):
+            depths._data_ = depths._data_[valid] # keep axis nature
+        else:
+            depths = depths[:]
+        if data is not None:
+            data = data[..., valid, :]
+    else:
+        lons = lons[valid]
+        lats = lats[valid]
+        if zscattered:
+            depths = depths[valid]
+        if data is not None:
+            data = data[..., valid]
+
+    # Check mask
+    if (N.ma.getmask(lons).all() or N.ma.getmask(lats).all() or
+            N.ma.getmask(depths).all() or N.ma.getmask(data).all()):
+        return
+
+    if asdict:
+        return dict(lons=lons, lats=lats, depths=depths, data=data)
+    return lons, lats, depths, data
 
 def dicttree_relpath(dd, refdir):
     """Make paths stored in a tree of dictionaries relative to another one
@@ -681,3 +749,13 @@ def interpret_level(level, astuple=False):
 
     return (level, ) if astuple else level
 
+
+def minmax(data, asdict=False):
+    """Get min and max of dict, list, tuple, array"""
+    if isinstance(data, dict):
+        vmin, vmax  = minmax(data.values())
+    else:
+        vmin, vmax = minmax(data)
+    if asdict:
+        return dict(vmin=vmin, vmax=vmax)
+    return vmin, vmax
