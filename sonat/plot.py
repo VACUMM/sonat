@@ -41,6 +41,7 @@ import matplotlib.pyplot as P
 from mpl_toolkits.mplot3d import art3d, Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib import rc_params_from_file, rcParams
+import cdms2
 from vcmq import (map, hov, stick, curve, section, dict_check_defaults, plot2d,
                   kwfilter, curv2rect, deplab, isaxis, meshbounds)
 
@@ -161,7 +162,7 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
 
 
 def create_map(lon, lat, level=None, axes=None, bathy=None,
-               elev=20, azim=-100, **kwargs):
+               elev=20, azim=-100, add_bathy=True, **kwargs):
 
     # Params
     kwbat = kwfilter(kwargs, 'bathy')
@@ -220,13 +221,15 @@ def create_map(lon, lat, level=None, axes=None, bathy=None,
             m.axes.set_zlim(level)
 
         # Bathy
-        if bathy is not None:
+        if bathy is not None and add_bathy:
             plot_bathy_3d(bathy(lon=lon, lat=lat), m, **kwbat)
 
     # 2D bathy
-    elif bathy is not None:
+    elif bathy is not None and add_bathy:
 
         plot_bathy_2d(bathy(lon=lon, lat=lat), m, **kwbat)
+
+    return m
 
 
 def plot_bathy_3d(bathy, m, color='.8', linewidth=0, **kwargs):
@@ -286,8 +289,9 @@ class FixedZorderPoly3DCollection(Poly3DCollection):
 
 
 def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=None,
-                        data=None, warn=False, bathy=None, size=10,
-                        linewidth=0, color='k', profile_line=None, **kwargs):
+                        data=None, warn=False, bathy=None, xybathy=None, size=10,
+                        linewidth=0, color='k', add_profile_line=None, add_bathy=True,
+                        **kwargs):
     """Plot scattered localisations
 
     Parameters
@@ -310,7 +314,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
     if cdms2.isVariable(data):
         data = data.asma()
     kwmap = kwfilter(kwargs, 'map_')
-    kwpf = kwfilter(kwargs, 'profile_line')
+    kwpf = kwfilter(kwargs, 'add_profile_line')
 
     # Slice type
     if slice_type is None:
@@ -362,7 +366,8 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
     # Get the map
     if m is None and slice_type in ['3d', "horizontal", 'surf', 'bottom']:
         level = depths if slice_type=='3d' else None
-        m = create_map(lons, lats, level=level, bathy=bathy, **kwmap)
+        m = create_map(lons, lats, level=level, bathy=bathy, add_bathy=add_bathy,
+                       **kwmap)
         xx, yy = m(lons, lats)
     else:
         xx = lons[:]
@@ -371,50 +376,61 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
     # Plot params for scatter
     kwargs.update(linewidth=linewidth, s=size, )
 
-    # masking
+    # Masking
     if data is not None:
         if data.dtype.char=='?':
             mask = data
             data = None
         else:
             mask = N.ma.getmaskarray(data)
-        if zscaterred:
+        if zscattered:
             xx = N.ma.masked_where(xx, mask, copy=False)
     else:
         mask = None
 
+    # Data kwargs
+    if data is not None:
+        dict_check_defaults(kwargs, vmin=data.min(), vmax=data.max())
 
     # 3D
     if slice_type == "3d":
 
         # Bathy for profile line
-        if profile_line is None:
-            profile_line = indepths != 'surf'
-        if profile_line and indepths == 'bottom':
-            xybathy = indepths
-        elif bathy is None:
-            if profile_line:
-                sonat_warn('Cannot plot profile line without bathymetry')
-            profile_line = False
-        else:
-            xybathy = grid2xy(bathy, lons, lats)
-        dict_check_default(kwpf, linewidth=.1, linestyle=':', color='.6')
+        if add_profile_line is None:
+            add_profile_line = (indepths != 'surf') and bathy is not None
+        if xybathy is not None:
+            if add_profile_line and indepths == 'bottom':
+                xybathy = indepths
+            elif bathy is None:
+                if add_profile_line:
+                    sonat_warn('Cannot plot profile line without bathymetry')
+                add_profile_line = False
+            else:
+                xybathy = grid2xy(bathy, lons, lats)
+        dict_check_defaults(kwpf, linewidth=.1, linestyle=':', color='.6')
 
         # Scatter plots
         if zscattered: # fully scattered
 
             # Points
+            if data is not None:
+                kwargs['c'] = data[..., ip]
             m.axes.scatter(xx, yy, depths, **kwargs)
 
             # Profile lines
-            if profile_line:
+            if add_profile_line:
                 for ip, (x, y) in enumerate(zip(xx, yy)):
-                    add_profile_line_3d(x, y, xybathy[ip], **kwpf)
+                    plot_profile_line_3d(x, y, xybathy[ip], **kwpf)
 
 
         else: # profiles
 
             for ip, (x, y) in enumerate(zip(xx, yy)):
+
+                # Skip fully masked
+                if mask is not None:
+                    if mask[..., ip].all():
+                        continue
 
                 # Points
                 if depths[:].ndim==2:
@@ -422,19 +438,21 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
                 else:
                     zz = depths
                 if mask is not None:
-                    zz = N.ma.masked_where(zz, mask[ip], copy=False)
+                    zz = N.ma.masked_where(mask[..., ip], zz, copy=False)
+                if data is not None:
+                    kwargs['c'] = data[..., ip]
                 m.axes.scatter([x]*len(zz), [y]*len(zz), zz, **kwargs)
 
                 # Profile line
-                if profile_line:
-                    add_profile_line_3d(m, x, y, xybathy[ip], **kwpf)
+                if add_profile_line:
+                    plot_profile_line_3d(m, x, y, xybathy[ip], **kwpf)
 
         return m
 
     # TODO: plot of other scattered slice!
 
 
-def add_profile_line_3d(m, x, y, bathy, **kwargs):
+def plot_profile_line_3d(m, x, y, bathy, **kwargs):
     p = m.axes.plot([x, x], [y, y], [bathy, 0], **kwpf)
     m.axes.scatter([x, x], [y, y], [bathy, 0],
                     color=p[0].get_color(), size=3)
