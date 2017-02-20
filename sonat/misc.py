@@ -43,7 +43,7 @@ from glob import has_magic, glob
 from collections import OrderedDict
 import numpy as N
 import cdms2
-from genutil import minmax as cdminmax
+from genutil import minmax as minmax
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices,
     kwfilter, numod, GENERIC_VAR_NAMES, DS, set_atts, format_var,
@@ -750,10 +750,10 @@ def interpret_level(level, astuple=False):
     return (level, ) if astuple else level
 
 
-def minmax(data, asdict=False):
+def vminmax(data, asdict=False):
     """Get min and max of dict, list, tuple, array"""
     if isinstance(data, dict):
-        vmin, vmax  = minmax(data.values())
+        vmin, vmax  = vminmax(data.values())
     else:
         vmin, vmax = minmax(data)
     if asdict:

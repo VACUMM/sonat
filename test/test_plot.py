@@ -3,11 +3,11 @@
 import os
 import cdms2
 #from matplotlib import rcParams
-from vcmq import adatetime, comptime, func_name
+from vcmq import adatetime, comptime, func_name, P
 
 from util import (NCFILE_MANGA0, THISDIR)
 
-from sonat.plot import (plot_gridded_var, )
+from sonat.plot import (plot_gridded_var, create_map)
 
 def test_plot_gridded_var():
     # Get var
@@ -48,7 +48,39 @@ def test_plot_gridded_var():
         savefig=figpat.format('mx.scalar'), cmap='balance', **kw2d)
 
 
+def test_plot_create_map():
+
+    # Read bathy
+    f = cdms2.open(NCFILE_MANGA0)
+    bathy = -f('H0')
+    f.close()
+    alon = bathy.getLongitude()
+    alat = bathy.getLatitude()
+    lon = (alon[:].min(), alon[:].max())
+    lat = (alat[:].min(), alat[:].max())
+
+    # 2D maps
+    # - simple
+    m = create_map(lon, lat)
+    P.savefig(func_name()+'.2d.simple.png', title="2D / simple")
+    P.close()
+    # - bathy
+    m = create_map(lon, lat, bathy=bathy, title="2D / bathy")
+    P.savefig(func_name()+'.2d.bathy.png')
+    P.close()
+
+    # 3D maps
+    # - simple
+    m = create_map(lon, lat, level=-200, title="3D / simple")
+    P.savefig(func_name()+'.3d.simple.png')
+    P.close()
+    # - bathy
+    m = create_map(lon, lat, axes="3d", bathy=bathy, level=-200,
+                   title="3D / bathy")
+    P.savefig(func_name()+'.3d.bathy.png')
+    P.close()
 
 
 if __name__=='__main__':
-    test_plot_gridded_var()
+#    test_plot_gridded_var()
+    test_plot_create_map()

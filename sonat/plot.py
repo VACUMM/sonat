@@ -36,13 +36,16 @@
 import os
 import re
 from six import string_types
+import numpy as N
 import matplotlib.pyplot as P
 from mpl_toolkits.mplot3d import art3d, Axes3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib import rc_params_from_file, rcParams
-from vcmq import (map, hov, stick, curve, section, dict_check_defaults, plot2d)
+from vcmq import (map, hov, stick, curve, section, dict_check_defaults, plot2d,
+                  kwfilter, curv2rect, deplab, isaxis, meshbounds)
 
 from .__init__ import SONATError, sonat_warn
-from .misc import slice_gridded_var, minmmax, slice_scattered_locs
+from .misc import slice_gridded_var, vminmax, slice_scattered_locs
 
 
 #: Matplotlib default configuration file
@@ -157,7 +160,8 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
 
 
 
-def create_map(lon, lat, level=None, axes=None, bathy=None, **kwargs):
+def create_map(lon, lat, level=None, axes=None, bathy=None,
+               elev=20, azim=-100, **kwargs):
 
     # Params
     kwbat = kwfilter(kwargs, 'bathy')
@@ -167,16 +171,16 @@ def create_map(lon, lat, level=None, axes=None, bathy=None, **kwargs):
     kwargs.update(show=False, close=False)
 
     # Guess 3D
-    if N.isscalar(level) and level==0 or level=='surf':
+    if N.isscalar(level) and (level==0 or level=='surf'):
         level = None
     if axes is None and level is not None:
-        kwargs['axes_projection'] = '3d'
-    is3d = (isinstance(axes, Axes3D) or
-        kwargs.get('axes_projection', None)=='3d')
+        axes = '3d'
+    is3d = (isinstance(axes, Axes3D) or axes=='3d')
     if is3d:
-        dict_check_default(kwargs,
+        dict_check_defaults(kwargs,
             drawparallels_linewidth=.1, drawparallels_dashes=[],
             drawmeridians_linewidth=.1, drawmeridians_dashes=[],
+            left=0, right=1, bottom=0, top=1, subplot_adjust=True,
         )
 
     # Create the map
@@ -184,40 +188,48 @@ def create_map(lon, lat, level=None, axes=None, bathy=None, **kwargs):
 
     # Bathy
     if bathy is not None:
+        curv2rect(bathy)
         bathy = bathy(lon=lon, lat=lat)
         if bathy.mean()>0:
             bathy = -bathy
+        if level is None:
+            level = "bottom"
 
     # 3D
     if m.is3d:
+
+        # View
+        m.axes.set_aspect('auto')
+        m.axes.view_init(azim=azim, elev=elev)
 
         # Set z range
         if level is not None:
             if isinstance(level, (float, int)):
                 level = (level, 0)
-            elif isaxis(level) or insinstance(level, N.ndarray):
-                level = (level.min(), 0)
+            elif isaxis(level) or isinstance(level, N.ndarray):
+                level = (level[:].min(), 0)
             elif level=='bottom':
                 if bathy is not None:
                     level = (bathy.min(), 0)
                 else:
-                    sonat_warn('Cannot set zlevel on 3d plot since level=="bottom"'
+                    sonat_warn('Cannot set zlim properly on 3d plot since level=="bottom"'
                         ' and no bathy is provided')
                     level = None
-            if level is not None:
-                m.set_zlevel(level)
+            if level is None:
+                level = (-200, 0)
+            m.axes.set_zlim(level)
 
         # Bathy
         if bathy is not None:
-            plot_bathy_3d(bathy(lon=lon, lat=lat), m.axes, **kwbat)
+            plot_bathy_3d(bathy(lon=lon, lat=lat), m, **kwbat)
 
     # 2D bathy
     elif bathy is not None:
 
-        plot_bathy_2d(bathy(lon=lon, lat=lat), m.axes, **kwbat)
+        plot_bathy_2d(bathy(lon=lon, lat=lat), m, **kwbat)
 
 
-def plot_bathy_3d(bathy, ax=None, color='.8', linewidth=0, **kwargs):
+def plot_bathy_3d(bathy, m, color='.8', linewidth=0, **kwargs):
     """Plot the bathy as 3D surface
 
     Parameters
@@ -227,38 +239,41 @@ def plot_bathy_3d(bathy, ax=None, color='.8', linewidth=0, **kwargs):
     """
     if bathy.mean()>0:
         bathy = -bathy
-    xx = bathy.getLongitude()
-    yy = bathy.getLatitude()
-    xxb, yyb = meshbounds(xx, yy)
+    xx = bathy.getLongitude()[:]
+    yy = bathy.getLatitude()[:]
+    xxb, yyb = N.meshgrid(xx, yy)
     xxb, yyb = m(xxb, yyb)
     bathy = bathy.asma()
     bathy[bathy>0] = 0.
-    bathy[bathy<mindepth] = N.nan
+    bathy[bathy<m.axes.get_zlim()[0]] = N.nan
     old_Poly3DCollection = art3d.Poly3DCollection
     art3d.Poly3DCollection = FixedZorderPoly3DCollection
-    if ax is None:
-        ax = P.gca()
-    ax.plot_surface(xxb, yyb, bathy, rstride=1, cstride=1,
+    m.axes.plot_surface(xxb, yyb, bathy, rstride=1, cstride=1,
         color=color, linewidth=linewidth, **kwargs)
     art3d.Poly3DCollection = old_Poly3DCollection
 
+class _DepLabel_(object):
+    def __mod__(self, value):
+        return '{:.0f} m'.format(abs(value))
+
 def plot_bathy_2d(bathy, m, levels=[-4000, -3000, -2000, -1000, -800, -600,
-            -500, -400, -300, -200, -100, -50],
-        linewidth=.5, color='k', linestyle='-', clabel=True, **kwargs):
+            -400, -200, -100, -50],
+        linewidth=.2, color='.8', linestyle='-', clabel=True,
+        clabel_fmt=_DepLabel_(),#'%g m',
+        **kwargs):
     """Plot coutours of the bathy on a map
     """
+    kwcl = kwfilter(kwargs, 'clabel')
     if bathy.mean()>0:
         bathy = -bathy
     xx = bathy.getLongitude()
     yy = bathy.getLatitude()
-    xx, yy = meshgrid(xx, yy)
+    xx, yy = N.meshgrid(xx, yy)
     xx, yy = m(xx, yy)
-    if ax is None:
-        ax = P.gca()
-    cc = ax.contour(xx, yy, levels=levels, colors=color, linestyles=linestyle,
-        **kwargs)
+    cc = m.axes.contour(xx, yy, bathy.asma(), levels=levels, colors=color,
+                        linestyles=linestyle, **kwargs)
     if clabel:
-        ax.clabel(cc, **kwcl)
+        m.axes.clabel(cc, fmt=clabel_fmt, **kwcl)
 
 class FixedZorderPoly3DCollection(Poly3DCollection):
     _zorder = -1
