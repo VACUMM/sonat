@@ -10,6 +10,7 @@ assert_allclose = N.testing.assert_allclose
 assert_raises = N.testing.assert_raises
 
 THISDIR = os.path.dirname(__file__)
+
 NCPAT_MANGA = os.path.abspath(os.path.join(THISDIR, '../data/manga-{date:%Y-%m-%d}.nc'))
 NCFILE_MANGA0 = os.path.abspath(os.path.join(THISDIR, '../data/manga-2014-01-01.nc'))
 NCFILE_MANGA1 = os.path.abspath(os.path.join(THISDIR, '../data/manga-2014-01-16.nc'))
@@ -19,6 +20,9 @@ NCFILE_OBS_SURF = os.path.abspath(os.path.join(THISDIR, '../data/obs.surf.nc'))
 NCFILE_OBS_HFRADARS = os.path.abspath(os.path.join(THISDIR, '../data/obs.hfradars.nc'))
 NCFILE_OBS_PROFILES = os.path.abspath(os.path.join(THISDIR, '../data/obs.profiles.nc'))
 NCFILE_OBS_SATSST = os.path.abspath(os.path.join(THISDIR, '../data/obs.satsst.nc'))
+NCFILE_BATHY = os.path.abspath(os.path.join(THISDIR, '../data/bathy.brittany.nc'))
+NCFILE_BATHY_VARNAME = 'elevation'
+NCFILE_BATHY_POSITIVE_UP = True
 CFGFILE = os.path.abspath(os.path.join(THISDIR, 'sonat.cfg'))
 
 LIBDIR = os.path.abspath(os.path.join(THISDIR, '..', 'sonat'))
@@ -26,8 +30,19 @@ if os.path.exists(os.path.join(LIBDIR, '__init__.py')):
     sys.path.insert(0, os.path.dirname(LIBDIR))
 from sonat import get_logger
 
-LOGGER = get_logger(level="error")
+LOGGER = get_logger(level="debug")
 
+CACHE = {}
+
+def get_bathy():
+    """Positive up"""
+    if 'bathy' not in CACHE:
+        f = cdms2.open(NCFILE_BATHY)
+        CACHE['bathy'] = f(NCFILE_BATHY_VARNAME)
+        f.close()
+        if not NCFILE_BATHY_POSITIVE_UP:
+            CACHE['bathy'][:] *= -1
+    return CACHE['bathy']
 
 def create_mv2_gridder_xyzt(nx=8, ny=7, nz=6, nt=5, xmin=-6., xmax=-3, ymin=46,
         ymax=48, zmin=-200, zmax=0, tmin='2016', tmax='2016-02',
