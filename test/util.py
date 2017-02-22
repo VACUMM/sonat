@@ -30,7 +30,7 @@ if os.path.exists(os.path.join(LIBDIR, '__init__.py')):
     sys.path.insert(0, os.path.dirname(LIBDIR))
 from sonat import get_logger
 
-LOGGER = get_logger(level="debug")
+LOGGER = get_logger(level="error")
 
 CACHE = {}
 
