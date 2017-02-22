@@ -41,12 +41,15 @@ import matplotlib.pyplot as P
 from mpl_toolkits.mplot3d import art3d, Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib import rc_params_from_file, rcParams
+from matplotlib.ticker import FuncFormatter
 import cdms2
 from vcmq import (map, hov, stick, curve, section, dict_check_defaults, plot2d,
-                  kwfilter, curv2rect, deplab, isaxis, meshbounds)
+                  kwfilter, curv2rect, deplab, isaxis, meshbounds,
+                  grid2xy, scalebox, Plot)
 
 from .__init__ import SONATError, sonat_warn
-from .misc import slice_gridded_var, vminmax, slice_scattered_locs
+from .misc import (slice_gridded_var, vminmax, slice_scattered_locs,
+                   rescale_itv)
 
 
 #: Matplotlib default configuration file
@@ -68,7 +71,7 @@ DEFAULT_PLOT_KWARGS = dict(
     autoresize='y',
     autoresize_minaspect=.5,
     colorbar_shrink=.8,
-    fillcontinents_zorder=10,
+#    fillcontinents_zorder=10,
 #    figsize=(5, 3), # in matplotlibrc
     show=False,
     close=True,
@@ -162,7 +165,7 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
 
 
 def create_map(lon, lat, level=None, axes=None, bathy=None,
-               elev=20, azim=-100, add_bathy=True, **kwargs):
+               elev=20, azim=-100, add_bathy=True, margin=0, **kwargs):
 
     # Params
     kwbat = kwfilter(kwargs, 'bathy')
@@ -183,6 +186,16 @@ def create_map(lon, lat, level=None, axes=None, bathy=None,
             drawmeridians_linewidth=.1, drawmeridians_dashes=[],
             left=0, right=1, bottom=0, top=1, subplot_adjust=True,
         )
+
+    # Map extension
+    if isinstance(lon, N.ndarray):
+        lon = (lon.min(), lon.max())
+    if isinstance(lat, N.ndarray):
+        lat = (lat.min(), lat.max())
+    if margin:
+        box = scalebox(dict(lon=lon, lat=lat), 1+margin)
+        lon = box['lon']
+        lat = box['lat']
 
     # Create the map
     m = map(lon=lon, lat=lat, axes=axes, **kwargs)
@@ -288,9 +301,12 @@ class FixedZorderPoly3DCollection(Poly3DCollection):
         pass
 
 
-def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=None,
-                        data=None, warn=False, bathy=None, xybathy=None, size=10,
-                        linewidth=0, color='k', add_profile_line=None, add_bathy=True,
+def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plotter=None,
+                        lon=None, lat=None, level=None, label='',
+                        lon_bounds_margin=.1, lat_bounds_margin=.1,
+                        data=None, warn=True, bathy=None, xybathy=None, size=10,
+                        linewidth=0.15, color='k', add_profile_line=None, add_bathy=True,
+                        fig=None,
                         **kwargs):
     """Plot scattered localisations
 
@@ -299,10 +315,13 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
     lons: n-D array
     lats: n-D array
     depths: n-D array
-    slice_type: one of "3d"/None, "zonal", "meridional", "horizontal"
+    slice_type: one of "3d"/None, "2d", "zonal", "meridional", "horizontal"
+        The way to slice the observations.
+        "3d"/"2d" are 3D/2D view of all observations.
+        Other slices make a selection with a range (``interval``).
     interval: None, tuple of float
         Interval for selecting valid data
-        Required if slice_type is not "3d"/None.
+        Required if slice_type is not "3d"/None/"2d".
     map_<param>:
         <param> is passed to :func:`create_map`
 
@@ -321,25 +340,32 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
         slice_type = "3d"
     else:
         slice_type = str(slice_type).lower()
-    valid_slice_types = ['3d', 'zonal', 'meridional', 'horizonal',
+    valid_slice_types = ['3d', "2d", 'zonal', 'meridional', 'horizonal',
         'bottom', 'surf']
     assert slice_type in valid_slice_types, ('Invalid slice type. '
         'It must be one of: '+', '.join(valid_slice_types))
 
     # Special depths
     indepths = depths
-    if (slice_type!='surf' and depths=='surf'): # surface
+    if depths=='surf':
+        add_profile_line = False
+    if (depths=='surf' and slice_type!='surf'): # surface
+
         depths = N.zeros(len(lons))
-    elif (slice_type!='bottom' and depths=='bottom'): # bottom
+
+    elif (depths=='bottom' and slice_type!='bottom'): # bottom
+
         if bathy is None:
             raise SONATError('Bathymetry is needed to plot bottom locs with a'
                              ' {} slice type'.format(slice_type))
             depths = grid2xy(bathy, lons, lats)
             if depths.mask.all():
-                sonat_warn('Bathymetry is fully masked at bottom locs. Skipping...')
+                if warn:
+                    sonat_warn('Bathymetry is fully masked at bottom locs. Skipping...')
                 return
             if depths.mask.any():
-                sonat_warn('Bathymetry is partly masked at bottom locs. Compressing...')
+                if warn:
+                    sonat_warn('Bathymetry is partly masked at bottom locs. Compressing...')
                 valid = depths.mask
                 lons = lons[valid]
                 lats = lats[valid]
@@ -348,9 +374,10 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
                     data = data[valid]
 
     # Pre-slicing
-    if (slice_type != '3d' and
+    if (slice_type != '3d' and slice_type!='2d' and
         (slice_type!='surf' or depths!='surf') and
-        (slice_type=='bottom' and depths!='bottom')):
+        (slice_type!='bottom' or depths!='bottom')):
+
         assert interval is not None, ('You must provide a valid '
             '"interval" for slicing scattered locations')
         sliced = slice_scattered_locs(lons, lats, depths, slice_type, interval,
@@ -363,18 +390,58 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
     zscattered = (not isinstance(depths, string_types) and not isaxis(depths)
                   and N.ndim(depths)==1 and len(depths)==len(lons))
 
-    # Get the map
-    if m is None and slice_type in ['3d', "horizontal", 'surf', 'bottom']:
-        level = depths if slice_type=='3d' else None
-        m = create_map(lons, lats, level=level, bathy=bathy, add_bathy=add_bathy,
-                       **kwmap)
-        xx, yy = m(lons, lats)
+    # Plotter as Axes
+    if isinstance(plotter, P.Axes):
+        ax = plotter
+        fig = ax.get_figure()
+        plotter = None
+    elif plotter is None:
+        ax = None
+    elif isinstance(plotter, Plot):
+        ax = plotter.axes
     else:
+        raise SONATError('Plotter must be matplotlib Axes instance or '
+                         'a vacumm Plot instance')
+    if slice_type=='3d':
+        if ax is None:
+            ax = '3d'
+        elif not isinstance(ax, Axes3D):
+            sonat_warn("Requesting 3D plot but provided axes are not 3D."
+                       " Skipping...")
+            axes = None
+
+
+    # Level for 3d plots
+    if slice_type=='3d' and level is None:
+        level = depths
+        if level.min()==0:
+            level = (-200, 0) # Fall back to this interval
+
+    # Get the map
+    if slice_type in ['3d', "2d", "horizontal", 'surf', 'bottom']:
+
+        # Lon/lat
+        if lon is None:
+            lon = rescale_itv((lons.min(), lons.max()), 1+lon_bounds_margin)
+        if lat is None:
+            lat = rescale_itv((lats.min(), lats.max()), 1+lat_bounds_margin)
+
+        # Map
+        if plotter is None:
+            plotter = create_map(lon, lat, level=level, bathy=bathy, add_bathy=add_bathy,
+                           fig=fig, axes=ax, **kwmap)
+        ax = plotter.axes
+
+        # Projetion
+        xx, yy = plotter(lons, lats)
+
+    else:
+
         xx = lons[:]
         yy = lats[:]
 
     # Plot params for scatter
-    kwargs.update(linewidth=linewidth, s=size, )
+    kwargs.update(linewidth=linewidth, s=size)
 
     # Masking
     if data is not None:
@@ -384,9 +451,15 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
         else:
             mask = N.ma.getmaskarray(data)
         if zscattered:
-            xx = N.ma.masked_where(xx, mask, copy=False)
+            xx = N.ma.masked_where(mask, xx, copy=False)
+    elif N.ma.isMA(xx) or N.ma.isMA(yy):
+        mask = N.ma.getmaskarray(xx)|N.ma.getmaskarray(yy)
     else:
         mask = None
+    if mask is not None and mask.all():
+        if warn:
+            sonat_warn('All your data are masked')
+        return
 
     # Data kwargs
     if data is not None:
@@ -394,6 +467,10 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
 
     # 3D
     if slice_type == "3d":
+
+        # Depth labels
+        zfmtfunc = lambda x, pos: deplab(x, nosign=True)
+        ax.zaxis.set_major_formatter(FuncFormatter(zfmtfunc))
 
         # Bathy for profile line
         if add_profile_line is None:
@@ -407,29 +484,35 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
                 add_profile_line = False
             else:
                 xybathy = grid2xy(bathy, lons, lats)
-        dict_check_defaults(kwpf, linewidth=.1, linestyle=':', color='.6')
 
         # Scatter plots
         if zscattered: # fully scattered
 
             # Points
             if data is not None:
-                kwargs['c'] = data[..., ip]
-            m.axes.scatter(xx, yy, depths, **kwargs)
+                kwargs['c'] = data
+            else:
+                kwargs['c'] = color
+            p = ax.scatter(xx, yy, depths, label=label, **kwargs)
 
             # Profile lines
             if add_profile_line:
                 for ip, (x, y) in enumerate(zip(xx, yy)):
-                    plot_profile_line_3d(x, y, xybathy[ip], **kwpf)
+                    plot_profile_line_3d(ax, x, y, xybathy[ip],
+                                         zorder=p.get_zorder()-0.01, **kwpf)
 
 
         else: # profiles
 
             for ip, (x, y) in enumerate(zip(xx, yy)):
 
+                isfirst = ip==0
+
                 # Skip fully masked
                 if mask is not None:
                     if mask[..., ip].all():
+                        if warn:
+                            sonat_warn('Profile fully masked')
                         continue
 
                 # Points
@@ -437,25 +520,60 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, m=No
                     zz = depths[:, ip]
                 else:
                     zz = depths
-                if mask is not None:
+                if mask is not None and mask.ndim==2:
                     zz = N.ma.masked_where(mask[..., ip], zz, copy=False)
                 if data is not None:
                     kwargs['c'] = data[..., ip]
-                m.axes.scatter([x]*len(zz), [y]*len(zz), zz, **kwargs)
+                else:
+                    kwargs['c'] = color
+                p = ax.scatter([x]*len(zz), [y]*len(zz), zz,
+                               label=label if isfirst else '', **kwargs)
 
                 # Profile line
                 if add_profile_line:
-                    plot_profile_line_3d(m, x, y, xybathy[ip], **kwpf)
+                    plot_profile_line_3d(ax, x, y, xybathy[ip],
+                                         zorder=p.get_zorder()-0.01, **kwpf)
 
-        return m
+    # 2D
+    elif slice_type == "2d":
+
+        # 1D arrays
+        if data is not None and data.ndim!=1:
+            data = data.mean(axis=0)
+        if mask is not None:
+            if mask.ndim!=1:
+                mask = mask.all(axis=0)
+            xx = xx[~mask]
+            yy = yy[~mask]
+            if data is not None:
+                data = data[~mask]
+
+        # Scatter plot
+        if data is not None:
+            kwargs['c'] = data
+        else:
+            kwargs['c'] = color
+        ax.scatter(xx, yy, label=label, **kwargs)
+
+
+    else:
+
+        raise NotImplementedError('slice_type plot yet not implemented: '+slice_type)
 
     # TODO: plot of other scattered slice!
+    return plotter
 
 
-def plot_profile_line_3d(m, x, y, bathy, **kwargs):
-    p = m.axes.plot([x, x], [y, y], [bathy, 0], **kwpf)
-    m.axes.scatter([x, x], [y, y], [bathy, 0],
-                    color=p[0].get_color(), size=3)
+def plot_profile_line_3d(ax, x, y, bathy, linewidth=.3, linestyle='--', color='.6',
+                         size=3, clip=True, **kwargs):
+    """Plot a vertical line ending with two point between the bottom and
+    the surface"""
+    if clip:
+        bathy = max(bathy, ax.get_zlim()[0])
+    p = ax.plot([x, x], [y, y], [bathy, 0], color=color,
+                    linestyle=linestyle, linewidth=linewidth, **kwargs)
+    ax.scatter([x, x], [y, y], [bathy, 0], c=color, s=size,
+                   zorder=p[0].get_zorder())
 
 
 def load_mplrc(userfile=None):
