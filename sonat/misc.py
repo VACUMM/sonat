@@ -432,6 +432,32 @@ class _Base_(object):
     def debug(self, msg):
         self.logger.debug(msg)
 
+def rescale_itv(itv, factor=1, target="both", min_width=.1):
+    """Scale an interval of floats
+
+    Parameters
+    ----------
+    itv: tuple of floats + optional bounds
+        Interval
+    factor: float > 0
+        More than one increases the interval
+    target: string as one of "both", "min", "max" or "none"
+    mindv: float
+        Minimal interval absolute width
+    """
+    if target=="none":
+        return itv
+    dv = 0.5 * max(itv[1] - itv[0], min_width)
+    mean = 0.5 * (itv[0] + itv[1])
+    v0 = mean - factor * dv
+    v1 = mean + factor * dv
+    itvo = [v0, v1]
+    if target!="both" and target!="min":
+        itvo[0] = itv[0]
+    if target!="both" and target!="max":
+        itvo[1] = itv[1]
+    return tuple(itvo) + itv[2:]
+
 
 class _XYT_(object):
     """Needs lons, lats and times to be defined"""
@@ -446,14 +472,32 @@ class _XYT_(object):
 #            self._ctimes.sort()
         return self._ctimes
 
+    def get_lon(self, margin=0):
+        """Get the strict (lonmin, lonmax) interval"""
+        return rescale_itv((self.lons.min(), self.lons.max()), factor=margin+1)
+
+    def get_lat(self, margin=0):
+        """Get the strict (latmin, latmax) interval"""
+        return rescale_itv((self.lats.min(), self.lats.max()), factor=margin+1)
+
+    def get_time(self):
+        """Get the strict (ctmin, ctmax) interval"""
+        return (min(self.ctimes), max(self.ctimes))
+
     def get_seldict(self, axes='xyt', xybounds='cce', tbounds='cce'):
         sel = {}
         if 'x' in axes:
-            sel['lon'] = (self.lons.min(), self.lons.max(), xybounds)
+            sel['lon'] = self.get_lon()
+            if xybounds:
+                sel['lon'] += xybounds,
         if 'y' in axes:
-            sel['lat'] = (self.lats.min(), self.lats.max(), xybounds)
+            sel['lat'] = self.get_lat()
+            if xybounds:
+                sel['lat'] += xybounds,
         if 't' in axes and self.ctimes:
-            sel['time'] = (min(self.ctimes), max(self.ctimes), tbounds)
+            sel['time'] = self.get_time()
+            if tbounds:
+                sel['tile'] += tbounds,
         return sel
 
     def intersects(self, lon=None, lat=None, time=None):
