@@ -8,7 +8,7 @@ import cdtime
 from vcmq import comptime, netcdf4, DS
 
 from util import (assert_allclose, LOGGER, NCFILE_OBS_SURF, NCFILE_MANGA0,
-    NCFILE_OBS_HFRADARS, NCFILE_OBS_PROFILES)
+    NCFILE_OBS_HFRADARS, NCFILE_OBS_PROFILES, NCFILE_OBS_SATSST, get_bathy)
 
 from sonat.obs import (NcObsPlatform, ObsManager, load_obs,
     register_obs_platform, get_obs_platform, OBS_PLATFORM_TYPES,
@@ -147,29 +147,61 @@ def test_obs_load_obs_platform():
 
     return obs
 
-def get_manager():
-    if 'manager' not in CACHE:
-        CACHE['manager'] = test_obs_obsmanager_init()
-    return CACHE['manager']
-
 def test_obs_ncobsplatform_profiles_plot():
 
     # Load platform
-    obs = NcObsPlatform(NCFILE_OBS_PROFILES)
+    obs = NcObsPlatform(NCFILE_OBS_PROFILES, name='profiles')
+
+    # Bathymetry
+    bathy = get_bathy()
 
     # Plots
-    figs = obs.plot(variables=['locations', 'temp'], full3d=True)
+    figs = obs.plot(variables=['locations', 'temp'], full3d=True, full2d=True,
+                    size=30, bathy=bathy, map_margin=0.05)
 
     return figs
 
+def test_obs_ncobsplatform_hfradars_plot():
+
+    # Load platform
+    obs = NcObsPlatform(NCFILE_OBS_HFRADARS, name='hfradars')
+
+    # Bathymetry
+    bathy = get_bathy()
+
+    # Plots
+    figs = obs.plot(variables=['locations', 'u'], full3d=False, full2d=True,
+                    size=30, bathy=bathy, map_margin=0.05)
+
+    return figs
+
+def get_manager():
+    if 'manager' not in CACHE:
+        CACHE['manager'] = load_obs([NCFILE_OBS_PROFILES, NCFILE_OBS_HFRADARS,
+                                     NCFILE_OBS_SATSST])
+    return CACHE['manager']
+
+
+def test_obs_obsmanager_plot():
+
+    # Load manager
+    obsmanager = get_manager()
+
+    # Bathymetry
+    bathy = get_bathy()
+
+    # Plots
+    figs = obsmanager.plot(full3d=True, full2d=True, bathy=bathy, size=30)
 
 if __name__=='__main__':
-    res = test_obs_ncobsplatform_surf()
-    res = test_obs_ncobsplatform_surf_gridded()
-    res = test_obs_obsmanager_init()
-    res = test_obs_load_obs()
-    res = test_obs_obsmanager_project_model()
-    res = test_obs_register_obs_platform()
-    res = test_obs_get_obs_platform()
-    res = test_obs_load_obs_platform()
-    res = test_obs_ncobsplatform_profiles_plot()
+#    res = test_obs_ncobsplatform_surf()
+#    res = test_obs_ncobsplatform_surf_gridded()
+#    res = test_obs_obsmanager_init()
+#    res = test_obs_load_obs()
+#    res = test_obs_obsmanager_project_model()
+#    res = test_obs_register_obs_platform()
+#    res = test_obs_get_obs_platform()
+#    res = test_obs_load_obs_platform()
+#    res = test_obs_ncobsplatform_profiles_plot()
+#    res = test_obs_ncobsplatform_hfradars_plot()
+    res = test_obs_obsmanager_plot()

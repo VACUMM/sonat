@@ -42,13 +42,16 @@ from six import string_types
 import cdms2
 import MV2
 import numpy as N
+from cycler import cycler
+from matplotlib.markers import MarkerStyle
 from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     ncget_time, ncget_level, ArgList, ncfind_obj, itv_intersect, intersect,
     MV2_axisConcatenate, transect, create_axis, regrid1d, isaxis,
-    dicttree_get, dict_check_defaults)
+    dicttree_get, dict_check_defaults, meshgrid, P, kwfilter)
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES, get_logger
-from .misc import xycompress, _Base_, _XYT_, check_variables, _CheckVariables_
+from .misc import (xycompress, _Base_, _XYT_, check_variables, _CheckVariables_,
+                   rescale_itv)
 from .pack import default_missing_value
 from .stack import Stacker, _StackerMapIO_
 from .plot import plot_scattered_locs
@@ -108,7 +111,51 @@ def load_obs_platform(platform_type, pfile, varnames=None, name=None, **kwargs):
     obs.name = name
     return obs
 
-class ObsPlatformBase(Stacker, _XYT_, _CheckVariables_):
+
+class _ObsBase_(_XYT_):
+
+    def set_cached_plot(self, var_name, slice_type, slice_loc, obj):
+        """Cache a plotting object knowing the slice and the variable name"""
+        self.plot_cache.setdefault(slice_type, {}).setdefault(
+            slice_loc, {}).setdefault(var_name, obj)
+
+    def get_cached_plot(self, var_name, slice_type, slice_loc, default=None):
+        """Get a cached plot object knowing the slice and the variable name
+
+        Return
+        ------
+        Map, axes, None
+            None is returned if not cached
+        """
+        return self.plot_cache.get(slice_type, {}).get(slice_loc, {}
+                    ).get(var_name, default)
+
+    def set_plot_cache(self, cache):
+        assert isinstance(cache, dict), 'Plot cache must a dictionary'
+        self._plot_cache = cache
+
+    def get_plot_cache(self):
+        if not hasattr(self, '_plot_cache'):
+            self._plot_cache = {}
+        return self._plot_cache
+
+    def del_plot_cache(self):
+        if hasattr(self, '_plot_cache'):
+            del self._plot_cache
+
+    plot_cache = property(fget=get_plot_cache, fset=set_plot_cache,
+                          fdel=del_plot_cache, doc='Plot cache')
+
+
+    def get_level(self, bathy2d=None, margin=0, zmax=0):
+        depths = self.get_num_depths(bathy2d)
+        level = rescale_itv((depths.min(), depths.max()), factor=margin+1)
+        if level[1]>zmax:
+            level = level[:1] + (zmax,) + level[2:]
+        return level
+
+
+class ObsPlatformBase(Stacker, _ObsBase_, _CheckVariables_, ):
 
     name = None
 
@@ -154,7 +201,7 @@ class NcObsPlatform(ObsPlatformBase):
         self.level = level
         self.errors = OrderedDict()
         self._orig = {}
-        self.name = self.platform_name = name
+        self.name = name
 
         # Load positions and variables
         self.load(singlevar=singlevar)
@@ -351,6 +398,10 @@ class NcObsPlatform(ObsPlatformBase):
                 self.name = os.path.splitext(os.path.basename(self.ncfile))[0]
         f.close()
 
+    @property
+    def platform_name(self):
+        return self.name
+
     def get_suffixed_varname(self, vname):
         """Get the name of var optionally with a depth suffix"""
         if hasattr(self, 'id'):
@@ -401,7 +452,40 @@ class NcObsPlatform(ObsPlatformBase):
 
     @property
     def mask(self):
-        return N.ma.getmaskarray(self._sample)
+        return self.get_mask()
+
+    def get_mask(self, scattered=False):
+        """Get the mask of data
+
+        Parameters
+        ----------
+        scattered: bool
+            Flatten in X and Y, for gridded platforms only.
+        """
+        mask = N.ma.getmaskarray(self._sample)
+        if scattered and self.is_gridded:
+            mask = mask.reshape(mask.shape[:-2] + (-1,))
+        return mask
+
+    @property
+    def lons1d(self):
+        if not self.is_gridded:
+            return self.lons
+        self._check_lonslats1d_()
+        return self._lons1d
+
+    @property
+    def lats1d(self):
+        if not self.is_gridded:
+            return self.lats
+        self._check_lonslats1d_()
+        return self._lats1d
+
+    def _check_lonslats1d_(self):
+        if not hasattr(self, '_lons1d'):
+            _lons1d, _lats1d = meshgrid(self.lons, self.lats)
+            self._lons1d = _lons1d.ravel()
+            self._lats1d = _lats1d.ravel()
 
     def check_variables(self, searchmode='ns'):
         """Check that all input variables have known properties
@@ -412,8 +496,31 @@ class NcObsPlatform(ObsPlatformBase):
         """
         check_variables([pack.input for pack in self], searchmode=searchmode)
 
-    def get_error(self, vname):
-        return self.errors[vname]
+    def get_valid_varnames(self, varnames):
+        """Filter out var names that are not valid or not equal to 'locations'
+
+        If names are explicit numeric arrays, they are unchanged
+        """
+        if varnames is None:
+            return None
+        if isinstance(varnames, string_types):
+            varnames = [varnames]
+        return filter(lambda x: x in self.varnames or x=='locations', varnames)
+
+    def get_error(self, vname, scattered=False):
+        """Get an error variable
+
+        Parameters
+        ----------
+        vname: string
+            Name of the variable
+        scattered: bool
+            Flatten in X and Y, for gridded platforms only.
+        """
+        var = self.errors[vname]
+        if scattered and self.is_gridded:
+            var = var.reshape(var.shape[:-2] + (-1,))
+        return var
 
     def set_named_norms(self, *anorms, **knorms):
         """Set norms by variable names
@@ -591,14 +698,17 @@ class NcObsPlatform(ObsPlatformBase):
         return al.put(out)
 
     def plot(self, variables=None,
-             full3d=True, surf=None, bottom=None, horiz_sections=None,
+             full3d=True, full2d=True, surf=None, bottom=None, horiz_sections=None,
              zonal_sections=None, merid_sections=None,
-             lon_margin=0.1, lat_margin=0.1, dep_margin=0.1,
+             lon=None, lat=None, level=None,
+             lon_interval_width=0.1, lat_interval_width=0.1, dep_interval_width=0.1,
              bathy=None, m=None, fig=None, close=True,
              savefig=True, add_bathy=True, add_profile_line=None,
+             vmin=None, vmax=None, cmap=None,
              figpat='sonat.obs.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
+             reset_cache=True, label=None, legend=True,
              **kwargs):
-        """Plot observation location or data
+        """Plot observations locations or data
 
         Parameters
         ----------
@@ -606,72 +716,114 @@ class NcObsPlatform(ObsPlatformBase):
             May be variable names, or array that are comptible
             with this platform.
             The special value "locations" just plot the locations.
+        lon_interval_width: float in degrees
+            Longitude interval width to collect obs points
+        lat_interval_width: float in degrees
+            Latitude interval width to collect obs points
+        dep_interval_width: float in meters
+            Depth interval width to collect obs points
         """
         # Inits
         self.verbose('Plotting observations for '+self.name)
         figs = OrderedDict()
         platform_name = self.platform_name
         platform_type = self.platform_type
-        dict_check_defaults(kwargs, vmin=0)
+        if reset_cache:
+            del self.plot_cache
+        if label is None:
+            label = self.name
+        kwleg = kwfilter(kwargs, 'legend')
 
         # Data
         if variables is None:
-            varspecs = [('locations', self.mask)]
-        else:
-            varspecs = []
-            if not isinstance(variables, list):
-                variables = [variables]
-            for var in variables:
-                if var == 'locations':
-                    var_name = var
-                    var = self.mask
-                elif not isinstance(var, string_types):
-                    var_name = var.id
-                else:
-                    var_name = var
-                    var = self.get_error(var)
-                varspecs.append((var_name, var))
+            variables = ['locations']
+        varspecs = []
+        if not isinstance(variables, list):
+            variables = [variables]
+        for var in variables:
+            if var == 'locations':
+                var_name = var
+                var = self.get_mask(scattered=True)
+            elif not isinstance(var, string_types):
+                var_name = var.id
+            else:
+                var_name = var
+                var = self.get_error(var, scattered=True)
+            varspecs.append((var_name, var))
 
-        # Bathy
+        # Bathy for profile line
         xybathy = None
         if add_profile_line is None:
             add_profile_line = not self.is_zscattered
-        if add_profile_line and (full3d or zonal_sections or merid_sections):
+        if not (full3d or zonal_sections or merid_sections):
+            add_profile_line = False
+        if add_profile_line:
             if bathy is None:
                 sonat_warn('Bathymetry is needed to plot profile lines')
                 add_profile_line = False
             else:
                 xybathy = self.get_bathy(bathy)
 
-        # 3D plot
+        # Bounds
+        if (level is None and (self.depths!='bottom' or bathy is not None) and
+            (full3d or zonal_sections or merid_sections)):
+            level = self.get_level(bathy)[0], 0
+
+        # 2 and 3D full plots
+        slice_type = 'map'
+        slice_locs = []
         if full3d:
-            slice_type = 'map'
-            slice_loc = '3d'
+            slice_locs.append('3d')
+        if full2d:
+            slice_locs.append('2d')
+        for slice_loc in slice_locs:
+            self.debug(' Slice: {} / {}'.format(slice_type, slice_loc))
 
             for var_name, var in varspecs:
                 varname = var_name
+                self.debug('  Var: ' + var_name)
 
                 # Local args
-                this_map = dicttree_get(m, var_name, slice_type, slice_loc)
+                default_plotter = dicttree_get(m, var_name, slice_type, slice_loc)
+                this_plotter = self.get_cached_plot(var_name, slice_type, slice_loc,
+                    default=default_plotter)
                 this_fig = dicttree_get(fig, var_name, slice_type, slice_loc)
+                if this_fig is None and this_plotter is None: # no active plot
+                    this_fig = 'new'
                 this_add_bathy = dicttree_get(add_bathy, var_name, slice_type, slice_loc)
-                this_add_profile_line = dicttree_get(add_profile_line, var_name,
-                                                     slice_type, slice_loc)
+                this_vmin = dicttree_get(vmin, var_name, slice_type, slice_loc)
+                this_vmax = dicttree_get(vmax, var_name, slice_type, slice_loc)
+                this_cmap = dicttree_get(cmap, var_name, slice_type, slice_loc)
+                kw = kwargs.copy()
+                if full3d and slice_loc=="3d":
+                    this_add_profile_line = dicttree_get(add_profile_line, var_name,
+                        slice_type, slice_loc)
+                    kw.update(level=level, add_profile_line=this_add_profile_line,
+                              xybathy=xybathy)
 
-                # Generic plot
-                this_map = plot_scattered_locs(self.lons, self.lats, self.depths,
-                                    slice_type="3d", m=this_map, map_fig=this_fig,
-                                    data=var, warn=False, bathy=bathy,
-                                    add_bathy=this_add_bathy, xybathy=xybathy,
-                                    add_profile_line=this_add_profile_line, **kwargs)
+                # Generic scatter plot
+                this_plotter = plot_scattered_locs(
+                                    self.lons1d, self.lats1d, self.depths,
+                                    slice_type=slice_loc, plotter=this_plotter, fig=this_fig,
+                                    data=var, warn=False, bathy=bathy, label=label,
+                                    vmin=this_vmin, vmax=this_vmax, cmap=this_cmap,
+                                    lon=lon, lat=lat,
+                                    add_bathy=this_add_bathy,
+                                    **kw)
 
                 # Save
+                self.set_cached_plot(var_name, slice_type, slice_loc, this_plotter)
                 figfile = figpat.format(**locals())
-                this_map.show()
+                if legend:
+                    this_plotter.legend(**kwleg)
                 if savefig:
-                    this_map.savefig(figfile)
+                    this_plotter.savefig(figfile)
                     self.created(figfile)
                     figs[var_name] = {slice_type: {slice_loc:figfile}}
+
+
+
+
         # TODO: plot other slices in obs
         return figs
 
@@ -681,10 +833,20 @@ class NcObsPlatform(ObsPlatformBase):
             return self._bathy
         if bathy2d is None:
             return None
-        self._bathy = grid2xy(bathy2d, self.lons, self.lats)
+        self._bathy = grid2xy(bathy2d, self.lons1d, self.lats1d)
         return self._bathy
 
-class ObsManager(_Base_, _StackerMapIO_, _XYT_):
+    def get_num_depths(self, bathy2d=None):
+        """Get the depths as numeric array"""
+        if not isinstance(self.depths, string_types):
+            return self.depths
+        if self.depths == 'surf':
+            return self.lons*0.
+        if bathy2d is None:
+            self.error("Can't get numeric bottom depths without bathymetry")
+        return self.get_bathy(bathy2d)
+
+class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
     """Class to manage several observation platform instances"""
 
     def __init__(self, input, logger=None, syncnorms=True,
@@ -713,7 +875,6 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
         self._core_stack_()
         self.splits = npy.cumsum([obs.stacked_data.shape[0]
             for obs in self.obsplats[:-1]])
-
 
 
     def _core_stack_(self):
@@ -769,14 +930,14 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
     @property
     def lons(self):
         if not hasattr(self, '_lons'):
-            self._lons = N.concatenate([obs.lons[:].ravel() for obs in self
+            self._lons = N.ma.concatenate([obs.lons[:].ravel() for obs in self
                 if obs.lons is not None])
         return self._lons
 
     @property
     def lats(self):
         if not hasattr(self, '_lats'):
-            self._lats = N.concatenate([obs.lats[:].ravel() for obs in self
+            self._lats = N.ma.concatenate([obs.lats[:].ravel() for obs in self
                 if obs.lats is not None])
         return self._lats
 
@@ -808,7 +969,6 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
                     vdepths = self._depths.setdefault(varname, [])
                     if depths is not None and depths not in vdepths:
                         vdepths.append(depths)
-#                    print obs, varname, self._depths
 
             # Finalisation for each variable
             for varname in self.varnames:
@@ -818,6 +978,16 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
                     self._depths[varname] = tuple(self._depths[varname])
 
         return self._depths
+
+
+    def get_num_depths(self, bathy2d=None):
+        """Get the depths as a numeric flat array"""
+        return N.ma.concatenate([obs.get_num_depths(bathy2d) for obs in self])
+
+    @property
+    def has_bottom(self):
+        return any([obs.is_bottom for obs in self])
+
 
 #    def _get_R(self):
 #        if not hasattr(self, '_R'):
@@ -961,7 +1131,7 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
         """Project model variables to observations positions"""
         return self.unmap([obs.project_model(var) for obs in self])
 
-
+    # TODO: rename to assert_compatible_with_ens
     def assert_compatible_with(self, ens, syncnorms=True):
         """Assert that an :class:`~sonat.obs.Ensemble` current instance is compatible
         with the current :class:`ObsManager` instance
@@ -971,7 +1141,115 @@ class ObsManager(_Base_, _StackerMapIO_, _XYT_):
         """
         ens.assert_compatible_with(self, syncnorms=syncnorms)
 
-def load_obs(ncfiles, plattypes='generic', varnames=None, lon=None, lat=None,
+    def plot(self, variables=None, input_mode='names',
+             full3d=True, full2d=True,
+             lon_bounds_margin=.1, lat_bounds_margin=.1,
+             zonal_sections=None, merid_sections=None, horiz_sections=None,
+             level=None, lon=None, lat=None,
+             color=None, marker=None, legend=True,
+             color_cycle='bgrcmy', marker_cycle='o^s<>*',
+             reset_cache=True, fig=True, savefig=True, close=True,
+             figpat='sonat.obs.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
+             **kwargs):
+        """Plot the locations of all platforms
+
+        See :meth:`NcObsPlatform.plot` for more arguments.
+
+
+        Parameters
+        ----------
+        lon: tuple of floats
+            Longitude bounds
+        lat: tuple of floats
+            Latitude bounds
+        level: tuple of floats
+            Level bounds
+        lon_bounds_margin: float
+            Fraction of longitude bounds to add as margin when bounds
+            are not explicitely specified
+        lat_bounds_margin: float
+            Fraction of latitude bounds to add as margin when bounds
+            are not explicitely specified
+        level_bounds_margin: float
+            Fraction of level bounds to add as margin when bounds
+            are not explicitely specified
+        """
+        self.verbose('Plotting observations locations')
+
+        # Input mode
+        valid_input_modes = ['names', 'arrays']
+        if input_mode not in valid_input_modes:
+            raise SONATError('input_mode must be one of: ' +
+                ', '.join(valid_input_modes))
+        if input_mode=='arrays':
+            variables = self.remap(variables)
+
+        # Cache
+        if reset_cache:
+            del self.plot_cache
+
+        # Cycler
+        if color is None and marker is None:
+            if len(color_cycle)!=len(marker_cycle) or len(color_cycle)<len(self):
+                cyc = (cycler(color=color_cycle) * cycler(marker=marker_cycle))()
+            else:
+                cyc = cycler(color=color_cycle, marker=marker_cycle)()
+        elif color is None:
+            cyc = cycler(color=color_cycle)()
+        else:
+            cyc = cycler(marker=marker_cycle)()
+
+        # Bounds
+        if lon is None and (full2d or full3d or zonal_sections or horiz_sections):
+            lon = self.get_lon(margin=lon_bounds_margin)
+        if lat is None and (full2d or full3d or merid_sections or horiz_sections):
+            lat = self.get_lat(margin=lat_bounds_margin)
+        if (level is None and (not self.has_bottom or bathy is not None) and
+            (full3d or zonal_sections or merid_sections)):
+            level = (self.get_level()[0], 0)
+
+        # Loop on platforms
+        for ip, obs in enumerate(self):
+
+            isfirst = ip==0
+            islast = ip==len(self)-1
+
+            # Check var names
+            if input_mode=='names':
+                ov = variables
+                variables = obs.get_valid_varnames(variables)
+                if not variables:
+                    if ov:
+                        continue
+                    else:
+                        variables = ['locations']
+
+            # Sync caching
+            obs.plot_cache = self.plot_cache
+
+            # Markers
+            kwargs.update(color = dicttree_get(color, obs.name),
+                marker = dicttree_get(marker, obs.name))
+            if kwargs['color'] is None or kwargs['marker'] is None:
+                c = cyc.next()
+                if kwargs['color'] is None:
+                    kwargs['color'] = c['color']
+                if kwargs['marker'] is None:
+                    kwargs['marker'] = c['marker']
+
+            # Plot
+            obs.plot(variables=variables, reset_cache=False,
+                     full2d=full2d, full3d=full3d,
+                     lon=lon, lat=lat, level=level,
+                     fig=fig if isfirst else None,
+                     savefig=savefig and islast, close=close and islast,
+                     legend=legend and islast,
+                     **kwargs)
+
+
+
+
+def load_obs(ncfiles, varnames=None, lon=None, lat=None,
         logger=None):
     """Quickly load all observations with one file per platform"""
     # Logger
