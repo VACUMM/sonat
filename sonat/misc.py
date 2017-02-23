@@ -512,7 +512,7 @@ class _XYT_(object):
             return False
         return True
 
-class _CheckVariables_(object):
+class _NamedVariables_(object):
 
     def check_variables(self, searchmode='ns'):
         """Check that all input variables have known prorties
@@ -522,6 +522,36 @@ class _CheckVariables_(object):
         :func:`sonat.misc.check_variables`
         """
         check_variables([pack.input for pack in self], searchmode=searchmode)
+
+
+    def set_named_norms(self, *anorms, **knorms):
+        """Set norms by variable names
+
+        Note
+        ----
+        The :class:`~sonat.pack.Packer` instance of variables that were
+        not normed are returned.
+
+        Example
+        -------
+        >>> obs.set_named_norms(dict(temp=2.), sal=.8)
+        """
+        dnorms = dict(*anorms, **knorms)
+        notnormed = []
+        restacked = False
+        for packer in self:
+            for varname, norm in dnorms.items():
+                if (norm is not None and packer.id and
+                    packer.id.split('_')[0] == varname):
+                    packer.norm = norm
+                    restack = True
+                    break
+            else:
+                notnormed.append(packer)
+        if restack:
+            self._core_stack_()
+        return notnormed
+
 
 
 def validate_varnames(varnames):

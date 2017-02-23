@@ -50,7 +50,7 @@ from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     dicttree_get, dict_check_defaults, meshgrid, P, kwfilter)
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES, get_logger
-from .misc import (xycompress, _Base_, _XYT_, check_variables, _CheckVariables_,
+from .misc import (xycompress, _Base_, _XYT_, check_variables, _NamedVariables_,
                    rescale_itv)
 from .pack import default_missing_value
 from .stack import Stacker, _StackerMapIO_
@@ -155,7 +155,7 @@ class _ObsBase_(_XYT_):
         return level
 
 
-class ObsPlatformBase(Stacker, _ObsBase_, _CheckVariables_, ):
+class ObsPlatformBase(Stacker, _ObsBase_, _NamedVariables_, ):
 
     name = None
 
@@ -208,7 +208,11 @@ class NcObsPlatform(ObsPlatformBase):
 
         # Init stacker
         Stacker.__init__(self, self.errors.values(), logger=False, means=False,
-            norms=norms)
+            norms=None if isinstance(norms, dict) else norms)
+
+        # Named norms
+        if norms and isinstance(norms, dict):
+            self.set_named_norms(norms)
 
 
     def load(self, singlevar=False, **kwargs):
@@ -527,7 +531,7 @@ class NcObsPlatform(ObsPlatformBase):
 
         Note
         ----
-        The :class:`~sonat.pack.Packer` instance of  allvariables that were
+        The :class:`~sonat.pack.Packer` instance of variables that were
         not normed are returned.
 
         Example
@@ -849,7 +853,7 @@ class NcObsPlatform(ObsPlatformBase):
 class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
     """Class to manage several observation platform instances"""
 
-    def __init__(self, input, logger=None, syncnorms=True,
+    def __init__(self, input, logger=None, norms=None, syncnorms=True,
             missing_value=default_missing_value, **kwargs):
 
         # Init logger
@@ -866,6 +870,10 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
             self.obsplats.append(obsplat)
         self._missing_value = missing_value
 
+        # Named norms
+        if norms and isinstance(norms, dict):
+            self.set_named_norms(norms)
+
         # Synchronise norms
         self._norm_synced = False
         if syncnorms:
@@ -875,7 +883,6 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         self._core_stack_()
         self.splits = npy.cumsum([obs.stacked_data.shape[0]
             for obs in self.obsplats[:-1]])
-
 
     def _core_stack_(self):
         self.stacked_data = npy.asfortranarray(
@@ -1227,7 +1234,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
             # Sync caching
             obs.plot_cache = self.plot_cache
 
-            # Markers
+            # Symbols
             kwargs.update(color = dicttree_get(color, obs.name),
                 marker = dicttree_get(marker, obs.name))
             if kwargs['color'] is None or kwargs['marker'] is None:

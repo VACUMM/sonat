@@ -46,7 +46,7 @@ from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
-    validate_varnames, _CheckVariables_, check_variables, dicttree_relpath,
+    validate_varnames, _NamedVariables_, check_variables, dicttree_relpath,
     interpret_level)
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
@@ -432,7 +432,7 @@ def generate_pseudo_ensemble(ncpat, varnames=None, nrens=50, enrich=2., norms=No
     return ens, dict(eofs=eofs, eigenvalues=svals, variance=variance)
 
 
-class Ensemble(Stacker, _CheckVariables_):
+class Ensemble(Stacker, _NamedVariables_):
     """Class for exploiting an ensemble
 
 
@@ -461,8 +461,14 @@ class Ensemble(Stacker, _CheckVariables_):
 
         # Init base
         kwargs['nordim'] = False
-        Stacker.__init__(self, data, logger=logger, norms=norms, means=means, **kwargs)
+        Stacker.__init__(self, data, logger=logger,
+                         norms=None if isinstance(norms, dict) else norms,
+                         means=means, **kwargs)
         self.variables = self.inputs
+
+        # Named norms
+        if norms and isinstance(norms, dict):
+            self.set_named_norms(norms)
 
         # Synchronise norms
         self._norm_synced = False
