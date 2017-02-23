@@ -112,31 +112,48 @@ def _get_domain_minmax_(cfg, key, defmin, defmax, bounds, none=True):
          itv += bounds,
     return itv
 
-def get_cfg_path(cfg, secname, secpathname, format=False, *args, **kwargs):
+def get_cfg_path(cfg, secname, pathname, format=False, *args, **kwargs):
     """Format a relative path from the config with optional subtitutions
 
     This path is either absolute or relative to the "wordir" entry of the
     "session" config section.
 
-    Example
-    -------
-    >>> path = get_cfg_secpath(cfg, 'ens', 'htmlfile')
+    Examples
+    --------
+    >>> path = get_cfg_secpath(cfg, 'sec', 'htmlfile')
+    >>> path = get_cfg_secpath(cfg, ['sec', 'subsec'], 'htmlfile')
 
     """
-    paths = cfg[secname][secpathname]
+    # Get the path
+    if not isinstance(secname, list):
+        secname = [secname]
+    sec = cfg
+    for sname in secname:
+        sec = sec[sname]
+    paths = sec[pathname]
     if paths is None:
         return
+
+    # Workdir for relative path
     wdir = cfg['session']['workdir']
     if not wdir:
         wdir = os.getcwd()
+
+    # Loop on paths
     al = ArgList(paths)
     opaths = []
     for path in al.get():
+
+        # Relative path
         if not os.path.isabs(path):
             path = os.path.abspath(os.path.join(wdir, path))
+
+        # Format
         if format:
             path = path.format(*args, **kwargs)
+
         opaths.append(path)
+
     return al.put(opaths)
 
 
