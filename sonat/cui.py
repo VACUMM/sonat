@@ -58,12 +58,13 @@ def main():
     subparsers = parser.add_subparsers(title='subcommands',
         description='use "<subcommand> --help" to have more help')
 
-    # - open help
+    # Help
     hparser = subparsers.add_parser('open_help', help='open the sonat help url')
     hparser.add_argument('text', help='text to search for', nargs='?')
     hparser.set_defaults(func=open_help)
 
-    # - ensemble
+
+    # Ensemble
     eparser = subparsers.add_parser('ens', help='ensemble tools')
     esubparsers = eparser.add_subparsers(title='subcommands',
         description='use "<subcommand> --help" to have more help')
@@ -80,7 +81,20 @@ def main():
         help='make and plot ensemble diagnostics')
     epparser.add_argument('ncensfile', nargs='?',
         help='ensemble netcdf file')
-    pgparser.set_defaults(func=ens_plot_diags)
+    egparser.set_defaults(func=ens_plot_diags)
+
+
+    # Obs
+    oparser = subparsers.add_parser('obs', help='observations tools')
+    osubparsers = oparser.add_subparsers(title='subcommands',
+        description='use "<subcommand> --help" to have more help')
+
+    # - ensemble plot_diags
+    opparser = osubparsers.add_parser('plot',
+        help='plot observations locations or errors')
+    opparser.add_argument('ncensfile', nargs='?',
+        help='ensemble netcdf file')
+    ogparser.set_defaults(func=obs_plot)
 
     # Read/check config and parse commandline arguments
     args, cfg = parse_args_cfg(parser)
@@ -103,7 +117,7 @@ def ens_gen_pseudo_from_args(parser, args):
     # List of model files from args and config
     ncmodfiles = (args.ncmodfile if args.ncmodfile else
         get_cfg_path(cfg, 'ens', 'ncmodfiles'))
-    cfg['ens']['ncmodfiles'] = ncmodfiles
+    cfg['ens']['gen']['ncmodfiles'] = ncmodfiles
     if not ncmodfiles:
         parser.error('No model file specified. Please specify it as arguments '
     'to the command line, or in the configuration file')
@@ -116,14 +130,15 @@ def ens_gen_pseudo_from_cfg(cfg):
     # Config
     cfgd = cfg['domain']
     cfge = cfg['ens']
-    cfgef = cfge['fromobs']
+    cfgeg = cfge['gen']
+    cfgegf = cfgeg['fromobs']
 
     # Init
     logger = init_from_cfg(cfg)
 
     # Options from config
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
-    ncmodfiles = get_cfg_path(cfg, 'ens', 'ncmodfiles')
+    ncmodfiles = get_cfg_path(cfg, ['ens', 'gen'], 'ncmodfiles')
     if not ncmodfiles:
         raise SONATError('No model file specified')
     if not ncensfile:
@@ -131,12 +146,12 @@ def ens_gen_pseudo_from_cfg(cfg):
     lon = get_cfg_xminmax(cfg)
     lat = get_cfg_yminmax(cfg)
     time = get_cfg_tminmax(cfg, bounds=False)
-    nens = cfge['nens']
-    enrich = cfge['enrich']
-    norms = cfge['norms']
-    level = interpret_level(cfge['level'])
-    depths = cfge['depths']
-    varnames = cfge['varnames'] or None
+    nens = cfgeg['nens']
+    enrich = cfgeg['enrich']
+    norms = cfg['norms']
+    level = interpret_level(cfgeg['level'])
+    depths = cfgeg['depths']
+    varnames = cfgeg['varnames'] or None
     getmodes = enrich > 1
 
     # Options from obs
@@ -214,20 +229,19 @@ def ens_plot_diags_from_args(args):
 
 
 def ens_plot_diags_from_cfg(cfg):
+
     # Config
     cfgd = cfg['domain']
     cfge = cfg['ens']
     cfged = cfge['diags']
     cfgc = cfg['cmaps']
     cfgef = cfge['fromobs']
-    cfgeds = cfged['slices']
     cfgedp = cfged['plots']
+#    cfgp = cfg['plots']
+    cfgps = cfgp['sections']
 
-    # Logger
-    logger = get_logger(cfg=cfg)
-
-    # My
-    load_my_sonat_from_cfg(cfg, logger)
+    # Init
+    logger = init_from_cfg(cfg)
 
     # Options from config
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
@@ -240,31 +254,13 @@ def ens_plot_diags_from_cfg(cfg):
     figpatgeneric = get_cfg_path(cfg, 'ens', 'figpatgeneric')
     htmlfile = get_cfg_path(cfg, 'ens', 'htmlfile')
     depths = interpret_level(cfgeds('depths').dict())
-    zonal_sections =  cfgeds('zonal_sections')
-    merid_sections =  cfgeds('merid_sections')
+    zonal_sections =  cfgps('zonal')
+    merid_sections =  cfgps('merid')
     kwargs = cfged.dict().copy()
-    del kwargs['plots'], kwargs['slices']
-    props = {
-        'local_explained_variance':{
-            'cmap':cfgc['pos'],
-        },
-        'skew':{
-            'cmap':cfgc['anom'],
-        },
-        'kurtosis':{
-            'cmap':cfgc['anom'],
-        },
-        'skewtest':{
-            'cmap':cfgc['anom'],
-        },
-        'kurtosistest':{
-            'cmap':cfgc['anom'],
-        },
-        'normaltest':{
-            'cmap':cfgc['pos'],
-        },
-    }
-    props = dict_merge(props, cfgedp.dict())
+    del kwargs['plots']
+    props = cfgedp.dict()
+    for vname, pspecs in cfgedp.keys(): # default colormaps
+        pspecs.setdefault('cmap', cfgc[vname])
 
     # Setup ensemble from file
     ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
@@ -277,7 +273,7 @@ def ens_plot_diags_from_cfg(cfg):
         **kwargs)
 
 
-## MISC
+## OBS
 
 def load_obs_from_cfg(cfg):
     """Setup an :class:`~sonat.obs.ObsManager` using the configuration"""
@@ -287,7 +283,8 @@ def load_obs_from_cfg(cfg):
 
     # Loop on platform types
     obsplats = []
-    for platform_name, platform_section in cfg['obs'].items():
+    for platform_name, platform_section in cfg['obs']['platforms'].items():
+
         logger.debug('Loading platform named: ' + platform_name)
         logger.debug(' Type: '+platform_section['type'])
         pfile = platform_section['file']
@@ -313,6 +310,43 @@ def load_obs_from_cfg(cfg):
     manager = ObsManager(obsplats)
 
     return manager
+
+
+def obs_plot_from_cfg(cfg):
+
+    # Config
+    cfgo = cfg['obs']
+    lon = get_cfg_xminmax(cfg)
+    lat = get_cfg_yminmax(cfg)
+    cfgos = cfgo['platforms']
+    cfgop = cfgo['plots']
+    cfgp = cfg['plots']
+    cfps = cfgp['sections']
+
+    # Init
+    logger = init_from_cfg(cfg)
+
+    # Load obs manager
+    obsmanager = load_obs_from_cfg(cfg)
+
+    # Var names
+    varnames = []
+    if cfgop['locations']:
+        varnames.append('locations')
+    varnames.extend(cfgop['varnames'])
+
+    # Plot
+    obsmanager.plot(varnames=varnames, figpat=cfgo['figpat'],
+                    lon=lon, lat=lat,
+                    full3d=cfgp['full3d'], full2d=cfgp['full2d'],
+                    surf=cfgp['surf'], bottom=cfgp['bottom'],
+                    zonal_sections=cfgps['zonal'],
+                    merid_sections=cfgps['merid'],
+                    horiz_sections=cfgps['horiz'],
+                    )
+
+
+## MISC
 
 def load_my_sonat_from_cfg(cfg, logger):
 
