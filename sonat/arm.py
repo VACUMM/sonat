@@ -101,7 +101,7 @@ class ARM(_Base_):
             self.obsmanager.check_variables()
 
         # Check compatibility (names, norms, projection)
-        diags = self.ens.assert_compatible_with(self.obsmanager,
+        diags = self.ens.assert_compatible_with_obs(self.obsmanager,
             syncnorms=syncnorms)
         self._ens_on_obs = diags['ens_on_obs']
         self._packed_ens_on_obs = diags['packed_ens_on_obs']

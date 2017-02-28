@@ -148,8 +148,14 @@ class _ObsBase_(_XYT_):
 
 
     def get_level(self, bathy2d=None, margin=0, zmax=0):
+        """Get the numeric depth at observation locations
+
+        .. warning:: If observations are at the bottom, the method requires
+            the ``bathy2d`` argument to estimate the bottom depths using
+            bilinear interpolation.
+        """
         depths = self.get_num_depths(bathy2d)
-        level = rescale_itv((depths.min(), depths.max()), factor=margin+1)
+        level = rescale_itv((depths[:].min(), depths[:].max()), factor=margin+1)
         if level[1]>zmax:
             level = level[:1] + (zmax,) + level[2:]
         return level
@@ -1134,19 +1140,29 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
 
         return self.unmap(unstacks)
 
-    def project_model(self, var):
-        """Project model variables to observations positions"""
-        return self.unmap([obs.project_model(var) for obs in self])
+    def project_model(self, var, checkid=True):
+        """Project model variables to observations positions
 
-    # TODO: rename to assert_compatible_with_ens
-    def assert_compatible_with(self, ens, syncnorms=True):
+
+        .. warning:: This methods projects your variable on ALL platforms,
+            even if the variable has not observation equivalent.
+            It will emit a warning if ``checkid`` is True and the id of
+            the variable is not known from the platform.
+            See :meth:`~sonat.ens.Ensemble.project_on_obs` for a valid
+            projection approach.
+
+        """
+        return self.unmap([obs.project_model(var, checkid=checkid)
+                           for obs in self])
+
+    def assert_compatible_with_ens(self, ens, syncnorms=True):
         """Assert that an :class:`~sonat.obs.Ensemble` current instance is compatible
         with the current :class:`ObsManager` instance
 
         It checks that observed variable are provided by the ensemble.
         It optinonally synchonise norms between model and observations.
         """
-        ens.assert_compatible_with(self, syncnorms=syncnorms)
+        ens.assert_compatible_with_obs(self, syncnorms=syncnorms)
 
     def plot(self, variables=None, input_mode='names',
              full3d=True, full2d=True,

@@ -973,12 +973,13 @@ class Ensemble(Stacker, _NamedVariables_):
         """
         out = []
         for obs in obsmanager:
-            vmod = [self.get_variable(vname, obs) for vname in obs.varnames]
+            vmod = [self.get_variable(vname, obs.depths)
+                    for vname in obs.varnames]
             out.append(obs.project_model(vmod))
         return out
 
 
-    def assert_compatible_with(self, obsmanager, syncnorms=True,
+    def assert_compatible_with_obs(self, obsmanager, syncnorms=True,
             sync_missing_values=True):
         """Assert that the :class:`Ensemble` current instance is compatible
         with a :class:`~sonat.obs.ObsManager` instance
