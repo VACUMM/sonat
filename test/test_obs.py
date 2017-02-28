@@ -16,6 +16,13 @@ from sonat.obs import (NcObsPlatform, ObsManager, load_obs,
 
 CACHE = {}
 
+def get_manager():
+    if 'manager' not in CACHE:
+        CACHE['manager'] = load_obs([NCFILE_OBS_PROFILES, NCFILE_OBS_HFRADARS,
+                                     NCFILE_OBS_SATSST])
+    return CACHE['manager']
+
+
 def test_obs_ncobsplatform_surf():
 
     # Load and stack obs
@@ -64,7 +71,7 @@ def test_obs_ncobsplatform_surf_gridded():
     assert stacked.ndim==1
 
 
-def test_obs_obsmanager_init():
+def test_obs_obsmanager_init_surf():
 
     # Load and stack surface obs
     obs_surf0 = NcObsPlatform(NCFILE_OBS_SURF, lon=(-7, -5), varnames=['temp'],
@@ -85,33 +92,34 @@ def test_obs_obsmanager_init():
     assert sorted(model_specs.keys()) == ['depths', 'lat', 'lon', 'varnames']
     assert model_specs['varnames'] == ['temp', 'sal']
     assert model_specs['depths']['temp'] == ('surf', )
-    assert model_specs['lat'][:2] == (47.3, 48.1)
-    assert model_specs['lon'][:2] == (-5.8, -2.8)
+    assert_allclose(model_specs['lat'][:2],  (47.3, 48.1))
+    assert_allclose(model_specs['lon'][:2],  (-5.8, -2.8))
 
     # Renorm by name
     manager.set_named_norms(temp=0.1)
     assert manager.stacked_data[0] == 2 * stacked[0]
 
-    CACHE['manager'] = manager
+    CACHE['manager_surf'] = manager
     return manager
 
 def test_obs_load_obs():
 
     # Setup manager
-    manager = load_obs([NCFILE_OBS_PROFILES, NCFILE_OBS_HFRADARS])
+    manager = get_manager()
 
     return manager
 
 def test_obs_obsmanager_project_model():
 
     # Load manager
-    manager = test_obs_obsmanager_init()
+    manager = test_obs_obsmanager_init_surf()
 
-    # Interpolate model
-    f = DS(NCFILE_MANGA0, 'mars', level=manager.obsplats[0].depths,
-        logger_level='error')
+    # Load model
+    f = DS(NCFILE_MANGA0, 'mars', level='surf', logger_level='error')
     temp = f('temp')
     f.close()
+
+    # Interpolate model
     otemp = manager.project_model(temp)
     assert_allclose(otemp[1][0], [12.91558515, 10.58179214])
 
@@ -175,12 +183,6 @@ def test_obs_ncobsplatform_hfradars_plot():
 
     return figs
 
-def get_manager():
-    if 'manager' not in CACHE:
-        CACHE['manager'] = load_obs([NCFILE_OBS_PROFILES, NCFILE_OBS_HFRADARS,
-                                     NCFILE_OBS_SATSST])
-    return CACHE['manager']
-
 
 def test_obs_obsmanager_plot():
 
@@ -196,7 +198,7 @@ def test_obs_obsmanager_plot():
 if __name__=='__main__':
     res = test_obs_ncobsplatform_surf()
     res = test_obs_ncobsplatform_surf_gridded()
-    res = test_obs_obsmanager_init()
+    res = test_obs_obsmanager_init_surf()
     res = test_obs_load_obs()
     res = test_obs_obsmanager_project_model()
     res = test_obs_register_obs_platform()

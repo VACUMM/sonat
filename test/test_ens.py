@@ -172,7 +172,7 @@ def test_ens_ensemble_plot_diags():
     ens = get_ens()
 
     # Diags
-    figs = ens.plot_diags(zonal_sections=[47.5], meridional_sections=[-4],
+    figs = ens.plot_diags(zonal_sections=[47.5], merid_sections=[-4],
         depths=['surf', -15.5])
 
 def test_ens_ensemble_export_diags():

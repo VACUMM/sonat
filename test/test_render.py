@@ -39,11 +39,16 @@ def test_render_html_template_dict2tree():
 
     # Checks
     assert '<img src="figure.png"/>' in shtml
-    assert '<span class="d2tItemName">key2</span><br/>' in shtml
+    assert """<span class="tlevel1">key2</span><br/>""" in shtml
     assert """<li>
-            <span class="d2tSectionName">Lists</span><br/>""" in shtml
+                            <span class="tlevel2">subkey1</span><br/>
+
+                            subvalue1
+
+                        </li>""" in shtml
     assert """<li>
-                    item1""" in shtml
+                    item1
+                </li>""" in  shtml
 
 if __name__=='__main__':
     test_render_html_template_base()
