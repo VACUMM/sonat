@@ -47,7 +47,7 @@ from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
     validate_varnames, _NamedVariables_, check_variables, dicttree_relpath,
-    interpret_level)
+    interpret_level, split_varname)
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
 from .plot import (plot_gridded_var, DEFAULT_PLOT_KWARGS)
@@ -1020,35 +1020,4 @@ class Ensemble(Stacker, _NamedVariables_):
             packed_ens_on_obs_valid=valid)
 
 
-
-def split_varname(varname):
-    """Split a variable name in three parts (physical, depth, others)
-
-    The separator is the underscore sign.
-
-    Examples
-    --------
-    >>> print split_varname('temp_surf_std_dev')
-    ('temp', 'surf', 'std_dev')
-    >>> print split_varname('temp_variance')
-    ('temp', None, 'variance')
-    >>> print split_varname('temp')
-    ('temp', None, 'None')
-    """
-    if cdms2.isVariable(varname):
-        varname = varname.id
-    svname = varname.split('_')
-    physical = svname[0]
-    depth = others = None
-    if len(svname)>1:
-        if svname[1] in ['surf', 'bottom']:
-            depth = svname[1]
-            svname = svname[2:]
-            if depth=='3d':
-                depth = None
-        else:
-            svname = svname[1:]
-        if svname:
-            others = '_'.join(svname)
-    return physical, depth, others
 

@@ -571,6 +571,39 @@ def validate_varnames(varnames):
         if varname not in GENERIC_VAR_NAMES:
             raise SONATError('Invalid generic name: '+varname)
 
+
+def split_varname(varname):
+    """Split a variable name in three parts (physical, depth, others)
+
+    The separator is the underscore sign.
+
+    Examples
+    --------
+    >>> print split_varname('temp_surf_std_dev')
+    ('temp', 'surf', 'std_dev')
+    >>> print split_varname('temp_variance')
+    ('temp', None, 'variance')
+    >>> print split_varname('temp')
+    ('temp', None, 'None')
+    """
+    if cdms2.isVariable(varname):
+        varname = varname.id
+    svname = varname.split('_')
+    physical = svname[0]
+    depth = others = None
+    if len(svname)>1:
+        if svname[1] in ['surf', 'bottom']:
+            depth = svname[1]
+            svname = svname[2:]
+            if depth=='3d':
+                depth = None
+        else:
+            svname = svname[1:]
+        if svname:
+            others = '_'.join(svname)
+    return physical, depth, others
+
+
 def check_variables(vv, searchmode='ns', format=True):
     """Check that all variables are of MV2.array type and is well known
     of the :mod:`vacumm.data.cf` module
@@ -833,3 +866,12 @@ def vminmax(data, asdict=False):
     if asdict:
         return dict(vmin=vmin, vmax=vmax)
     return vmin, vmax
+
+
+def get_long_name(var, default=None):
+    """Try to get a long_name"""
+    if hasattr(var, 'long_name'):
+        return var.long_name
+    if hasattr(var, 'id'):
+        return var.id.title().replace('_', ' ')
+    return default
