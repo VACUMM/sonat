@@ -5,7 +5,7 @@ import sys
 import numpy as N
 import cdms2
 import cdtime
-from vcmq import comptime, netcdf4, DS
+from vcmq import comptime, netcdf4, DS, land_color
 
 from util import (assert_allclose, LOGGER, NCFILE_OBS_SURF, NCFILE_MANGA0,
     NCFILE_OBS_HFRADARS, NCFILE_OBS_PROFILES, NCFILE_OBS_SATSST, get_bathy)
@@ -190,10 +190,22 @@ def test_obs_obsmanager_plot():
     obsmanager = get_manager()
 
     # Bathymetry
-    bathy = get_bathy()
+    bathy = get_bathy()[::2, ::2]
 
     # Plots
-    figs = obsmanager.plot(full3d=True, full2d=True, bathy=bathy, size=30)
+    # - locations only
+    figs = obsmanager.plot(full3d=True, full2d=True, bathy=bathy, size=30,
+                           level=(-200, 0))
+   # - single variable (its error)
+    figs = obsmanager.plot(variables='temp',
+                           full3d=True, full2d=False, bathy=bathy, size=30,
+                           level=(-200, 0))
+    # - from arrays
+    variables = [obsplat.inputs[0] for obsplat in obsmanager]
+    figs = obsmanager.plot(variables=variables, input_mode='arrays',
+                           full3d=False, full2d=True, bathy=bathy, size=30,
+                           level=(-200, 0))
+
 
 if __name__=='__main__':
     res = test_obs_ncobsplatform_surf()

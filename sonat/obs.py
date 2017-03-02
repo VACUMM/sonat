@@ -51,10 +51,10 @@ from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES, get_logger
 from .misc import (xycompress, _Base_, _XYT_, check_variables, _NamedVariables_,
-                   rescale_itv)
+                   rescale_itv, get_long_name, split_varname)
 from .pack import default_missing_value
 from .stack import Stacker, _StackerMapIO_
-from .plot import plot_scattered_locs
+from .plot import plot_scattered_locs, sync_scalar_mappable_plots_vminmax
 
 npy = N
 
@@ -116,8 +116,9 @@ class _ObsBase_(_XYT_):
 
     def set_cached_plot(self, var_name, slice_type, slice_loc, obj):
         """Cache a plotting object knowing the slice and the variable name"""
-        self.plot_cache.setdefault(slice_type, {}).setdefault(
-            slice_loc, {}).setdefault(var_name, obj)
+        obj._sonat_plot = var_name, slice_type, slice_loc
+        self.plot_cache.setdefault(var_name, {}).setdefault(
+            slice_type, {}).setdefault(slice_loc, obj)
 
     def get_cached_plot(self, var_name, slice_type, slice_loc, default=None):
         """Get a cached plot object knowing the slice and the variable name
@@ -127,8 +128,8 @@ class _ObsBase_(_XYT_):
         Map, axes, None
             None is returned if not cached
         """
-        return self.plot_cache.get(slice_type, {}).get(slice_loc, {}
-                    ).get(var_name, default)
+        return self.plot_cache.get(var_name, {}).get(slice_type, {}
+                    ).get(slice_loc, default)
 
     def set_plot_cache(self, cache):
         assert isinstance(cache, dict), 'Plot cache must a dictionary'
@@ -145,6 +146,60 @@ class _ObsBase_(_XYT_):
 
     plot_cache = property(fget=get_plot_cache, fset=set_plot_cache,
                           fdel=del_plot_cache, doc='Plot cache')
+
+    def get_cached_plots(self):
+        """Get the list of all cached plots"""
+        plotters = []
+        for pv in self.plot_cache.values():
+            for pt in pv.values():
+                plotters.extend(pt.values())
+        return plotters
+
+    def save_cached_plot(self, plotter, figpat, **subst):
+        """Save the figure of the given plotter
+
+        Parameters
+        ----------
+        plotter: vacumm or mpl plot instance
+        figpat: string
+            Figure file pattern that support substitutions
+        \**subst: dict
+            Dictionary of string to substitute in figpat
+
+        Return
+        ------
+        figs
+            dict(var_name={slice_type: {slice_loc:figfile}})
+        """
+        if not hasattr(plotter, '_sonat_plot'):
+            raise SONATError('This plot has not been cached')
+        var_name, slice_type, slice_loc = plotter._sonat_plot
+        subst = subst.copy()
+        subst.update(**locals())
+        figfile = figpat.format(**subst)
+        plotter.savefig(figfile)
+        self.created(figfile)
+        return dict(var_name={slice_type: {slice_loc:figfile}})
+
+
+    def save_cached_plots(self, figpat, **subst):
+        """Save all cached plots"""
+        figs = {}
+        for plotter in self.get_cached_plots():
+            figs.update(self.save_cached_plot(plotter, figpat, **subst))
+        return figs
+
+
+    def mark_cached_plot_legend(self, plotter):
+        """Mark a plot to indicate it has a pending legen to plot
+        with :meth:`add_cached_plots_legend`
+        """
+        plotter._sonat_legend = True
+
+    def add_cached_plots_legend(self, **kwargs):
+        for plotter in self.get_cached_plots():
+            if hasattr(plotter, '_sonat_legend'):
+                plotter.legend(**kwargs)
 
 
     def get_level(self, bathy2d=None, margin=0, zmax=0):
@@ -479,6 +534,7 @@ class NcObsPlatform(ObsPlatformBase):
 
     @property
     def lons1d(self):
+        """Longitudes raveled in space"""
         if not self.is_gridded:
             return self.lons
         self._check_lonslats1d_()
@@ -486,6 +542,7 @@ class NcObsPlatform(ObsPlatformBase):
 
     @property
     def lats1d(self):
+        """Latitudes raveled in space"""
         if not self.is_gridded:
             return self.lats
         self._check_lonslats1d_()
@@ -497,6 +554,21 @@ class NcObsPlatform(ObsPlatformBase):
             self._lons1d = _lons1d.ravel()
             self._lats1d = _lats1d.ravel()
 
+    def xy_ravel_var(self, var):
+        """Ravel variable in space"""
+        if var is None:
+            return
+        if not self.is_gridded:
+            return var
+        varm = var.reshape(var.shape[:-2] + (-1, ))
+        if not cdms2.isVariable(var):
+            return varm
+        varo = MV2.array(varm, copy=0, attributes=varm.attributes, id=var.id)
+        for i, ax in enumerate(var.getAxisList()[:-2]):
+            varo.setAxis(i, ax)
+        return varo
+
+
     def check_variables(self, searchmode='ns'):
         """Check that all input variables have known properties
 
@@ -506,7 +578,7 @@ class NcObsPlatform(ObsPlatformBase):
         """
         check_variables([pack.input for pack in self], searchmode=searchmode)
 
-    def get_valid_varnames(self, varnames):
+    def get_valid_varnames(self, varnames=None):
         """Filter out var names that are not valid or not equal to 'locations'
 
         If names are explicit numeric arrays, they are unchanged
@@ -515,6 +587,11 @@ class NcObsPlatform(ObsPlatformBase):
             return None
         if isinstance(varnames, string_types):
             varnames = [varnames]
+        for vn in list(varnames):
+            if vn is True:
+                for svn in self.varnames:
+                    if svn not in varnames:
+                        varnames.extend(svn)
         return filter(lambda x: x in self.varnames or x=='locations', varnames)
 
     def get_error(self, vname, scattered=False):
@@ -558,6 +635,15 @@ class NcObsPlatform(ObsPlatformBase):
         if restack:
             self._core_stack_()
         return notnormed
+
+
+    def get_named_minmax(self):
+        """Return (min,max) for each variables in a dict"""
+        mm = {}
+        for i, name in enumerate(self.varnames):
+            if name:
+                mm[name] = self[i].data.min(), self[i].data.max()
+        return mm
 
 
     def activate_xy_pert(self, pert, zonal, index):
@@ -716,7 +802,8 @@ class NcObsPlatform(ObsPlatformBase):
              savefig=True, add_bathy=True, add_profile_line=None,
              vmin=None, vmax=None, cmap=None,
              figpat='sonat.obs.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
-             reset_cache=True, label=None, legend=True,
+             reset_cache=True, label=None, legend=True, title=True,
+             zorder=2.5, sync_vminmax=True,
              **kwargs):
         """Plot observations locations or data
 
@@ -741,7 +828,7 @@ class NcObsPlatform(ObsPlatformBase):
         if reset_cache:
             del self.plot_cache
         if label is None:
-            label = self.name
+            label = self.platform_name
         kwleg = kwfilter(kwargs, 'legend')
 
         # Data
@@ -751,11 +838,11 @@ class NcObsPlatform(ObsPlatformBase):
         if not isinstance(variables, list):
             variables = [variables]
         for var in variables:
-            if var == 'locations':
+            if not isinstance(var, string_types):
+                var_name = var.id
+            elif var == 'locations':
                 var_name = var
                 var = self.get_mask(scattered=True)
-            elif not isinstance(var, string_types):
-                var_name = var.id
             else:
                 var_name = var
                 var = self.get_error(var, scattered=True)
@@ -790,8 +877,10 @@ class NcObsPlatform(ObsPlatformBase):
             self.debug(' Slice: {} / {}'.format(slice_type, slice_loc))
 
             for var_name, var in varspecs:
+                var_name = split_varname(var_name)[0] # no suffixes
                 varname = var_name
                 self.debug('  Var: ' + var_name)
+                long_name = get_long_name(var, var_name)
 
                 # Local args
                 default_plotter = dicttree_get(m, var_name, slice_type, slice_loc)
@@ -804,6 +893,10 @@ class NcObsPlatform(ObsPlatformBase):
                 this_vmin = dicttree_get(vmin, var_name, slice_type, slice_loc)
                 this_vmax = dicttree_get(vmax, var_name, slice_type, slice_loc)
                 this_cmap = dicttree_get(cmap, var_name, slice_type, slice_loc)
+                this_title = dicttree_get(title, var_name, slice_type, slice_loc)
+                if this_title is True:
+                    this_title = long_name
+
                 kw = kwargs.copy()
                 if full3d and slice_loc=="3d":
                     this_add_profile_line = dicttree_get(add_profile_line, var_name,
@@ -814,28 +907,40 @@ class NcObsPlatform(ObsPlatformBase):
                 # Generic scatter plot
                 this_plotter = plot_scattered_locs(
                                     self.lons1d, self.lats1d, self.depths,
-                                    slice_type=slice_loc, plotter=this_plotter, fig=this_fig,
-                                    data=var, warn=False, bathy=bathy, label=label,
+                                    slice_type=slice_loc,
+                                    data=self.xy_ravel_var(var),
+                                    plotter=this_plotter, fig=this_fig,
+                                    warn=False, bathy=bathy, label=label,
                                     vmin=this_vmin, vmax=this_vmax, cmap=this_cmap,
                                     lon=lon, lat=lat,
-                                    add_bathy=this_add_bathy,
+                                    legend=False, title=this_title,
+                                    add_bathy=this_add_bathy, zorder=zorder,
                                     **kw)
+                if this_plotter is None:
+                    continue
+
+                # Sync vmin/vmax with other plots
+                if sync_vminmax:
+                    sync_scalar_mappable_plots_vminmax(this_plotter)
+
+                # Cache
+                self.set_cached_plot(var_name, slice_type, slice_loc, this_plotter)
+
+                # Legend
+                if legend:
+                    self.mark_cached_plot_legend(this_plotter, **kwleg)
+                    if legend is True:
+                        plotter.legend(**kwleg)
 
                 # Save
-                self.set_cached_plot(var_name, slice_type, slice_loc, this_plotter)
-                figfile = figpat.format(**locals())
-                if legend:
-                    this_plotter.legend(**kwleg)
                 if savefig:
-                    this_plotter.savefig(figfile)
-                    self.created(figfile)
-                    figs[var_name] = {slice_type: {slice_loc:figfile}}
-
+                    figs.update(self.save_cached_plot(this_plotter, figpat))
 
 
 
         # TODO: plot other slices in obs
         return figs
+
 
     def get_bathy(self, bathy2d=None):
         """Get the bathymetry interpolated to XY locations"""
@@ -868,12 +973,14 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         # Load platforms
         obsplats = _StackerMapIO_._load_input_(self, input)
         self.obsplats = []
+        self.inputs = []
         for obsplat in obsplats:
             if not isinstance(obsplat, NcObsPlatform):
                 raise SONATError('ObsManager must be initialised with a single or '
                     'list of NcObsPlatform instances')
             obsplat.set_missing_value(missing_value)
             self.obsplats.append(obsplat)
+            self.inputs.append(obsplat.inputs)
         self._missing_value = missing_value
 
         # Named norms
@@ -1080,6 +1187,11 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
             self._core_stack_()
         return True
 
+    def sync_scatter_plots_vminmax(self):
+        """Sync min and max of all scatter plots that are on the same axes"""
+        for ax in self.get_cached_plots():
+            sync_scatter_plots_vminmax(ax)
+
 
     def get_model_specs(self):
         """Get specifications for reading model
@@ -1169,10 +1281,11 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
              lon_bounds_margin=.1, lat_bounds_margin=.1,
              zonal_sections=None, merid_sections=None, horiz_sections=None,
              level=None, lon=None, lat=None,
+             sync_vminmax=True,
              color=None, marker=None, legend=True,
              color_cycle='bgrcmy', marker_cycle='o^s<>*',
-             reset_cache=True, fig=True, savefig=True, close=True,
-             figpat='sonat.obs.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
+             reset_cache=True, fig=None, savefig=True, close=True,
+             figpat='sonat.obs.{var_name}_{slice_type}_{slice_loc}.png',
              **kwargs):
         """Plot the locations of all platforms
 
@@ -1196,6 +1309,8 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         level_bounds_margin: float
             Fraction of level bounds to add as margin when bounds
             are not explicitely specified
+        sync_vminmax: bool
+            Sync min and max between different plots of the same variables
         """
         self.verbose('Plotting observations locations')
 
@@ -1232,20 +1347,23 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
             level = (self.get_level()[0], 0)
 
         # Loop on platforms
+        figs = {}
         for ip, obs in enumerate(self):
-
-            isfirst = ip==0
-            islast = ip==len(self)-1
 
             # Check var names
             if input_mode=='names':
-                ov = variables
-                variables = obs.get_valid_varnames(variables)
-                if not variables:
-                    if ov:
+                myvariables = obs.get_valid_varnames(variables)
+                if not myvariables:
+                    if variables:
                         continue
-                    else:
-                        variables = ['locations']
+                    else: # nothing requested, no locations
+                        myvariables = ['locations']
+            else:
+                myvariables = variables[ip]
+
+#            # Loops status
+#            isfirst = ip==0
+#            islast = ip==len(self)-1
 
             # Sync caching
             obs.plot_cache = self.plot_cache
@@ -1261,14 +1379,25 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
                     kwargs['marker'] = c['marker']
 
             # Plot
-            obs.plot(variables=variables, reset_cache=False,
+            obs.plot(variables=myvariables, reset_cache=False,
                      full2d=full2d, full3d=full3d,
                      lon=lon, lat=lat, level=level,
-                     fig=fig if isfirst else None,
-                     savefig=savefig and islast, close=close and islast,
-                     legend=legend and islast,
+                     fig=fig, figpat=figpat,
+                     savefig=False, close=False,
+                     legend='cache' if legend else False,
+                     sync_vminmax=sync_vminmax,
                      **kwargs)
 
+        # Plot all pending legends
+        if legend:
+            self.add_cached_plots_legend()
+
+        # Save all plots
+        if savefig:
+            kw = locals().copy()
+            del kw['self']
+            return self.save_cached_plots(**kw)
+        return {}
 
 
 

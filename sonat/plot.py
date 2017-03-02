@@ -42,14 +42,15 @@ from mpl_toolkits.mplot3d import art3d, Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib import rc_params_from_file, rcParams
 from matplotlib.ticker import FuncFormatter
+from matplotlib.colors import Normalize
 import cdms2
 from vcmq import (map, hov, stick, curve, section, dict_check_defaults, plot2d,
                   kwfilter, curv2rect, deplab, isaxis, meshbounds,
-                  grid2xy, scalebox, Plot)
+                  grid2xy, scalebox, Plot, land_color)
 
 from .__init__ import SONATError, sonat_warn
 from .misc import (slice_gridded_var, vminmax, slice_scattered_locs,
-                   rescale_itv)
+                   rescale_itv, get_long_name)
 
 
 #: Matplotlib default configuration file
@@ -166,9 +167,21 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
 
 def create_map(lon, lat, level=None, axes=None, bathy=None,
                elev=20, azim=-100, add_bathy=True, margin=0, **kwargs):
+    """Create a 2D or 3D map with bathy
 
+    Parameters
+    ----------
+    bathy_<param>
+        <param> is passed to :func:`create_bathy_2d` or :func:`create_bathy_3d`
+    bathy2d_<param>
+        <param> is passed to :func:`create_bathy_2d`
+    bathy3d_<param>
+        <param> is passed to :func:`create_bathy_3d`
+    """
     # Params
     kwbat = kwfilter(kwargs, 'bathy')
+    kwbat2d = kwfilter(kwargs, 'bathy2d')
+    kwbat3d = kwfilter(kwargs, 'bathy3d')
 
     # Default optional arguments
     dict_check_defaults(kwargs,  **DEFAULT_PLOT_KWARGS)
@@ -235,17 +248,20 @@ def create_map(lon, lat, level=None, axes=None, bathy=None,
 
         # Bathy
         if bathy is not None and add_bathy:
-            plot_bathy_3d(bathy(lon=lon, lat=lat), m, **kwbat)
+            kw = kwbat.copy()
+            kw.update(kwbat3d)
+            plot_bathy_3d(bathy(lon=lon, lat=lat), m, **kw)
 
     # 2D bathy
     elif bathy is not None and add_bathy:
-
-        plot_bathy_2d(bathy(lon=lon, lat=lat), m, **kwbat)
+        kw = kwbat.copy()
+        kw.update(kwbat2d)
+        plot_bathy_2d(bathy(lon=lon, lat=lat), m, **kw)
 
     return m
 
 
-def plot_bathy_3d(bathy, m, color='.8', linewidth=0, **kwargs):
+def plot_bathy_3d(bathy, m, color=land_color, linewidth=0, **kwargs):
     """Plot the bathy as 3D surface
 
     Parameters
@@ -306,8 +322,8 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                         lon_bounds_margin=.1, lat_bounds_margin=.1,
                         data=None, warn=True, bathy=None, xybathy=None, size=10,
                         linewidth=0.15, color='k', add_profile_line=None, add_bathy=True,
-                        fig=None,
-                        **kwargs):
+                        fig=None, title=True,
+                        legend=False, **kwargs):
     """Plot scattered localisations
 
     Parameters
@@ -333,7 +349,12 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
     if cdms2.isVariable(data):
         data = data.asma()
     kwmap = kwfilter(kwargs, 'map_')
+    kwplt = kwfilter(kwargs, 'plotter_')
+    dict_check_defaults(kwmap, **kwplt)
     kwpf = kwfilter(kwargs, 'add_profile_line')
+    kwleg = kwfilter(kwargs, 'legend')
+    if title is True:
+        title = get_long_name(data)
 
     # Slice type
     if slice_type is None:
@@ -417,8 +438,8 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         if level.min()==0:
             level = (-200, 0) # Fall back to this interval
 
-    # Get the map
-    if slice_type in ['3d', "2d", "horizontal", 'surf', 'bottom']:
+    # Get the plotter
+    if slice_type in ['3d', "2d", "horizontal", 'surf', 'bottom']: # map
 
         # Lon/lat
         if lon is None:
@@ -466,6 +487,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         dict_check_defaults(kwargs, vmin=data.min(), vmax=data.max())
 
     # 3D
+    pp = []
     if slice_type == "3d":
 
         # Depth labels
@@ -493,7 +515,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                 kwargs['c'] = data
             else:
                 kwargs['c'] = color
-            p = ax.scatter(xx, yy, depths, label=label, **kwargs)
+            pp.append(ax.scatter(xx, yy, depths, label=label, **kwargs))
 
             # Profile lines
             if add_profile_line:
@@ -526,13 +548,13 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                     kwargs['c'] = data[..., ip]
                 else:
                     kwargs['c'] = color
-                p = ax.scatter([x]*len(zz), [y]*len(zz), zz,
-                               label=label if isfirst else '', **kwargs)
+                pp.append(ax.scatter([x]*len(zz), [y]*len(zz), zz,
+                               label=label if isfirst else '', **kwargs))
 
                 # Profile line
                 if add_profile_line:
                     plot_profile_line_3d(ax, x, y, xybathy[ip],
-                                         zorder=p.get_zorder()-0.01, **kwpf)
+                                         zorder=pp[-1].get_zorder()-0.01, **kwpf)
 
     # 2D
     elif slice_type == "2d":
@@ -553,15 +575,52 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
             kwargs['c'] = data
         else:
             kwargs['c'] = color
-        ax.scatter(xx, yy, label=label, **kwargs)
+        pp.append(ax.scatter(xx, yy, label=label, **kwargs))
 
 
     else:
 
         raise NotImplementedError('slice_type plot yet not implemented: '+slice_type)
 
+    # Finalise
+    if title:
+        ax.set_title(title)
+    if legend:
+        plotter.legend(**kwleg)
+    if data is not None:
+        register_scalar_mappable(ax, pp)
+
     # TODO: plot of other scattered slice!
     return plotter
+
+def register_scalar_mappable(ax, p):
+    if isinstance(p, list):
+        for _ in p:
+            register_scalar_mappable(ax, _)
+    else:
+        if not hasattr(ax, '_sonat_scalar_mappables'):
+            ax._sonat_scalar_mappables = []
+        ax._sonat_scalar_mappables.append(p)
+
+def sync_scalar_mappable_plots_vminmax(ax):
+    """Sync min ax max of all the scalar mappable plots for given axes"""
+    # Get the axes
+    if isinstance(ax, Plot):
+        ax = ax.axes
+    if not hasattr(ax, '_sonat_scalar_mappables'):
+        return
+
+    # Get min and max
+    vmin = N.inf
+    vmax = -N.inf
+    for p in ax._sonat_scalar_mappables:
+        vmin = min(p.norm.vmin, vmin)
+        vmax = max(p.norm.vmax, vmax)
+
+    # Set min and max
+    norm = Normalize(vmin, vmax)
+    for p in ax._sonat_scalar_mappables:
+        p.set_norm(norm)
 
 
 def plot_profile_line_3d(ax, x, y, bathy, linewidth=.3, linestyle='--', color='.6',
