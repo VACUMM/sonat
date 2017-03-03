@@ -38,7 +38,7 @@ import os
 import imp
 import inspect
 
-#from vcmq import register_cf_variable
+from vcmq import Dataset, register_dataset #, register_cf_variable
 
 from .__init__ import SONATError, sonat_warn
 from .obs import register_obs_platform, ObsPlatformBase
@@ -63,10 +63,14 @@ def load_user_code_file(myfile=None):
         who takes 3 mandatory arguments (ev, arm, rep), using the
         :func:`~sonat.arm.register_arm_score_function`.
     CF variables
-        It registers as new standard :mod:`vacumm.data.cf` variables
+        It registers new standard :mod:`vacumm.data.cf` variables
         declared in the dictionary :attr:`vacumm_cf_variables`, with
         the key as the short name and the value as specifications passed
         as arguments to :func:`vacumm.data.cf.register_cf_variable`.
+    Generic datasets
+        It registers all declared subclassed of
+        :class:`vacumm.data.misc.dataset.Dataset` using the
+        :func:`vacumm.data.register_dataset` function.
     """
 
     # Load module
@@ -93,6 +97,11 @@ def load_user_code_file(myfile=None):
         if issubclass(obj, ObsPlatformBase):
 
             register_obs_platform(obj)
+
+        # User defined platforms
+        if issubclass(obj, Dataset):
+
+            register_dataset(obj)
 
         # User defined vacumm.cf variables
         elif False and name.lower() == 'vacumm_cf_variables':
