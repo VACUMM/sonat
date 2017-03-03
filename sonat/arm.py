@@ -37,6 +37,8 @@ import inspect
 import numpy as N
 import MV2
 
+from vcmq import (curve, create_axis, dict_check_defaults, kwfilter)
+
 from .__init__ import SONATError, sonat_warn
 from .misc import _Base_
 from .ens import Ensemble
@@ -162,10 +164,16 @@ class ARM(_Base_):
 
     @property
     def ndof(self):
-        if 'spect' in self._results:
-            return len(self._results[spect])
+        if 'raw_spect' in self._results:
+            return len(self._results['raw_spect'])
         return min(self.Yf.shape)
 
+    @property
+    def mode_axis(self):
+        if not hasattr(self, '_mode_axis') or len(self._mode_axis)!=self.ndof:
+            self._mode_axis = create_axis((1, self.ndof+1), id='mode',
+                                          long_name='Array mode id')
+        return self._mode_axis
 
     def analyse(self, ndof=None):
         """Perform the ARM analysis
@@ -236,7 +244,7 @@ class ARM(_Base_):
 
     def _check_analysis_(self):
         if 'raw_spect' not in self._results:
-            self.analysis()
+            self.analyse()
 
     @property
     def raw_spect(self):
@@ -267,8 +275,9 @@ class ARM(_Base_):
         self._check_analysis_()
 
         # Unstack/pack/format
-        self._results['spect'] = MV2.array(spect, id='arm_spectrum',
-            attributes=dict(long_name='ARM spectrum'))
+        self._results['spect'] = MV2.array(self.raw_spect,
+            id='arm_spectrum', attributes=dict(long_name='ARM spectrum'),
+            axes=[self.mode_axis])
         return self._results['spect']
 
     @property
@@ -284,7 +293,9 @@ class ARM(_Base_):
         # Unstack/pack/format
         uarm = self._final_packer.unpack(self.raw_arm)
         self._results['arm'] = self.obsmanager.unstack(uarm, rescale=False,
-            format=1, id='arm_{id}')
+            format=1, id='arm_{id}',
+#            firstdims=[self.mode_axis],
+            )
         return self._results['arm']
 
     @property
@@ -299,7 +310,9 @@ class ARM(_Base_):
 
         # Unstack/pack/format
         self._results['rep'] = self.ens.unstack(self.raw_rep, rescale=False, format=1,
-            id='arm_rep_{id}')
+            id='arm_rep_{id}',
+#            firstdims=[self.mode_axis],
+            )
         return self._results['rep']
 
     def get_score(self, type='nev'):
@@ -312,6 +325,71 @@ class ARM(_Base_):
        """
         return get_arm_score_function(type)(self.spect, self.arm, self.rep)
 
+    def plot_spect(self, figfile='arm.spect.png', savefig=True, close=True,
+                   title='ARM Sepctrum', hline=1., score='nev',
+                   shade=True, **kwargs):
+        """Plot the ARM spectrum"""
+        kwhline = kwfilter(kwargs, 'hline')
+        kwscore = kwfilter(kwargs, 'score')
+        kwshade = kwfilter(kwargs, 'shade')
+
+        # Main plot
+        dict_check_defaults(kwargs, xmin=.5, xmax=self.ndof+.5, parg='o',
+                            log=True, show=False, ymin=.01)
+        p = curve(self.spect, title=title,
+              **kwargs)
+        zorder = p['curve'][0].zorder
+
+        # Horizontal line at 1
+        if hline:
+
+            # Shading
+            if shade:
+                dict_check_defaults(kwshade, linewidth=0, color='.8',
+                                    zorder=zorder-0.01)
+                axis = p.axes.axis()
+                p.axes.axhspan(axis[2], hline, **kwshade)
+                p.axes.axis(axis)
+
+            # Line
+            dict_check_defaults(kwhline, linewidth=.5, color='k',
+                                zorder=zorder+0.01)
+            p.axes.axhline(1., **kwhline)
+
+        # Score
+        if score:
+            score = self.get_score(score)
+            dict_check_defaults(kwscore, family='monospace', ha='right', va='top',
+                                bbox=dict(linewidth=0, facecolor='w', alpha=.2))
+            p.text(.95, .95, 'Score: {:.01f}'.format(score), transform='axes',
+                   **kwscore)
+
+        # Save
+        if savefig:
+            p.savefig(figfile)
+            self.created(figfile)
+            return {'Spectrum':figfile}
+
+    def plot_arm(self, varnames=None,
+                 figpat='arm.arm.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
+                 **kwargs):
+        """Plot the array modes"""
+        # Select data
+        if varnames is None:
+            variables = self.arm
+        else:
+            if not isinstance(varnames, (tuple, list)):
+                varnames = [varnames]
+            variables = []
+            for io, obs in enumerate(self.obsmanager):
+                ovars = []
+                variables.append(overs)
+                for iv, varname in obs.varnames:
+                    if varname in varnames:
+                        ovars.append(self.arm[io][iv])
+
+        # Plot
+        return self.obsmanager.plot(variables, **kwargs)
 
 #: Prefix of all ARM score functions
 ARM_SCORE_FUNCTION_PREFIX = 'arm_score_'

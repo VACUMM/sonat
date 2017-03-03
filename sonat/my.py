@@ -99,7 +99,7 @@ def load_user_code_file(myfile=None):
             register_obs_platform(obj)
 
         # User defined platforms
-        if issubclass(obj, Dataset):
+        elif issubclass(obj, Dataset):
 
             register_dataset(obj)
 

@@ -5,7 +5,7 @@ import sys
 import numpy as N
 import cdms2
 import cdtime
-from vcmq import comptime, netcdf4
+from vcmq import comptime, netcdf4, P
 
 from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
     NCFILE_MANGA1, NCFILE_OBS_HFRADARS, NCFILE_OBS_PROFILES, NCFILE_OBS_SATSST)
@@ -88,6 +88,15 @@ def test_arm_arm_results():
 
     return
 
+def test_arm_arm_plot_spect():
+
+    # Load ARM
+    arm = get_arm()
+
+    # Raw results
+    arm.plot_spect()
+
+
 def test_arm_register_arm_score_function():
 
     def arm_score_myfunc(ev, arm, rep):
@@ -108,13 +117,14 @@ def test_arm_get_arm_score_function():
 
 
 if __name__=='__main__':
-    res = test_arm_arm_init()
-    res = test_arm_arm_project_ens_on_obs()
-    res = test_arm_arm_inputs()
-    res = test_arm_arm_analyse()
-    res = test_arm_arm_results()
-    res = test_arm_register_arm_score_function()
-    res = test_arm_get_arm_score_function()
+#    res = test_arm_arm_init()
+#    res = test_arm_arm_project_ens_on_obs()
+#    res = test_arm_arm_inputs()
+#    res = test_arm_arm_analyse()
+#    res = test_arm_arm_results()
+#    res = test_arm_register_arm_score_function()
+#    res = test_arm_get_arm_score_function()
+    test_arm_arm_plot_spect()
 
 
 
