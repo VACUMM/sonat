@@ -875,3 +875,12 @@ def get_long_name(var, default=None):
     if hasattr(var, 'id'):
         return var.id.title().replace('_', ' ')
     return default
+
+def recursive_transform_att(data, att, func, *args, **kwargs):
+    """Strip ids of a recursive lists of arrays"""
+    if not isinstance(data, list):
+        if cdms2.isVariable(data) and hasattr(data, att):
+                setattr(data, att, func(getattr(data, att), *args, **kwargs))
+        return data
+    return [recursive_transform_att(dat, att, func, *args, **kwargs) for dat in data]
+
