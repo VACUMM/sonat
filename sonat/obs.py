@@ -803,7 +803,7 @@ class NcObsPlatform(ObsPlatformBase):
              vmin=None, vmax=None, cmap=None,
              figpat='sonat.obs.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
              reset_cache=True, label=None, legend=True, title=True,
-             zorder=2.5, sync_vminmax=True,
+             zorder=2.5, sync_vminmax=True, subst={},
              **kwargs):
         """Plot observations locations or data
 
@@ -921,7 +921,7 @@ class NcObsPlatform(ObsPlatformBase):
 
                 # Sync vmin/vmax with other plots
                 if sync_vminmax:
-                    sync_scalar_mappable_plots_vminmax(this_plotter)
+                    sync_scalar_mappable_plots_vminmax(this_plotter, sync_vminmax)
 
                 # Cache
                 self.set_cached_plot(var_name, slice_type, slice_loc, this_plotter)
@@ -934,7 +934,8 @@ class NcObsPlatform(ObsPlatformBase):
 
                 # Save
                 if savefig:
-                    figs.update(self.save_cached_plot(this_plotter, figpat))
+                    this_plotter.show()
+                    figs.update(self.save_cached_plot(this_plotter, figpat, **subst))
 
 
 
@@ -1286,7 +1287,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
              color_cycle='bgrcmy', marker_cycle='o^s<>*',
              reset_cache=True, fig=None, savefig=True, close=True,
              figpat='sonat.obs.{var_name}_{slice_type}_{slice_loc}.png',
-             **kwargs):
+             subst={}, **kwargs):
         """Plot the locations of all platforms
 
         See :meth:`NcObsPlatform.plot` for more arguments.
@@ -1396,6 +1397,8 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         if savefig:
             kw = locals().copy()
             del kw['self']
+#            kw['subst'] = subst
+            kw.update(subst)
             return self.save_cached_plots(**kw)
         return {}
 

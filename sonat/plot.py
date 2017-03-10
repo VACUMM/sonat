@@ -602,7 +602,7 @@ def register_scalar_mappable(ax, p):
             ax._sonat_scalar_mappables = []
         ax._sonat_scalar_mappables.append(p)
 
-def sync_scalar_mappable_plots_vminmax(ax):
+def sync_scalar_mappable_plots_vminmax(ax, symetric=False):
     """Sync min ax max of all the scalar mappable plots for given axes"""
     # Get the axes
     if isinstance(ax, Plot):
@@ -616,6 +616,11 @@ def sync_scalar_mappable_plots_vminmax(ax):
     for p in ax._sonat_scalar_mappables:
         vmin = min(p.norm.vmin, vmin)
         vmax = max(p.norm.vmax, vmax)
+
+    # Symetric?
+    if symetric:
+        vmax = max(abs(vmin), abs(vmax))
+        vmin = -vmax
 
     # Set min and max
     norm = Normalize(vmin, vmax)
