@@ -934,7 +934,6 @@ class NcObsPlatform(ObsPlatformBase):
 
                 # Save
                 if savefig:
-                    this_plotter.show()
                     figs.update(self.save_cached_plot(this_plotter, figpat, **subst))
 
 

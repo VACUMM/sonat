@@ -33,14 +33,15 @@
 # knowledge of the CeCILL license and that you accept its terms.
 #
 import inspect
+import math
 
 import numpy as N
-import MV2
+import MV2, cdms2
 
 from vcmq import (curve, create_axis, dict_check_defaults, kwfilter)
 
 from .__init__ import SONATError, sonat_warn
-from .misc import _Base_
+from .misc import _Base_, recursive_transform_att
 from .ens import Ensemble
 from .obs import ObsManager, NcObsPlatform
 from ._fcore import f_arm
@@ -296,6 +297,9 @@ class ARM(_Base_):
             format=1, id='arm_{id}',
 #            firstdims=[self.mode_axis],
             )
+        def set_long_name(long_name):
+            return 'Array modes of '+long_name
+        recursive_transform_att(self._results['arm'], 'long_name', set_long_name)
         return self._results['arm']
 
     @property
@@ -313,6 +317,9 @@ class ARM(_Base_):
             id='arm_rep_{id}',
 #            firstdims=[self.mode_axis],
             )
+        def set_long_name(long_name):
+            return 'Array mode representers of '+long_name
+        recursive_transform_att(self._results['arm'], 'long_name', set_long_name)
         return self._results['rep']
 
     def get_score(self, type='nev'):
@@ -335,7 +342,7 @@ class ARM(_Base_):
 
         # Main plot
         dict_check_defaults(kwargs, xmin=.5, xmax=self.ndof+.5, parg='o',
-                            log=True, show=False, ymin=.01)
+                            log=True, show=False, ymin=.01, fig='new')
         p = curve(self.spect, title=title,
               **kwargs)
         zorder = p['curve'][0].zorder
@@ -370,10 +377,12 @@ class ARM(_Base_):
             self.created(figfile)
             return {'Spectrum':figfile}
 
+
     def plot_arm(self, varnames=None,
-                 figpat='arm.arm.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
+                 figpat='arm.arm.mode{mode}_{var_name}_{slice_type}_{slice_loc}.png',
                  **kwargs):
         """Plot the array modes"""
+        self.verbose('Plotting array modes')
         # Select data
         if varnames is None:
             variables = self.arm
@@ -389,7 +398,46 @@ class ARM(_Base_):
                         ovars.append(self.arm[io][iv])
 
         # Plot
-        return self.obsmanager.plot(variables, **kwargs)
+        modemax = self.format_mode()
+        figs = {}
+        dict_check_defaults(kwargs, sync_vminmax='symetric', cmap='cmocean_balance')
+        for imode in range(self.ndof):
+            mode = self.format_mode(imode)
+            self.debug(' Plotting array mode {}/{}'.format(mode, modemax))
+
+            # Extract single mode
+            kwargs['subst'] = {'mode':mode}
+            mvars = self.extract_mode(variables, imode)
+            remove_arm = lambda id: id[4:]
+            recursive_transform_att(mvars, 'id', remove_arm)
+
+            # Make plots
+            mfigs = self.obsmanager.plot(mvars, input_mode='arrays',
+                                         figpat=figpat, **kwargs)
+
+            # Register figures
+            if isinstance(mfigs, dict):
+                figs['Mode '+mode] = mfigs
+
+        return figs
+
+    def format_mode(self, imode=None, fmt='{imode:0{ndigit}d}'):
+        if imode is None:
+            imode = self.ndof-1
+        ndigit = int(math.log10(self.ndof)) + 1
+        return fmt.format(**locals())
+
+
+    def extract_mode(self, data, imode):
+        """Extract a single mode from recursive lists of arrays
+
+        The mode axis is supposed to be the first one.
+        """
+        if not isinstance(data, list):
+            dat = data[imode]
+            return dat
+        return [self.extract_mode(dat, imode) for dat in data]
+
 
 #: Prefix of all ARM score functions
 ARM_SCORE_FUNCTION_PREFIX = 'arm_score_'

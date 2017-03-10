@@ -93,9 +93,16 @@ def test_arm_arm_plot_spect():
     # Load ARM
     arm = get_arm()
 
-    # Raw results
+    # Raw spectrum
     arm.plot_spect()
 
+def test_arm_arm_plot_arm():
+
+    # Load ARM
+    arm = get_arm()
+
+    # Raw array modes
+    arm.plot_arm(size=40, close=False)
 
 def test_arm_register_arm_score_function():
 
@@ -124,7 +131,8 @@ if __name__=='__main__':
 #    res = test_arm_arm_results()
 #    res = test_arm_register_arm_score_function()
 #    res = test_arm_get_arm_score_function()
-    test_arm_arm_plot_spect()
+#    test_arm_arm_plot_spect()
+    test_arm_arm_plot_arm()
 
 
 
