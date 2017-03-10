@@ -440,7 +440,8 @@ class Packer(_Base_):
         # From pshape only
         return pshape[:1], [None]
 
-    def create_array(self, firstdims=None, format=1, pshape=None, id=None, atts=None):
+    def create_array(self, firstdims=None, format=1, pshape=None, id=None,
+                     atts=None, format_atts=True):
         """Initialize an array similar to input array
 
         Type of array is guessed from attribute :attr:`array_type`.
@@ -448,23 +449,18 @@ class Packer(_Base_):
         The array is filled with attribute :attr:`missing_value` if
         pure numpy, else with masked values.
 
-        :Params:
-
-        *firstdims**, optional: Size of the first dimension(s).
-              Defaults to attribute :attr:`nt`.
-        *format**, optional: To format output array as a CDAT variable
-              using information from analyzed array.
+        Parameters
+        ----------
+        firstdims: optional
+            Size of the first dimension(s) or list of axes.
+            Defaults to attribute :attr:`nt`.
+        format: optional
+            To format output array as a CDAT variable
+            using information from analyzed array.
 
                 - ``1``: Add all initial axes but the first one.
                 - ``2`` or ``"full"``: Add attributes.
                 - else, does not format.
-
-        *firstaxes**, optional: Set the axes as the first ones.
-              If ``firstaxes is None`` and ``firstdims is None``, it defaults
-              to the first axis of analyzed array.
-              You may also provide integers instead of axes, which are then
-              used to set length of first axes if ``firstdims`` is not
-              set.
 
 
         """
@@ -485,11 +481,12 @@ class Packer(_Base_):
         if self.ismv2 and format:
 
             data = self._format_array_(data, firstdims, firstaxes, format,
-                id=id, atts=atts)
+                id=id, atts=atts, format_atts=format_atts)
 
         return data
 
-    def format_array(self, data, mode=1, firstdims=None, id=None, atts=None):
+    def format_array(self, data, mode=1, firstdims=None, id=None, atts=None,
+                     format_atts=True):
         """Format to a MV2 array similar to input array"""
         # Input was not formatted
         if not self.ismv2:
@@ -508,9 +505,10 @@ class Packer(_Base_):
 
         # Format
         return self._format_array_(data, firstdims, firstaxes, mode,
-            id=id, atts=atts)
+            id=id, atts=atts, format_atts=format_atts)
 
-    def _format_array_(self, data, firstdims, firstaxes, mode, id=None, atts=None):
+    def _format_array_(self, data, firstdims, firstaxes, mode, id=None, atts=None,
+                       format_atts=True):
 
         if firstaxes:
             for i, a in enumerate(firstaxes):
@@ -543,13 +541,20 @@ class Packer(_Base_):
         if mode=='full' or mode>1:
             if 'id' in atts:
                 del atts['id']
-            set_atts(data, self.atts)
+
+            # Format string attributes
+            for att, val in atts.item():
+                if isinstance(att, str):
+                    atts[att] = val.format(**self.atts)
+
+            # Set
+            set_atts(data, atts)
 
         return data
 
 
     def unpack(self, pdata, rescale=True, format=1, firstdims=None, id=None,
-            atts=None):
+            atts=None, format_atts=True):
         """Unpack data along space, reshape, and optionally unnormalize and remean.
 
         Input is sub_space:other, output is other:split_space.
@@ -572,7 +577,7 @@ class Packer(_Base_):
         pdata = npy.ascontiguousarray(pdata.T).copy()
         # - create variable
         data = self.create_array(firstdims=firstdims, format=format,
-            pshape=pdata.shape, id=id, atts=atts)
+            pshape=pdata.shape, id=id, atts=atts, format_atts=format_atts)
         # - check packed data shape
         firstdims = data.shape[:len(data.shape)-self.nsdim]
         if len(firstdims) > 1:
