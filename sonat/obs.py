@@ -519,6 +519,10 @@ class NcObsPlatform(ObsPlatformBase):
     def mask(self):
         return self.get_mask()
 
+    @property
+    def variables(self):
+        return self.inputs
+
     def get_mask(self, scattered=False):
         """Get the mask of data
 
@@ -568,15 +572,6 @@ class NcObsPlatform(ObsPlatformBase):
             varo.setAxis(i, ax)
         return varo
 
-
-    def check_variables(self, searchmode='ns'):
-        """Check that all input variables have known properties
-
-        See also
-        --------
-        :func:`sonat.misc.check_variables`
-        """
-        check_variables([pack.input for pack in self], searchmode=searchmode)
 
     def get_valid_varnames(self, varnames=None):
         """Filter out var names that are not valid or not equal to 'locations'
@@ -973,7 +968,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         # Load platforms
         obsplats = _StackerMapIO_._load_input_(self, input)
         self.obsplats = []
-        self.inputs = []
+        self.inputs = self.variables = []
         for obsplat in obsplats:
             if not isinstance(obsplat, NcObsPlatform):
                 raise SONATError('ObsManager must be initialised with a single or '
@@ -1046,6 +1041,27 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         """
         for obs in self:
             obs.check_variables(searchmode)
+
+    def select_variables(self, varnames=None, source=None):
+        """Select variables according to their prefix name on all platforms
+
+        Parameters
+        ----------
+        varnames: None, strings
+            Selected var names. Defaults to :attr:`varnames`
+        source: None, arrays
+            Source of array to feed selection. Defaults to :attr:`variables`.
+        prefix_to_remove: string
+            Prefix to remove before checking id.
+
+        Return
+        ------
+        list of list of arrays
+        """
+        if source is None:
+            source = self.variables
+        return [obs.select_variables(varnames, src)
+                 for obs, src in zip(self.obsplats, source)]
 
     @property
     def lons(self):
