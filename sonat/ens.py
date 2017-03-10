@@ -42,7 +42,7 @@ import scipy.stats as SS
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
     MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var,
     CaseChecker, curve, bar, dict_check_defaults, dict_merge, checkdir,
-    dicttree_get)
+    dicttree_get, dicttree_set)
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
@@ -804,12 +804,12 @@ class Ensemble(Stacker, _NamedVariables_):
 
     def plot_diags(self, mean=True, variance=True, kurtosis=True, skew=True,
             skewtest=True, kurtosistest=True, normaltest=True,
-            titlepat = '%(long_name)s - {diag_longname} - {slice_loc}',
+            titlepat = '{var_name} - {diag_longname} - {slice_loc}',
             depths=None, points=None,
             zonal_sections=None, merid_sections=None,
+            fmtlonlat='{:.2f}', fmtdep='{:04.0f}m',
             figpat_slice='sonat.ens.{diag_name}_{var_name}_{slice_type}_{slice_loc}.png',
             figpat_generic='sonat.ens.{diag_name}.png',
-            fmtlonlat='{:.2f}', fmtdep='{:04.0f}m',
             figfir=None, show=False,
             htmlfile=None, props=None):
         """Create figures for diagnostics
@@ -838,12 +838,8 @@ class Ensemble(Stacker, _NamedVariables_):
         # Inits
         self.verbose('Plotting ensemble diagnostics')
         figs = OrderedDict()
-        if depths and not isinstance(depths, list):
-            depths = [depths]
         if props is None:
             props = {}
-        kwmap = props.get('map', {})
-        kwcurve = props.get('curve', {})
         kwprops = dict_merge(props, DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
         depths = ArgList(depths).get()
         depths3d = [dd for dd in depths if dd not in ['surf', 'bottom']]
@@ -868,75 +864,20 @@ class Ensemble(Stacker, _NamedVariables_):
                 self.created(figfile)
                 figs[diag_longname] = figfile
 
-            # Loop on variables
+            # Plot other sliced variables
             else:
 
-                for diag_var in ArgList(diag_var).get():
-                    order = diag_var.getOrder()
+                ff = self.plot_fields(diag_var, depths=depths, points=points,
+                                 zonal_sections=zonal_sections,
+                                 merid_sections=merid_sections,
+                                 figpat=figpat_slice,
+                                 titlepat=titlepat,
+                                 fmtlonlat=fmtlonlat, fmtdep=fmtdep,
+                                 subst={'diag_longname':diag_longname},
+                                 props=props)
 
-                    var_name, vdepth, vdiag_name = split_varname(diag_var)
-                    varname = var_name
-                    id = diag_var.id
-                    self.debug(' Variable: '+var_name)
+                figs.update(diag_longname=ff)
 
-
-                    # Maps
-                    if depths is not False:
-                        toplot = []
-                        slice_type = 'map'
-
-                        # Get what to plot
-                        if ((vdepth=='surf' and 'surf' in depths) or
-                                (vdepth=='bottom' and 'bottom' in depths)): # 2D
-
-                            toplot.append(dict(loc=vdepth, var=diag_var))
-
-                        elif diag_var.getLevel() is not None and depths3d: # 3D
-
-                            # Loop on 3D depths specs
-                            for d3d in depths3d:
-
-                                if d3d in [None, '3d']: # simple slices
-
-                                    levels = diag_var.getLevel()[::-1]
-                                    for i, level in enumerate(levels):
-                                        toplot.append(dict(
-                                            loc=fmtdep.format(abs(level)),
-                                            var=diag_var[len(levels)-i-1]))
-
-                                else: # interpolations
-
-                                    levels = N.sort(N.atleast_1d(d3d))
-                                    for i, level in enumerate(levels):
-                                        toplot.append(dict(
-                                            loc=fmtdep.format(abs(level)),
-                                            var=diag_var,
-                                            kw=dict(depth=level)))
-
-                        # Init dict
-                        if toplot:
-                            dd = figs.setdefault(
-                                diag_longname, OrderedDict()).setdefault(
-                                    var_name.upper(),  OrderedDict()).setdefault(
-                                        slice_type.title(), OrderedDict())
-
-                        # Plot them
-                        for spec in toplot:
-                            slice_loc = spec['loc']
-                            var = spec['var']
-                            self.debug('  Location: '+slice_loc)
-                            title = titlepat.format(**locals())
-                            figfile = figpat_slice.format(**locals())
-                            checkdir(figfile)
-                            kw = kwprops.get(diag_name, {})
-                            if 'kw' in spec:
-                                kw.update(**spec['kw'])
-                            kw.update(title=title, savefig=figfile, **kwmap)
-                            dict_check_defaults(kw, **DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
-                            plot_gridded_var(diag_var, **kw)
-                            self.created(figfile)
-                            dd[slice_loc] = figfile
-                        del toplot
 
         # Export to html
         if htmlfile:
@@ -951,6 +892,131 @@ class Ensemble(Stacker, _NamedVariables_):
             self.created(htmlfile)
 
         return figs
+
+
+    def plot_fields(self, variables,
+                    depths=None, points=None, zonal_sections=None,
+                    merid_sections=None, titlepat="{var_name} - {slice_loc}",
+                    props=None, subst={},
+                    figpat='sonat.ens.{var_name}_{slice_type}_{slice_loc}.png',
+                    fmtlonlat='{:.2f}', fmtdep='{:04.0f}m',
+                    **kwargs):
+        """Plot one or several platform like variables
+
+        Parameters
+        ----------
+        depths: string, floats
+            List of depths for horizontal slices. All by default.
+            It accepts scalars or list of floats and of the two special values
+            "bottom" and "surf". In the latter case, these variable must
+            be explicitely included in the ensemble, like "temp_surf". A depth
+            of 0 is not equivalent to "surf", despite results may be similar,
+            or equivalent when the sea level is always 0.
+            In the case of floats, the
+            ensemble must contain 3d variables.
+        props: dict, None
+            Dictionary of graphic properties passed as keywords to plotting
+            functions. The keys must be valid diagnostics names such as
+            "mean", or one of the follow plotting function: map, curve.
+
+        """
+        # Init
+        if props is None:
+            props = {}
+        kwmap = props.get('map', {})
+        kwcurve = props.get('curve', {})
+        kwprops = dict_merge(props, DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
+        depths = ArgList(depths).get()
+        depths3d = [dd for dd in depths if dd not in ['surf', 'bottom']]
+        depths3d.sort(reverse=True)
+        figs = OrderedDict()
+        toplot = []
+
+        # Loop on variables
+        for variable in ArgList(variables).get():
+
+            var_name, vdepth, diag_name = split_varname(variable)
+            varname = var_name
+            id = variable.id
+            self.debug(' Variable: '+var_name)
+            order = variable.getOrder()
+            if diag_name:
+                kw = kwprops.get(diag_name, {})
+            else:
+                kw = {}
+
+            # Maps
+            if depths is not False:
+                toplot = []
+                slice_type = 'map'
+
+                # Get what to plot
+                if ((vdepth=='surf' and 'surf' in depths) or
+                        (vdepth=='bottom' and 'bottom' in depths)): # 2D
+
+                    toplot.append(dict(slice_loc=vdepth, var=variable, kw=kw,
+                                       keys=(var_name, slice_type, vdepth),
+                                       ))
+
+                elif variable.getLevel() is not None and depths3d: # 3D
+
+                    # Loop on 3D depths specs
+                    for d3d in depths3d:
+
+                        if d3d in [None, '3d']: # simple slices
+
+                            levels = variable.getLevel()[::-1]
+                            for i, level in enumerate(levels):
+                                slice_loc = fmtdep.format(abs(level))
+                                toplot.append(dict(
+                                    slice_loc=slice_loc, kw=kw,
+                                    var=variable[len(levels)-i-1],
+                                    keys=(var_name, slice_type, slice_loc),
+                                    ))
+
+                        else: # interpolations,
+
+                            levels = N.sort(N.atleast_1d(d3d))
+                            for i, level in enumerate(levels):
+                                slice_loc = fmtdep.format(abs(level))
+                                toplot.append(dict(
+                                    slice_loc=fmtdep.format(abs(level)),
+                                    var=variable,
+                                    keys=(var_name, slice_type, slice_loc),
+                                    kw=dict_merge(dict(depth=level), kw)
+                                    ))
+
+            # TODO: add other slice plots to ens.plot_fields
+
+        # Make all pending plots
+        for spec in toplot:
+
+            # Get specs
+            slice_loc = spec['slice_loc']
+            variable = spec['var']
+            keys = spec['keys']
+            kw = spec['kw']
+            self.debug('  Location: '+slice_loc)
+
+            # Setup
+            dfmt = locals()
+            dfmt.update(subst)
+            title = titlepat.format(**dfmt)
+            figfile = figpat.format(**dfmt)
+            checkdir(figfile)
+            kw.update(title=title, savefig=figfile, **kwmap)
+            dict_check_defaults(kw, **DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
+
+            # Plot
+            plot_gridded_var(variable, **kw) # Action !
+
+            # Finalise
+            self.created(figfile)
+            kw = {keys[-1]:figfile, '__class__':OrderedDict}
+            dicttree_set(figs, *keys[:-1], **kw)
+
+        return figs
+
 
     def export_diags(self, htmlfile, **kwargs):
         """Make and export diagnostics as an html file
