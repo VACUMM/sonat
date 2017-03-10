@@ -543,8 +543,8 @@ class Packer(_Base_):
                 del atts['id']
 
             # Format string attributes
-            for att, val in atts.item():
-                if isinstance(att, str):
+            for att, val in atts.items():
+                if isinstance(val, str):
                     atts[att] = val.format(**self.atts)
 
             # Set
