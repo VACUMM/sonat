@@ -81,8 +81,11 @@ DEFAULT_PLOT_KWARGS = dict(
 RE_GRIDDED_ORDER_MATCH = re.compile(r'\-?t?z?y?x?$').match
 
 def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None,
-        plotfunc=None, **kwargs):
-    """Generic 1D or 2D plot of a [T][Z]YX variable
+        plot_func=None, register_sm=True, **kwargs):
+    """Generic 1D or 2D plot of a [T][Z]YX variable gridded variables
+
+    Variables are sliced before plotting, using the
+    :func:`~sonat.misc.slice_gridded_var` function.
 
     Parameters
     ----------
@@ -97,6 +100,8 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
         Make a zonal section at this latitude
     lon: float, slice, None
         Make meridional section at this longitude
+    plot_func: vacumm plot function
+        If not provided, it guess depending on the data
     """
     # Tuple
     vv = var[:2] if isinstance(var, tuple) else (var, )
@@ -138,21 +143,21 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
         raise SONATError('Variables to plot have incompatible shapes')
 
     # Select plot function
-    if plotfunc is None:
+    if plot_func is None:
         order = var.getOrder()
         if var.ndim==1:
-            plotfunc = stick if quiver else curve
+            plot_func = stick if quiver else curve
         elif 't' in order:
-            plotfunc = hov
+            plot_func = hov
         elif 'z' in order:
-            plotfunc = section
+            plot_func = section
         elif order == 'yx':
-            plotfunc = map
+            plot_func = map
         else:
-            plotfunc = plot2d
+            plot_func = plot2d
 
     # Positional arguments
-    if plotfunc is stick:
+    if plot_func is stick:
         args = vv
     else:
         args = [vv]
@@ -160,8 +165,16 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
     # Default optional arguments
     dict_check_defaults(kwargs,  **DEFAULT_PLOT_KWARGS)
 
-    # Plot and return
-    return plotfunc(*args, **kwargs)
+    # Plot
+    p = plot_func(*args, **kwargs)
+
+    # Register scalar mappable
+    if register_sm:
+        sm = p.get_obj('scalar_mappable')
+        if sm is None:
+            sm = p.axes._gci()
+        if sm:
+            register_scalar_mappable(p.axes, sm)
 
 
 
@@ -322,7 +335,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                         lon_bounds_margin=.1, lat_bounds_margin=.1,
                         data=None, warn=True, bathy=None, xybathy=None, size=10,
                         linewidth=0.15, color='k', add_profile_line=None, add_bathy=True,
-                        fig=None, title=True,
+                        fig=None, title=True, register_sm=True,
                         legend=False, **kwargs):
     """Plot scattered localisations
 
@@ -587,7 +600,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         ax.set_title(title)
     if legend:
         plotter.legend(**kwleg)
-    if data is not None:
+    if data is not None and register_sm:
         register_scalar_mappable(ax, pp)
 
     # TODO: plot of other scattered slice!
