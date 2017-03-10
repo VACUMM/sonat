@@ -523,6 +523,35 @@ class _NamedVariables_(object):
         """
         check_variables([pack.input for pack in self], searchmode=searchmode)
 
+    def select_variables(self, varnames=None, source=None, prefix_to_rm=None):
+        """Select variables according to their prefix name
+
+        Parameters
+        ----------
+        varnames: None, strings
+            Selected var names. Defaults to :attr:`varnames`
+        source: None, arrays
+            Source of array to feed selection. Defaults to :attr:`variables`.
+        prefix_to_rm: string
+            Prefix to remove before checking id.
+
+        Return
+        ------
+        list of arrays
+        """
+        if varnames is None:
+            varnames = self.varnames
+        elif isinstance(varnames, str):
+            varnames = [varnames]
+        if source is None:
+            source = self.variables
+        def isvalid(var):
+            id = var.id
+            if prefix_to_rm and id.startswith(prefix_to_rm):
+                id = id[len(prefix_to_rm):]
+            id = split_varname(id)[0]
+        return [var for var in self.variables if split_varname[0] in varnames]
+
 
     def set_named_norms(self, *anorms, **knorms):
         """Set norms by variable names
