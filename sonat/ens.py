@@ -43,7 +43,7 @@ import scipy.stats as SS
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
     MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var,
     CaseChecker, curve, bar, dict_check_defaults, dict_merge, checkdir,
-    dicttree_get, dicttree_set, latlab, lonlab)
+    dicttree_get, dicttree_set, latlab, lonlab, P)
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
@@ -929,12 +929,9 @@ class Ensemble(Stacker, _NamedVariables_):
         # Init
         if props is None:
             props = {}
-        kwmap = props.get('map', {})
-        kwcurve = props.get('curve', {})
         kwprops = dict_merge(props, DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
         kwprops.update(fig='new') # TODO: must be more flexible like for obs
         figs = OrderedDict()
-        toplot = []
 
         # Loop on variables
         for variable in ArgList(variables).get():
@@ -964,14 +961,17 @@ class Ensemble(Stacker, _NamedVariables_):
                                        slice_type = 'map'
                                        ))
 
-                elif variable.getLevel() is not None and horiz_sections is not None: # 3D
+                elif (variable.getLevel() is not None and
+                      horiz_sections is not None): # 3D
 
                     # 3D depths
                     if horiz_sections is True:
                        depths =  variable.getLevel()
-                    elif N.iscalar(horiz_sections):
-                        horiz_sections = [horiz_sections]
-                    depths = list(horiz_sections)
+                    else:
+                        depths = horiz_sections
+                        if N.iscalar(depths):
+                            depths = [depths]
+                    depths = list(depths)
 
                     # Surf and bottom
                     if surf is True:
@@ -979,9 +979,6 @@ class Ensemble(Stacker, _NamedVariables_):
                     if bottom is True:
                         depths.append('bottom')
 
-                    # Depths
-                    depths = (horiz_sections.getLevel()
-                              if horiz_sections is True else horiz_sections)
 
                     # Loop on 3D depths specs
                     for depth in depths:
@@ -1060,12 +1057,9 @@ class Ensemble(Stacker, _NamedVariables_):
                 dfmt = locals()
                 dfmt.update(subst)
                 title = titlepat.format(**dfmt)
-                figfile = figpat.format(**dfmt)
-                checkdir(figfile)
-                kw.update(title=title, **kwmap)
-                if savefig:
-                    kw['savefig'] = figfile
-                dict_check_defaults(kw, **DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
+                kw.update(title=title, savefig=False, close=False)
+                dict_check_defaults(kw, fig='new',
+                                    **DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
 
                 # Plot
                 p = plot_gridded_var(variable, **kw) # Action !
@@ -1073,10 +1067,13 @@ class Ensemble(Stacker, _NamedVariables_):
                 # Plot obs locations
                 if obs:
                     obs.plot('locations', plotter=p, full2d=False, full3d=False,
-                             **obs_plot)
+                             savefig=False, close=False, **obs_plot)
 
                 # Finalise
                 if savefig:
+                    figfile = figpat.format(**dfmt)
+                    checkdir(figfile)
+                    p.savefig(figfile)
                     self.created(figfile)
                     kw = {keys[-1]:figfile, '__class__':OrderedDict}
                     dicttree_set(figs, *keys[:-1], **kw)
