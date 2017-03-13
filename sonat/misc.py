@@ -718,6 +718,9 @@ def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=Non
     if 'z' in order and depth is not None:
         if isinstance(depth, slice):
             var = var(level=depth, squeeze=1)
+        elif (N.isscalar(depth) and var.getLevel().ndim==1 and
+              depth in var.getLevel()):
+            var = var(level=depth)
         else:
             axo = create_dep(depth)
             if axo[:].max()>10:
