@@ -539,17 +539,18 @@ class _NamedVariables_(object):
         ------
         list of arrays
         """
-        if varnames is None:
-            varnames = self.varnames
-        elif isinstance(varnames, str):
+        if isinstance(varnames, str):
             varnames = [varnames]
         if source is None:
             source = self.variables
         def isvalid(var):
+            if varnames is None:
+                return True
             id = var.id
             if prefix_to_rm and id.startswith(prefix_to_rm):
                 id = id[len(prefix_to_rm):]
             id = split_varname(id)[0]
+            return id in varnames
         return [var for var in self.variables if isvalid(var)]
 
 
@@ -723,7 +724,7 @@ def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=Non
                 depth = slice(-1, None)
             if isinstance(depth, slice):
                 var = var(level=depth, squeeze=1) # z squeeze only?
-            elif (N.isscalar(depth) and var.getLevel().ndim==1 and
+            elif (N.isscalar(depth) and var.getLevel()[:].ndim==1 and
                   depth in var.getLevel()):
                 var = var(level=depth)
             else:
