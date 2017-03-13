@@ -66,6 +66,7 @@ DEFAULT_PLOT_KWARGS = dict(
     quiver_units='dots',
     quiver_width=1.2,
     fill='contourf',
+    contour_zorder=1,
     quiver_norm=3,
     proj='merc',
     cmap='auto',
