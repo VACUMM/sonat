@@ -550,7 +550,7 @@ class _NamedVariables_(object):
             if prefix_to_rm and id.startswith(prefix_to_rm):
                 id = id[len(prefix_to_rm):]
             id = split_varname(id)[0]
-        return [var for var in self.variables if split_varname[0] in varnames]
+        return [var for var in self.variables if isvalid(var)]
 
 
     def set_named_norms(self, *anorms, **knorms):
@@ -716,17 +716,22 @@ def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=Non
 
     # Depth interpolation
     if 'z' in order and depth is not None:
-        if isinstance(depth, slice):
-            var = var(level=depth, squeeze=1)
-        elif (N.isscalar(depth) and var.getLevel().ndim==1 and
-              depth in var.getLevel()):
-            var = var(level=depth)
+        if depth=='bottom':
+            var = slice_bottom(var)
         else:
-            axo = create_dep(depth)
-            if axo[:].max()>10:
-                sonat_warn('Interpolation depth is positive. Taking this opposite')
-                axo[:] *=-1
-            var = regrid1d(var, axo)(squeeze=N.isscalar(depth))
+            if depth=='surf':
+                depth = slice(-1, None)
+            if isinstance(depth, slice):
+                var = var(level=depth, squeeze=1) # z squeeze only?
+            elif (N.isscalar(depth) and var.getLevel().ndim==1 and
+                  depth in var.getLevel()):
+                var = var(level=depth)
+            else:
+                axo = create_dep(depth)
+                if axo[:].max()>10:
+                    sonat_warn('Interpolation depth is positive. Taking this opposite')
+                    axo[:] *=-1
+                var = regrid1d(var, axo)(squeeze=N.isscalar(depth))
 
     # Point
     if (order.endswith('yx') and lon is not None and lat is not None and
@@ -753,6 +758,24 @@ def slice_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=Non
                 var = regrid1d(var, axo)(squeeze=N.isscalar(lon))
 
     return var
+
+def slice_bottom(var):
+    """Get the bottom value of a variable with 1D z axis
+
+    It takes the deepest unmasked data.
+    """
+    zz = var.getLevel()
+    if zz is None:
+        return var
+    varo = var(level=slice(0, 1), squeeze=1)
+    mask = var.mask
+    if not mask.any() or mask.all():
+        return varo
+    axis = var.getOrder('z')
+    for iz in range(1, len(axis)):
+        varz = var(level=slice(iz, iz+1), squeeze=1)
+        varo[:] = MV2.where(varo.mask, varz, varo, copy=1)
+    return varo
 
 def slice_scattered_locs(lons, lats, depths, slice_type, interval, data=None,
         asdict=False):
