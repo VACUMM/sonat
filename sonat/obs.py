@@ -793,7 +793,7 @@ class NcObsPlatform(ObsPlatformBase):
              zonal_sections=None, merid_sections=None,
              lon=None, lat=None, level=None,
              lon_interval_width=0.1, lat_interval_width=0.1, dep_interval_width=0.1,
-             bathy=None, m=None, fig=None, close=True,
+             bathy=None, plotter=None, fig=None, close=True,
              savefig=True, add_bathy=True, add_profile_line=None,
              vmin=None, vmax=None, cmap=None,
              figpat='sonat.obs.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
@@ -861,7 +861,7 @@ class NcObsPlatform(ObsPlatformBase):
             (full3d or zonal_sections or merid_sections)):
             level = self.get_level(bathy)[0], 0
 
-        # 2 and 3D full plots
+        # 2D and 3D full plots
         slice_type = 'map'
         slice_locs = []
         if full3d:
@@ -878,7 +878,7 @@ class NcObsPlatform(ObsPlatformBase):
                 long_name = get_long_name(var, var_name)
 
                 # Local args
-                default_plotter = dicttree_get(m, var_name, slice_type, slice_loc)
+                default_plotter = dicttree_get(plotter, var_name, slice_type, slice_loc)
                 this_plotter = self.get_cached_plot(var_name, slice_type, slice_loc,
                     default=default_plotter)
                 this_fig = dicttree_get(fig, var_name, slice_type, slice_loc)
