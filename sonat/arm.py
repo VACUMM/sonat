@@ -34,6 +34,7 @@
 #
 import inspect
 import math
+from collections import OrderedDict
 
 import numpy as N
 import MV2, cdms2
@@ -314,12 +315,12 @@ class ARM(_Base_):
 
         # Unstack/pack/format
         self._results['rep'] = self.ens.unstack(self.raw_rep, rescale=False, format=1,
-            id='arm_rep_{id}',
+            id='rep_{id}',
 #            firstdims=[self.mode_axis],
             )
         def set_long_name(long_name):
             return 'Array mode representers of '+long_name
-        recursive_transform_att(self._results['arm'], 'long_name', set_long_name)
+        recursive_transform_att(self._results['rep'], 'long_name', set_long_name)
         return self._results['rep']
 
     def get_score(self, type='nev'):
@@ -383,43 +384,88 @@ class ARM(_Base_):
                  **kwargs):
         """Plot the array modes"""
         self.verbose('Plotting array modes')
+
         # Select data
-        if varnames is None:
-            variables = self.arm
-        else:
-            if not isinstance(varnames, (tuple, list)):
-                varnames = [varnames]
-            variables = []
-            for io, obs in enumerate(self.obsmanager):
-                ovars = []
-                variables.append(overs)
-                for iv, varname in obs.varnames:
-                    if varname in varnames:
-                        ovars.append(self.arm[io][iv])
+        variables = self.obsmanager.select_variables(varnames, source=self.arm,
+                                                     prefix_to_rm='arm_')
 
         # Plot
         modemax = self.format_mode()
-        figs = {}
+        figs = OrderedDict()
+        subfigs = figs['Array modes'] = OrderedDict()
         dict_check_defaults(kwargs, sync_vminmax='symetric', cmap='cmocean_balance')
         for imode in range(self.ndof):
             mode = self.format_mode(imode)
             self.debug(' Plotting array mode {}/{}'.format(mode, modemax))
 
             # Extract single mode
-            kwargs['subst'] = {'mode':mode}
+            kwargs['subst'] = {'mode':mode, 'modemax':modemax}
             mvars = self.extract_mode(variables, imode)
             remove_arm = lambda id: id[4:]
             recursive_transform_att(mvars, 'id', remove_arm)
 
             # Make plots
             mfigs = self.obsmanager.plot(mvars, input_mode='arrays',
+                                         title='Array mode {mode}/{modemax} - {var_name} - {slice_loc}',
                                          figpat=figpat, **kwargs)
 
             # Register figures
             if isinstance(mfigs, dict):
-                figs['Mode '+mode] = mfigs
+                subfigs['Mode '+mode] = mfigs
 
         return figs
+
+    def plot_rep(self, varnames=None,
+                 add_obs=True,
+                 titlepat='Representer {mode}/{mode_max} - {var_name} - {slice_loc}',
+                 figpat='arm.rep.mode{mode}_{var_name}_{slice_type}_{slice_loc}.png',
+                 **kwargs):
+        """Plot the representers of array modes
+
+        Parametes
+        ---------
+        varnames: strings
+            List variable names to select
+        add_obs: bool
+            Add the location of all observations?
+        figpat: string
+            Output figure file pattern
+        """
+        self.verbose('Plotting representers of array modes')
+
+        # Select data
+        variables = self.ens.select_variables(varnames, source=self.rep,
+                                              prefix_to_rm='rep_')
+
+        # Plot
+        mode_max = self.format_mode()
+        figs = OrderedDict()
+        subfigs = figs['Representer of array modes'] = OrderedDict()
+        dict_check_defaults(kwargs, cmap='cmocean_balance')
+        for imode in range(self.ndof):
+
+            mode = self.format_mode(imode)
+            self.debug(' Plotting representer of mode {}/{}'.format(mode, mode_max))
+
+            # Extract single mode
+            kwargs['subst'] = {'mode':mode, 'mode_max':mode_max}
+            if add_obs:
+                kwargs['obs'] = (self.obsmanager[add_obs]
+                       if isinstance(add_obs, int) else self.obsmanager)
+            mvars = self.extract_mode(variables, imode)
+
+            # Sliced plot
+            ff = self.ens.plot_fields(mvars, figpat=figpat, titlepat=titlepat,
+                                      fig='new', **kwargs)
+
+            # Register figures
+            if isinstance(ff, dict):
+                subfigs['Mode '+mode] = ff
+
+        return figs
+
+
+
 
     def format_mode(self, imode=None, fmt='{imode:0{ndigit}d}'):
         if imode is None:
