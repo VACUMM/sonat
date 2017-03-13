@@ -177,6 +177,7 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
         if sm:
             register_scalar_mappable(p.axes, sm)
 
+    return p
 
 
 def create_map(lon, lat, level=None, axes=None, bathy=None,
