@@ -43,6 +43,7 @@ from glob import has_magic, glob
 from collections import OrderedDict
 import numpy as N
 import cdms2
+import MV2
 from genutil import minmax as minmax
 from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices,
@@ -544,14 +545,19 @@ class _NamedVariables_(object):
         if source is None:
             source = self.variables
         def isvalid(var):
-            if varnames is None:
-                return True
             id = var.id
             if prefix_to_rm and id.startswith(prefix_to_rm):
                 id = id[len(prefix_to_rm):]
-            id = split_varname(id)[0]
-            return id in varnames
-        return [var for var in self.variables if isvalid(var)]
+            id0 = split_varname(id)[0]
+            if varnames is None or id0 in varnames:
+                return id
+            return False
+        vv = []
+        for var in source:
+            id = isvalid(var)
+            if id:
+                vv.append(MV2.array(var, id=id, copy=0))
+        return vv
 
 
     def set_named_norms(self, *anorms, **knorms):
@@ -778,9 +784,11 @@ def slice_bottom(var):
         varo[:] = MV2.where(varo.mask, varz, varo, copy=1)
     return varo
 
-def slice_scattered_locs(lons, lats, depths, slice_type, interval, data=None,
-        asdict=False):
-    """Extract coordinates that fall within a given interval of lon, lat or depth
+def mask_scattered_locs(lons, lats, depths, slice_type, interval, data=None):
+    """Maskout coordinates that does not fall within a given interval of lon, lat or depth
+
+    In the case of an vertical interval that varies with location (i.e bottom
+    case), no selection is performed but a masking through the data array.
 
     Parameters
     ----------
@@ -802,49 +810,50 @@ def slice_scattered_locs(lons, lats, depths, slice_type, interval, data=None,
     Add time support.
     """
     # Check slice type
-    valid_slice_types = ['zonal', 'meridional', 'horizonal']
+    valid_slice_types = ['zonal', 'merid', 'horiz']
     assert slice_type in valid_slice_types, ('Invalid slice type. '
         'It must be one of: '+', '.join(valid_slice_types))
 
 
     # Config
-    zscattered = len(depths)==len(lons) and not isaxis(depths)
+    profiles = (len(depths)!=len(lons) or isaxis(depths) or
+                (data is not None and data.ndim==2))
     if cdms2.isVariable(data):
         data = data.asma()
+    if data is not None:
+        masked_value = False if data.dtype.char=='?' else N.ma.masked
 
     # Valid locs
-    if slice_type is 'horizontal':
-        valid = depths[:] >interval[0]
-        valid &= depths[:] <= interval[1]
-    else:
-        against = lons[:] if slice_type=='meridional' else lats[:]
-        valid = against >= interval[0]
-        valid &= against <= interval[1]
-
-    # Slices
-    if slice_type is 'horizontal' and not zscattered:
-        if isaxis(depths):
-            depths._data_ = depths._data_[valid] # keep axis nature
+    if slice_type is 'horiz':
+        bottom = profiles and isinstance(interval[0], N.ndarray)
+        if bottom: # varying interval with fixed depth axis
+            zz = depths[:, None]
+            zz = N.ma.repeat(depths, len(lons), axis=-1) # (nz,np)
         else:
-            depths = depths[:]
-        if data is not None:
-            data = data[..., valid, :]
+            zz = depths[:] # (nz) or (np)
+            if profiles:
+                zz = N.ma.repeat(zz.reshape(-1, 1), len(lons), axis=1)
+        valid = zz > interval[0]
+        valid &= zz <= interval[1]
     else:
-        lons = lons[valid]
-        lats = lats[valid]
-        if zscattered:
-            depths = depths[valid]
-        if data is not None:
-            data = data[..., valid]
+        against = lons[:] if slice_type=='merid' else lats[:]
+        valid = against >= interval[0]
+        valid &= against <= interval[1] # (np)
+        if profiles:
+            valid = N.resize(depths.shape + valid.shape) # (nz,np)
+    mask = ~valid
 
-    # Check mask
-    if (N.ma.getmask(lons).all() or N.ma.getmask(lats).all() or
-            N.ma.getmask(depths).all() or N.ma.getmask(data).all()):
+    # Checks
+    if not valid.any():
         return
 
-    if asdict:
-        return dict(lons=lons, lats=lats, depths=depths, data=data)
-    return lons, lats, depths, data
+    # Masking
+    if data is not None:
+        data[mask] = masked_value
+    else:
+        data = mask
+
+    return data
 
 def dicttree_relpath(dd, refdir):
     """Make paths stored in a tree of dictionaries relative to another one
