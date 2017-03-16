@@ -42,7 +42,7 @@ import MV2, cdms2
 from vcmq import (curve, create_axis, dict_check_defaults, kwfilter)
 
 from .__init__ import SONATError, sonat_warn
-from .misc import _Base_, recursive_transform_att
+from .misc import _Base_, recursive_transform_att, vminmax
 from .ens import Ensemble
 from .obs import ObsManager, NcObsPlatform
 from ._fcore import f_arm
@@ -74,7 +74,8 @@ class ARM(_Base_):
 
     """
     def __init__(self, ens, obsmanager, logger=None, checkvars=True,
-            syncnorms=True, missing_value=default_missing_value, **kwargs):
+            syncnorms=True, missing_value=default_missing_value,
+            bathy=None, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -117,6 +118,10 @@ class ARM(_Base_):
         self._inputs = {} # indirect input matrices
         self._results = {} # results
 
+        # Bathy
+        if bathy is not None:
+            self.set_bathy(bathy)
+
     @property
     def nstate(self):
         return self.ens.stacked_data.shape[0]
@@ -139,6 +144,11 @@ class ARM(_Base_):
 
     missing_value = property(fget=get_missing_value, fset=set_missing_value)
     fill_value = missing_value
+
+    def set_bathy(self, bathy2d):
+        """Interpolate a bathymetry and save it"""
+        self.ens.set_bathy(bathy2d)
+        self.obsmanager.set_bathy(bathy2d)
 
     def project_ens_on_obs(self):
         """Interpolate the variables of an :class:`~sonat.ens.Ensemble` onto
@@ -415,10 +425,11 @@ class ARM(_Base_):
 
         return figs
 
-    def plot_rep(self, varnames=None,
+    def plot_rep(self, varnames=None, imodes=None,
                  add_obs=True,
                  titlepat='Representer {mode}/{mode_max} - {var_name} - {slice_loc}',
                  figpat='arm.rep.mode{mode}_{var_name}_{slice_type}_{slice_loc}.png',
+                 sync_vminmax=True,
                  **kwargs):
         """Plot the representers of array modes
 
@@ -430,6 +441,8 @@ class ARM(_Base_):
             Add the location of all observations?
         figpat: string
             Output figure file pattern
+        sync_vminmax: bool
+            Sync min and max for all plots
         """
         self.verbose('Plotting representers of array modes')
 
@@ -441,20 +454,27 @@ class ARM(_Base_):
         mode_max = self.format_mode()
         figs = OrderedDict()
         subfigs = figs['Representer of array modes'] = OrderedDict()
-        dict_check_defaults(kwargs, cmap='cmocean_balance')
-        for imode in range(self.ndof):
+        dict_check_defaults(kwargs, cmap='cmocean_balance',
+                            levels_mode='symetric')
+        if sync_vminmax:
+             dict_check_defaults(kwargs, **vminmax(self.rep, asdict=True))
+        if imodes is None:
+            imodes = range(self.ndof)
+        elif N.isscalar(imodes):
+            imodes = [imodes]
+        for imode in imodes:
 
             mode = self.format_mode(imode)
             self.debug(' Plotting representer of mode {}/{}'.format(mode, mode_max))
 
             # Extract single mode
-            kwargs['subst'] = {'mode':mode, 'mode_max':mode_max}
-            if add_obs:
-                kwargs['obs'] = (self.obsmanager[add_obs]
-                       if isinstance(add_obs, int) else self.obsmanager)
             mvars = self.extract_mode(variables, imode)
 
             # Sliced plot
+            kwargs['subst'] = {'mode':mode, 'mode_max':mode_max}
+            if add_obs:
+                kwargs['obs'] = (self.obsmanager
+                       if isinstance(add_obs, bool) else self.obsmanager[add_obs])
             ff = self.ens.plot_fields(mvars, figpat=figpat, titlepat=titlepat,
                                       fig='new', **kwargs)
 
