@@ -37,6 +37,7 @@ import os
 import re
 from six import string_types
 import numpy as N
+from cycler import cycler, Cycler
 import matplotlib.pyplot as P
 from mpl_toolkits.mplot3d import art3d, Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -49,7 +50,7 @@ from vcmq import (map, hov, stick, curve, section, dict_check_defaults, plot2d,
                   grid2xy, scalebox, Plot, land_color)
 
 from .__init__ import SONATError, sonat_warn
-from .misc import (slice_gridded_var, vminmax, slice_scattered_locs,
+from .misc import (slice_gridded_var, vminmax, mask_scattered_locs,
                    rescale_itv, get_long_name)
 
 
@@ -59,9 +60,29 @@ SONAT_DEFAULT_MATPLOTLIBRC =  os.path.join(os.path.dirname(__file__), 'matplotli
 #: Matplotlib user configuration file
 SONAT_USER_MATPLOTLIBRC =  'matplotlibrc'
 
-#: Default arguments to plots
+def load_mplrc(userfile=None):
+    """Load a matplotlib or default user configuration file"""
+    # Load default file first
+    rcParams.update(rc_params_from_file(SONAT_DEFAULT_MATPLOTLIBRC, use_default_template=False))
+
+    # Load user file
+    userfile = str(userfile)
+    if userfile=='False':
+        return
+    if userfile=='True':
+        userfile = 'None'
+    if userfile=='None':
+        userfile = SONAT_USER_MATPLOTLIBRC
+    if not os.path.exists(userfile):
+        return
+    rcParams.update(rc_params_from_file(userfile, use_default_template=False))
+
+load_mplrc()
+
+
+#: Default arguments to vacumm plot functions
 DEFAULT_PLOT_KWARGS = dict(
-    contour_linewidths=.5,
+    contour_linewidths=.7,
     colorbar_fraction=.1,
     quiver_units='dots',
     quiver_width=1.2,
@@ -70,6 +91,10 @@ DEFAULT_PLOT_KWARGS = dict(
     quiver_norm=3,
     proj='merc',
     cmap='auto',
+    drawmeridians_linewidth=rcParams['grid.linewidth'],
+    drawmeridians_color=rcParams['grid.color'],
+    drawparallels_linewidth=rcParams['grid.linewidth'],
+    drawparallels_color=rcParams['grid.color'],
     autoresize='y',
     autoresize_minaspect=.5,
     colorbar_shrink=.8,
@@ -78,6 +103,14 @@ DEFAULT_PLOT_KWARGS = dict(
     show=False,
     close=True,
     )
+
+if rcParams['grid.linestyle'] == '-':
+    DEFAULT_PLOT_KWARGS['drawmeridians_dashes'] = ''
+    DEFAULT_PLOT_KWARGS['drawparallels_dashes'] = ''
+elif rcParams['grid.linestyle'] == ':':
+    DEFAULT_PLOT_KWARGS['drawmeridians_dashes'] = [1, 1]
+    DEFAULT_PLOT_KWARGS['drawparallels_dashes'] = [1, 1]
+
 
 RE_GRIDDED_ORDER_MATCH = re.compile(r'\-?t?z?y?x?$').match
 
@@ -335,8 +368,9 @@ class FixedZorderPoly3DCollection(Poly3DCollection):
 def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plotter=None,
                         lon=None, lat=None, level=None, label='',
                         lon_bounds_margin=.1, lat_bounds_margin=.1,
-                        data=None, warn=True, bathy=None, xybathy=None, size=10,
-                        linewidth=0.15, color='k', add_profile_line=None, add_bathy=True,
+                        data=None, warn=True, bathy=None, xybathy=None,
+                        size=30, color='#2ca02c', linewidth=0.4, edgecolor='k',
+                        add_profile_line=None, add_bathy=True,
                         fig=None, title=True, register_sm=True,
                         legend=False, **kwargs):
     """Plot scattered localisations
@@ -376,55 +410,117 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         slice_type = "3d"
     else:
         slice_type = str(slice_type).lower()
-    valid_slice_types = ['3d', "2d", 'zonal', 'meridional', 'horizonal',
+    valid_slice_types = ['3d', "2d", 'zonal', 'merid', 'horiz',
         'bottom', 'surf']
     assert slice_type in valid_slice_types, ('Invalid slice type. '
         'It must be one of: '+', '.join(valid_slice_types))
 
-    # Special depths
-    indepths = depths
-    if depths=='surf':
+    # Profiles?
+    profiles = (not isinstance(depths, str) and (isaxis(depths) or
+                N.shape(depths)!=N.shape(xx) or
+                (data is not None and data.ndim==2)))
+
+    # Force some options
+    if not profiles or slice_type not in ('3d', 'merid', 'zonal'):
         add_profile_line = False
-    if (depths=='surf' and slice_type!='surf'): # surface
+    elif add_profile_line is None:
+        add_profile_line = True
 
-        depths = N.zeros(len(lons))
+    # Bathymetry
+    need_xybathy = int(add_profile_line)
+    if depths=='bottom' and slice_type not in ('bottom', '2d'):
+        need_xybathy = 2
+    if need_xybathy and xybathy is not None:
 
-    elif (depths=='bottom' and slice_type!='bottom'): # bottom
-
-        if bathy is None:
-            raise SONATError('Bathymetry is needed to plot bottom locs with a'
-                             ' {} slice type'.format(slice_type))
-            depths = grid2xy(bathy, lons, lats)
-            if depths.mask.all():
-                if warn:
-                    sonat_warn('Bathymetry is fully masked at bottom locs. Skipping...')
+        if bathy is None and need_xybathy==2: # we really need it
+            if warn:
+                sonat_warn('Bathymetry is needed at obs locations. Skipping...')
                 return
-            if depths.mask.any():
-                if warn:
-                    sonat_warn('Bathymetry is partly masked at bottom locs. Compressing...')
-                valid = depths.mask
-                lons = lons[valid]
-                lats = lats[valid]
-                depths = depths[valid]
-                if data is not None:
-                    data = data[valid]
+        xybathy = grid2xy(bathy, lons, lats)
+        if xybathy.mask.all():
+            if warn:
+                sonat_warn('Bathymetry is fully masked at bottom locs. Skipping...')
+            if need_xybathy==2:
+                return
 
-    # Pre-slicing
+    # Special depths: surf and bottom
+    indepths = depths
+    if (depths=='surf' and slice_type!='surf'): # surface
+        depths = N.zeros(len(lons))
+    elif (depths=='bottom' and slice_type not in ('bottom', '2d')): # bottom
+        depths = -xybathy
+        if interval is not None and N.isscalar(interval[0]):
+            interval = (depths+interval[0], depths+interval[1])
+
+    # Numeric coordinates
+    xx = lons[:].copy()
+    yy = lats[:].copy()
+    strdepths = isinstance(depths, str)
+    if not strdepths:
+        zz = N.array(depths[:], copy=True)
+
+    # Shape
+    if data is not None:
+        dshape = data.shape
+    elif not profiles or strdepths:
+        dshape = xx.shape
+    elif zz.ndim==2:
+        dshape = zz.shape
+    else:
+        dshape = zz.shape + xx.shape
+
+    # Masking outside interval
     if (slice_type != '3d' and slice_type!='2d' and
         (slice_type!='surf' or depths!='surf') and
         (slice_type!='bottom' or depths!='bottom')):
 
         assert interval is not None, ('You must provide a valid '
             '"interval" for slicing scattered locations')
-        sliced = slice_scattered_locs(lons, lats, depths, slice_type, interval,
+        stype = 'horiz' if slice_type in ('surf', 'bottom') else slice_type
+        data = mask_scattered_locs(xx, yy, depths, stype, interval,
                                       data=data)
-        if sliced is None:
+        if data is None:
             return
-        lons, lats, depths, data = sliced
 
-    # Config
-    zscattered = (not isinstance(depths, string_types) and not isaxis(depths)
-                  and N.ndim(depths)==1 and len(depths)==len(lons))
+    # Get the full mask: (np), or (nz, np) for profiles
+    # - mask with data
+    if data is not None:
+        if data.dtype.char=='?':
+            mask = data
+            data = None
+        else:
+            mask = N.ma.getmaskarray(data)
+    else:
+        mask = N.zeros(dshape)
+    # - mask with coordinates
+    if N.ma.isMA(xx) or N.ma.isMA(yy): # lons/lats
+        xymask = N.ma.getmaskarray(xx) | N.ma.getmaskarray(yy)
+        mask |= N.resize(mask, dshape)
+    if not strdepths and N.ma.isMA(zz): # depths
+        if profiles:
+            zmask = N.ma.getmaskarray(zz)
+            if zz.ndim==1:
+                zmask = N.repeat(N.ma.resize(N.ma.getmaskarray(zmask), (-1, 1)),
+                           xx.size, axis=1)
+            mask |= zmask
+        else:
+            mask |= N.ma.getmaskarray(zz)
+    # - check
+    if mask.all():
+        if warn:
+            sonat_warn('All your data are masked')
+        return
+    # - mask back
+    xymask = mask if mask.ndim==1 else mask.all(axis=0)
+    xx = N.ma.masked_where(xymask, xx, copy=False)
+    yy = N.ma.masked_where(xymask, yy, copy=False)
+    if not strdepths:
+        if mask.shape == zz.shape:
+            zz = N.ma.masked_where(mask, zz, copy=False)
+        elif zz.ndim==1:
+            zz = N.ma.masked_where(mask.all(axis=1), zz, copy=False)
+    if data is not None:
+        data = N.ma.masked_where(mask, data, copy=0)
 
     # Plotter as Axes
     if isinstance(plotter, P.Axes):
@@ -447,20 +543,23 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
             axes = None
 
 
-    # Level for 3d plots
-    if slice_type=='3d' and level is None:
-        level = depths
-        if level.min()==0:
-            level = (-200, 0) # Fall back to this interval
+    # Coordinate bounds
+    if level is None and slice_type in ['3d', 'zonal', 'merid']:
+        if strdepths or zz.min()==0:
+            level_min = -200 # Fall back to this min depth
+        else:
+            level_min = 1.1 * level.min()
+        level = (level_min, 0)
+    if (lon is None and
+        slice_type in ['3d', "2d", "horiz", 'surf', 'bottom', 'zonal']):
+        lon = rescale_itv((xx.min(), xx.max()), 1.1)
+    if (lat is None and
+        slice_type in ['3d', "2d", "horiz", 'surf', 'bottom', 'merid']):
+        lat = rescale_itv((yy.min(), yy.max()), 1.1)
+
 
     # Get the plotter
-    if slice_type in ['3d', "2d", "horizontal", 'surf', 'bottom']: # map
-
-        # Lon/lat
-        if lon is None:
-            lon = rescale_itv((lons.min(), lons.max()), 1+lon_bounds_margin)
-        if lat is None:
-            lat = rescale_itv((lats.min(), lats.max()), 1+lat_bounds_margin)
+    if slice_type in ['3d', "2d", "horiz", 'surf', 'bottom']: # map
 
         # Map
         if plotter is None:
@@ -468,34 +567,29 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                            fig=fig, axes=ax, **kwmap)
         ax = plotter.axes
 
-        # Projetion
-        xx, yy = plotter(lons, lats)
+        # Projection
+        xx, yy = plotter(xx, yy)
 
-    else:
+    else: # sections
 
-        xx = lons[:]
-        yy = lats[:]
+        if plotter is None:
+
+            kwplt.update(fig=fig, axes=ax, show=False, close=False)
+
+            if slice_type == 'merid':
+
+                plotter = section(data=None, xaxis=MV2.array(lon, id='lon'),
+                                  yaxis=MV2.array(level, id='dep'))
+            else:
+
+                plotter = section(data=None, xaxis=MV2.array(lon, id='lat'),
+                                  yaxis=MV2.array(level, id='dep'))
+
+        ax = plotter.axes
+    axis_bounds = ax.axis()
 
     # Plot params for scatter
-    kwargs.update(linewidth=linewidth, s=size)
-
-    # Masking
-    if data is not None:
-        if data.dtype.char=='?':
-            mask = data
-            data = None
-        else:
-            mask = N.ma.getmaskarray(data)
-        if zscattered:
-            xx = N.ma.masked_where(mask, xx, copy=False)
-    elif N.ma.isMA(xx) or N.ma.isMA(yy):
-        mask = N.ma.getmaskarray(xx)|N.ma.getmaskarray(yy)
-    else:
-        mask = None
-    if mask is not None and mask.all():
-        if warn:
-            sonat_warn('All your data are masked')
-        return
+    kwargs.update(linewidth=linewidth, s=size, edgecolor=edgecolor)
 
     # Data kwargs
     if data is not None:
@@ -509,21 +603,8 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         zfmtfunc = lambda x, pos: deplab(x, nosign=True)
         ax.zaxis.set_major_formatter(FuncFormatter(zfmtfunc))
 
-        # Bathy for profile line
-        if add_profile_line is None:
-            add_profile_line = (indepths != 'surf') and bathy is not None
-        if xybathy is not None:
-            if add_profile_line and indepths == 'bottom':
-                xybathy = indepths
-            elif bathy is None:
-                if add_profile_line:
-                    sonat_warn('Cannot plot profile line without bathymetry')
-                add_profile_line = False
-            else:
-                xybathy = grid2xy(bathy, lons, lats)
-
         # Scatter plots
-        if zscattered: # fully scattered
+        if not profiles: # fully scattered
 
             # Points
             if data is not None:
@@ -546,44 +627,36 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                 isfirst = ip==0
 
                 # Skip fully masked
-                if mask is not None:
-                    if mask[..., ip].all():
-                        if warn:
-                            sonat_warn('Profile fully masked')
-                        continue
+                if mask[:, ip].all():
+#                    if warn:
+#                        sonat_warn('Profile fully masked')
+                    continue
 
                 # Points
-                if depths[:].ndim==2:
-                    zz = depths[:, ip]
+                if zz.ndim==2:
+                    z = depths[:, ip]
                 else:
-                    zz = depths
-                if mask is not None and mask.ndim==2:
-                    zz = N.ma.masked_where(mask[..., ip], zz, copy=False)
+                    z = zz
+                z = N.ma.masked_where(mask[:, ip], z, copy=False)
                 if data is not None:
                     kwargs['c'] = data[..., ip]
                 else:
                     kwargs['c'] = color
-                pp.append(ax.scatter([x]*len(zz), [y]*len(zz), zz,
+                pp.append(ax.scatter([x]*len(z), [y]*len(z), z,
                                label=label if isfirst else '', **kwargs))
 
                 # Profile line
                 if add_profile_line:
-                    plot_profile_line_3d(ax, x, y, xybathy[ip],
+                    plot_profile_line_3d(ax, x, y, -xybathy[ip],
                                          zorder=pp[-1].get_zorder()-0.01, **kwpf)
 
-    # 2D
-    elif slice_type == "2d":
 
-        # 1D arrays
-        if data is not None and data.ndim!=1:
+    # Horizontal
+    elif slice_type in ['2d', 'surf', 'bottom', 'horiz']:
+
+        # Barotropic case
+        if slice_type == "2d" and data is not None and data.ndim!=1:
             data = data.mean(axis=0)
-        if mask is not None:
-            if mask.ndim!=1:
-                mask = mask.all(axis=0)
-            xx = xx[~mask]
-            yy = yy[~mask]
-            if data is not None:
-                data = data[~mask]
 
         # Scatter plot
         if data is not None:
@@ -593,19 +666,63 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         pp.append(ax.scatter(xx, yy, label=label, **kwargs))
 
 
+    # Sections
     else:
 
-        raise NotImplementedError('slice_type plot yet not implemented: '+slice_type)
+        # X axis data
+        if slice_type=='zonal':
+            xdata = xx
+        else:
+            xdata = yy
+
+        # Scatter plots
+        if not profiles: # scattered
+
+            if data is not None:
+                kwargs['c'] = data
+            else:
+                kwargs['c'] = color
+            pp.append(ax.scatter(xdata, depths, label=label, **kwargs))
+
+        else: # profiles
+
+            for ip, x in enumerate(xdata):
+
+                isfirst = ip==0
+
+                # Skip fully masked
+                if mask[:, ip].all():
+#                    if warn:
+#                        sonat_warn('Profile fully masked')
+                    continue
+
+                # Points
+                if depths[:].ndim==2:
+                    z = zz[:, ip]
+                else:
+                    z = zz
+                z = N.ma.masked_where(mask[:, ip], z, copy=False)
+                if data is not None:
+                    kwargs['c'] = data[:, ip]
+                else:
+                    kwargs['c'] = color
+
+                pp.append(ax.scatter([x]*len(z), z,
+                               label=label if isfirst else '', **kwargs))
+
+                # Profile line
+                if add_profile_line:
+                    plot_profile_line_3d(ax, x, -xybathy[ip],
+                                         zorder=pp[-1].get_zorder()-0.01, **kwpf)
 
     # Finalise
+    ax.axis(axis_bounds)
     if title:
         ax.set_title(title)
     if legend:
         plotter.legend(**kwleg)
     if data is not None and register_sm:
         register_scalar_mappable(ax, pp)
-
-    # TODO: plot of other scattered slice!
     return plotter
 
 def register_scalar_mappable(ax, p):
@@ -647,6 +764,8 @@ def plot_profile_line_3d(ax, x, y, bathy, linewidth=.3, linestyle='--', color='.
                          size=3, clip=True, **kwargs):
     """Plot a vertical line ending with two point between the bottom and
     the surface"""
+    if bathy > 0:
+        bathy = -bathy
     if clip:
         bathy = max(bathy, ax.get_zlim()[0])
     p = ax.plot([x, x], [y, y], [bathy, 0], color=color,
@@ -655,21 +774,33 @@ def plot_profile_line_3d(ax, x, y, bathy, linewidth=.3, linestyle='--', color='.
                    zorder=p[0].get_zorder())
 
 
-def load_mplrc(userfile=None):
-    """Load a matplotlib or default user configuration file"""
-    # Load default file first
-    rcParams.update(rc_params_from_file(SONAT_DEFAULT_MATPLOTLIBRC, use_default_template=False))
+def get_color_marker_cycler(colors, markers):
+    """Get :class:`cycler.Cycler` to loop over colors and markers"""
 
-    # Load user file
-    userfile = str(userfile)
-    if userfile=='False':
-        return
-    if userfile=='True':
-        userfile = 'None'
-    if userfile=='None':
-        userfile = SONAT_USER_MATPLOTLIBRC
-    if not os.path.exists(userfile):
-        return
-    rcParams.update(rc_params_from_file(userfile, use_default_template=False))
+    # Individual cyclers
+    if colors is None:
+        colors = rcParams['axes.prop_cycle']
+    elif not isinstance(colors, Cycler):
+        if not isinstance(colors, list):
+            colors = [colors]
+        colors = cycler(color=colors)
+    if not isinstance(markers, Cycler):
+        if not isinstance(markers, list):
+            markers = [markers]
+        markers = cycler(marker=markers)
 
-load_mplrc()
+    # Sync them
+    if len(colors) < len(markers):
+        colors = colors * (len(markers) / len(colors) + 1)
+        colors = colors[:len(markers)]
+    elif len(colors) > len(markers):
+        markers = markers * (len(colors) / len(markers) + 1)
+        markers = markers[:len(colors)]
+
+    # Combine them
+    cyc = colors + markers
+
+    # Return generator
+    return cyc()
+
+
