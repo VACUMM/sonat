@@ -1,3 +1,4 @@
+# -*- coding: utf8 -*-
 """
 Observations
 """
@@ -42,7 +43,8 @@ from six import string_types
 import cdms2
 import MV2
 import numpy as N
-from cycler import cycler
+from cycler import cycler, Cycler
+from matplotlib import rcParams
 from matplotlib.markers import MarkerStyle
 from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     ncget_time, ncget_level, ArgList, ncfind_obj, itv_intersect, intersect,
@@ -54,7 +56,8 @@ from .misc import (xycompress, _Base_, _XYT_, check_variables, _NamedVariables_,
                    rescale_itv, get_long_name, split_varname)
 from .pack import default_missing_value
 from .stack import Stacker, _StackerMapIO_
-from .plot import plot_scattered_locs, sync_scalar_mappable_plots_vminmax
+from .plot import (plot_scattered_locs, sync_scalar_mappable_plots_vminmax,
+                   get_color_marker_cycler)
 
 npy = N
 
@@ -572,6 +575,29 @@ class NcObsPlatform(ObsPlatformBase):
             varo.setAxis(i, ax)
         return varo
 
+    def set_bathy(self, bathy2d):
+        """Interpolate a bathymetry and save it"""
+        if bathy2d is not None:
+            self._bathy = grid2xy(bathy2d, self.lons1d, self.lats1d)
+
+    def get_bathy(self, bathy2d=None, force=False):
+        if bathy2d is not None and (force or not hasattr(self, '_bathy')):
+            self.set_bathy(bathy2d)
+        return getattr(self, '_bathy', None)
+
+    bathy = property(fget=get_bathy, fset=set_bathy, doc='Colocated bathymetry')
+
+    def get_num_depths(self, bathy2d=None):
+        """Get the depths as numeric array"""
+        if not isinstance(self.depths, string_types):
+            return self.depths
+        if self.depths == 'surf':
+            return self.lons*0.
+        bathy = self.get_bathy(bathy2d)
+        if bathy is None:
+            self.error("Can't get numeric bottom depths without bathymetry")
+        return -bathy
+
 
     def get_valid_varnames(self, varnames=None):
         """Filter out var names that are not valid or not equal to 'locations'
@@ -792,13 +818,14 @@ class NcObsPlatform(ObsPlatformBase):
              full3d=True, full2d=True, surf=None, bottom=None, horiz_sections=None,
              zonal_sections=None, merid_sections=None,
              lon=None, lat=None, level=None,
-             lon_interval_width=0.1, lat_interval_width=0.1, dep_interval_width=0.1,
+             lon_interval_width=0.1, lat_interval_width=0.1, dep_interval_width=2,
              bathy=None, plotter=None, fig=None, close=True,
              savefig=True, add_bathy=True, add_profile_line=None,
              vmin=None, vmax=None, cmap=None,
              figpat='sonat.obs.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
              reset_cache=True, label=None, legend=True, title=True,
              zorder=2.5, sync_vminmax=True, subst={},
+             fmtlonlat=u'{:.2f}°{}', fmtdep='{:04.0f}m',
              **kwargs):
         """Plot observations locations or data
 
@@ -820,6 +847,8 @@ class NcObsPlatform(ObsPlatformBase):
         figs = OrderedDict()
         platform_name = self.platform_name
         platform_type = self.platform_type
+        dict_check_defaults(subst, platform_name=platform_name,
+                            platform_type=platform_type)
         if reset_cache:
             del self.plot_cache
         if label is None:
@@ -829,7 +858,7 @@ class NcObsPlatform(ObsPlatformBase):
         # Data
         if variables is None:
             variables = ['locations']
-        varspecs = []
+        var_specs = []
         if not isinstance(variables, list):
             variables = [variables]
         for var in variables:
@@ -841,37 +870,79 @@ class NcObsPlatform(ObsPlatformBase):
             else:
                 var_name = var
                 var = self.get_error(var, scattered=True)
-            varspecs.append((var_name, var))
+            var_specs.append((var_name, var))
 
-        # Bathy for profile line
-        xybathy = None
-        if add_profile_line is None:
-            add_profile_line = not self.is_zscattered
+        # Profile line
         if not (full3d or zonal_sections or merid_sections):
             add_profile_line = False
-        if add_profile_line:
-            if bathy is None:
-                sonat_warn('Bathymetry is needed to plot profile lines')
-                add_profile_line = False
-            else:
-                xybathy = self.get_bathy(bathy)
+        elif add_profile_line is None:
+            add_profile_line = not self.is_zscattered
+
+        # Bathy at obs locations
+        xybathy = None
+        if add_profile_line or bottom:
+            xybathy = self.get_bathy(bathy)
 
         # Bounds
         if (level is None and (self.depths!='bottom' or bathy is not None) and
             (full3d or zonal_sections or merid_sections)):
             level = self.get_level(bathy)[0], 0
 
-        # 2D and 3D full plots
-        slice_type = 'map'
-        slice_locs = []
+        # Setup slice specs
+        slice_specs = []
         if full3d:
-            slice_locs.append('3d')
+            slice_specs.append(dict(slice_type='map', slice_loc='3d'))
         if full2d:
-            slice_locs.append('2d')
-        for slice_loc in slice_locs:
-            self.debug(' Slice: {} / {}'.format(slice_type, slice_loc))
+            slice_specs.append(dict(slice_type='map', slice_loc='2d'))
+        if bottom:
+            slice_specs.append(dict(slice_type='map', slice_loc='bottom',
+                                    interval=(-dep_interval_width*.5,
+                                              dep_interval_width*.5)),
+                                    xybathy=xybathy)
+        if surf:
+            slice_specs.append(dict(slice_type='map', slice_loc='surf',
+                                    interval=(-dep_interval_width*.5,
+                                              dep_interval_width*.5)))
+        if horiz_sections is not None and horiz_sections is not False:
+            if N.isscalar(horiz_sections):
+                horiz_sections = [horiz_sections]
+            for depth in horiz_sections:
+                depth = -abs(depth)
+                interval = (depth - dep_interval_width*.5,
+                            depth + dep_interval_width*.5)
+                slice_specs.append(dict(slice_type='map', slice_loc='horiz',
+                                       interval=interval))
+        if merid_sections is not None and merid_sections is not False:
+            if N.isscalar(merid_sections):
+                merid_sections = [merid_sections]
+            for lon in merid_sections:
+                interval = (lon - lon_interval_width*.5,
+                            lon + lon_interval_width*.5)
+                slice_specs.append(dict(slice_type='merid', slice_loc='merid',
+                                       interval=interval))
+        if zonal_sections is not None and zonal_sections is not False:
+            if N.isscalar(zonal_sections):
+                zonal_sections = [zonal_sections]
+            for lat in zonal_sections:
+                interval = (lat - lat_interval_width*.5,
+                            lat + lat_interval_width*.5)
+                slice_specs.append(dict(slice_type='zonal', slice_loc='zonal',
+                                       interval=interval))
 
-            for var_name, var in varspecs:
+        # Loop on slice specs
+        for sspecs in slice_specs:
+
+            # Info
+            msgfmt = ' Slice: {slice_type} / {slice_loc}'
+            if 'interval' in sspecs:
+                msgfmt = msgfmt + ' / {interval}'
+            self.debug(msgfmt.format(**sspecs))
+            slice_loc = sspecs.pop('slice_loc')
+            slice_type = sspecs.pop('slice_type')
+            interval = sspecs.get('interval', None)
+
+            # Loop on variables
+            for var_name, var in var_specs:
                 var_name = split_varname(var_name)[0] # no suffixes
                 varname = var_name
                 self.debug('  Var: ' + var_name)
@@ -893,7 +964,7 @@ class NcObsPlatform(ObsPlatformBase):
                     this_title = long_name
 
                 kw = kwargs.copy()
-                if full3d and slice_loc=="3d":
+                if slice_loc=="3d":
                     this_add_profile_line = dicttree_get(add_profile_line, var_name,
                         slice_type, slice_loc)
                     kw.update(level=level, add_profile_line=this_add_profile_line,
@@ -902,7 +973,7 @@ class NcObsPlatform(ObsPlatformBase):
                 # Generic scatter plot
                 this_plotter = plot_scattered_locs(
                                     self.lons1d, self.lats1d, self.depths,
-                                    slice_type=slice_loc,
+                                    slice_type=slice_loc, interval=interval,
                                     data=self.xy_ravel_var(var),
                                     plotter=this_plotter, fig=this_fig,
                                     warn=False, bathy=bathy, label=label,
@@ -925,7 +996,7 @@ class NcObsPlatform(ObsPlatformBase):
                 if legend:
                     self.mark_cached_plot_legend(this_plotter, **kwleg)
                     if legend is True:
-                        plotter.legend(**kwleg)
+                        this_plotter.legend(**kwleg)
 
                 # Save
                 if savefig:
@@ -937,24 +1008,6 @@ class NcObsPlatform(ObsPlatformBase):
         return figs
 
 
-    def get_bathy(self, bathy2d=None):
-        """Get the bathymetry interpolated to XY locations"""
-        if hasattr(self, '_bathy'):
-            return self._bathy
-        if bathy2d is None:
-            return None
-        self._bathy = grid2xy(bathy2d, self.lons1d, self.lats1d)
-        return self._bathy
-
-    def get_num_depths(self, bathy2d=None):
-        """Get the depths as numeric array"""
-        if not isinstance(self.depths, string_types):
-            return self.depths
-        if self.depths == 'surf':
-            return self.lons*0.
-        if bathy2d is None:
-            self.error("Can't get numeric bottom depths without bathymetry")
-        return self.get_bathy(bathy2d)
 
 class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
     """Class to manage several observation platform instances"""
@@ -1115,6 +1168,18 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
 
         return self._depths
 
+
+    def set_bathy(self, bathy2d):
+        """Interpolate a bathymetry and save it"""
+        self._bathy2d = bathy2d
+        for obs in self:
+           obs.bathy = bathy2d
+
+    def get_bathy(self):
+        return [obs.bathy for obs in self]
+
+    bathy = property(fget=get_bathy, fset=set_bathy,
+                     doc='Colocated bathymetries for each platform')
 
     def get_num_depths(self, bathy2d=None):
         """Get the depths as a numeric flat array"""
@@ -1298,8 +1363,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
              zonal_sections=None, merid_sections=None, horiz_sections=None,
              level=None, lon=None, lat=None,
              sync_vminmax=True,
-             color=None, marker=None, legend=True,
-             color_cycle='bgrcmy', marker_cycle='o^s<>*',
+             color=None, marker=['o', '^', 's', '<', '>', '*'], legend=True,
              reset_cache=True, fig=None, savefig=True, close=True,
              figpat='sonat.obs.{var_name}_{slice_type}_{slice_loc}.png',
              subst={}, **kwargs):
@@ -1330,6 +1394,9 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         """
         self.verbose('Plotting observations locations')
 
+        # Inits
+        kwleg = kwfilter(kwargs, 'legend_')
+
         # Input mode
         valid_input_modes = ['names', 'arrays']
         if input_mode not in valid_input_modes:
@@ -1343,15 +1410,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
             del self.plot_cache
 
         # Cycler
-        if color is None and marker is None:
-            if len(color_cycle)!=len(marker_cycle) or len(color_cycle)<len(self):
-                cyc = (cycler(color=color_cycle) * cycler(marker=marker_cycle))()
-            else:
-                cyc = cycler(color=color_cycle, marker=marker_cycle)()
-        elif color is None:
-            cyc = cycler(color=color_cycle)()
-        else:
-            cyc = cycler(marker=marker_cycle)()
+        cm_cyc = get_color_marker_cycler(color, marker)
 
         # Bounds
         if lon is None and (full2d or full3d or zonal_sections or horiz_sections):
@@ -1372,27 +1431,18 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
                 if not myvariables:
                     if variables:
                         continue
-                    else: # nothing requested, no locations
+                    else: # nothing requested, so locations
                         myvariables = ['locations']
             else:
                 myvariables = variables[ip]
-
-#            # Loops status
-#            isfirst = ip==0
-#            islast = ip==len(self)-1
 
             # Sync caching
             obs.plot_cache = self.plot_cache
 
             # Symbols
-            kwargs.update(color = dicttree_get(color, obs.name),
-                marker = dicttree_get(marker, obs.name))
-            if kwargs['color'] is None or kwargs['marker'] is None:
-                c = cyc.next()
-                if kwargs['color'] is None:
-                    kwargs['color'] = c['color']
-                if kwargs['marker'] is None:
-                    kwargs['marker'] = c['marker']
+            cm = cm_cyc.next()
+            this_color = dicttree_get(cm['color'], obs.name)
+            this_marker = dicttree_get(cm['marker'], obs.name)
 
             # Plot
             obs.plot(variables=myvariables, reset_cache=False,
@@ -1402,11 +1452,12 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
                      savefig=False, close=False,
                      legend='cache' if legend else False,
                      sync_vminmax=sync_vminmax,
+                     color=this_color, marker=this_marker,
                      **kwargs)
 
         # Plot all pending legends
         if legend:
-            self.add_cached_plots_legend()
+            self.add_cached_plots_legend(**kwleg)
 
         # Save all plots
         if savefig:
