@@ -43,7 +43,7 @@ import scipy.stats as SS
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
     MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var,
     CaseChecker, curve, bar, dict_check_defaults, dict_merge, checkdir,
-    dicttree_get, dicttree_set, latlab, lonlab, P)
+    dicttree_get, dicttree_set, latlab, lonlab, P, regrid2d)
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
@@ -451,7 +451,7 @@ class Ensemble(Stacker, _NamedVariables_):
     """
 
     def __init__(self, data, ev=None, variance=None, logger=None, norms=None,
-            means=None, syncnorms=True, checkvars=False, **kwargs):
+            means=None, syncnorms=True, checkvars=False, bathy=None, **kwargs):
 
         # Check input variables
         datas = ArgList(data).get()
@@ -483,6 +483,10 @@ class Ensemble(Stacker, _NamedVariables_):
         # Caches
         self._diags = {}
         self._meananoms = {}
+
+        # Bathy
+        if bathy is not None:
+            self.set_bathy(bathy)
 
 
     @classmethod
@@ -625,6 +629,21 @@ class Ensemble(Stacker, _NamedVariables_):
             if var.id == vname:
                 return var
         raise SONATError('Invalid variable name: ' + vname)
+
+    def get_grid(self):
+        return self.variables[0].getGrid()
+
+    def set_bathy(self, bathy2d):
+        """Interpolate a bathymetry and save it"""
+        if bathy2d is not None:
+            self._bathy = regrid2d(bathy2d, self.get_grid())
+
+    def get_bathy(self, bathy2d=None, force=False):
+        if bathy2d is not None and (force or not hasattr(self, '_bathy')):
+            self.set_bathy(bathy2d)
+        return getattr(self, '_bathy', None)
+
+    bathy = property(fget=get_bathy, fset=set_bathy, doc='Colocated bathymetry')
 
     def sync_norms(self, force=True):
         """Synchronise norms between variables whose id has the same prefix
@@ -899,7 +918,7 @@ class Ensemble(Stacker, _NamedVariables_):
 
 
     def plot_fields(self, variables,
-                    surf=None, bottom=None, horiz_sections=True,
+                    surf=None, bottom=None, horiz_sections=False,
                     points=None, zonal_sections=None,
                     merid_sections=None, titlepat="{var_name} - {slice_loc}",
                     props=None, subst={},
@@ -932,6 +951,7 @@ class Ensemble(Stacker, _NamedVariables_):
         kwprops = dict_merge(props, DEFAULT_PLOT_KWARGS_PER_ENS_DIAG)
         kwprops.update(fig='new') # TODO: must be more flexible like for obs
         figs = OrderedDict()
+        kwobs = kwfilter(kwargs, 'obs')
 
         # Loop on variables
         for variable in ArgList(variables).get():
@@ -962,14 +982,14 @@ class Ensemble(Stacker, _NamedVariables_):
                                        ))
 
                 elif (variable.getLevel() is not None and
-                      horiz_sections is not None): # 3D
+                      horiz_sections is not False and horiz_sections is not None): # 3D
 
                     # 3D depths
                     if horiz_sections is True:
-                       depths =  variable.getLevel()
+                        depths =  variable.getLevel()
                     else:
                         depths = horiz_sections
-                        if N.iscalar(depths):
+                        if N.isscalar(depths):
                             depths = [depths]
                     depths = list(depths)
 
@@ -995,7 +1015,7 @@ class Ensemble(Stacker, _NamedVariables_):
                             ))
 
             # Zonal sections
-            if zonal_sections is not None:
+            if zonal_sections is not None and zonal_sections is not False:
                 slice_type = 'zonal'
                 if N.isscalar(horiz_sections):
                     horiz_sections = [horiz_sections]
@@ -1009,8 +1029,8 @@ class Ensemble(Stacker, _NamedVariables_):
                         obs_plot={'zonal_sections':lat},
                         ))
 
-            # Zonal sections
-            if merid_sections:
+            # Meridional sections
+            if merid_sections is not None and merid_sections is not False:
                 slice_type = 'merid'
                 if N.isscalar(merid_sections):
                     merid_sections = [merid_sections]
@@ -1066,8 +1086,10 @@ class Ensemble(Stacker, _NamedVariables_):
 
                 # Plot obs locations
                 if obs:
-                    obs.plot('locations', plotter=p, full2d=False, full3d=False,
-                             savefig=False, close=False, **obs_plot)
+                    kwo = kwobs.copy()
+                    kwo.update(obs_plot, full3d=False, full2d=False, plotter=p,
+                               savefig=False, close=False, title=False)
+                    obs.plot('locations', **kwo)
 
                 # Finalise
                 if savefig:
