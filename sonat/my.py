@@ -1,5 +1,7 @@
 """
-User defined stuff
+User defined stuff.
+
+See :func:`load_user_code_file` for more information.
 """
 #
 # Copyright IFREMER (2016-2017)
@@ -42,7 +44,8 @@ from vcmq import Dataset, register_dataset #, register_cf_variable
 
 from .__init__ import SONATError, sonat_warn
 from .obs import register_obs_platform, ObsPlatformBase
-from .arm import register_arm_score_function, ARM_SCORE_FUNCTION_PREFIX
+from .arm import (register_arm_score_function, ARM_SCORE_FUNCTION_PREFIX,
+                  ARMSA, register_arm_sensitivity_analyser)
 
 #: Default user defined code file name
 SONAT_USER_CODE_FILE = 'mysonat.py'
@@ -58,10 +61,13 @@ def load_user_code_file(myfile=None):
         :attr:`platform_type` attribute, using function
         :func:`~sonat.obs.register_platform`.
     ARM score functions
-        It registers as new ARM score function all functions whose name
+        It registers as new ARM score functions all functions whose name
         starts with :attr:`~sonat.arm.ARM_SCORE_FUNCTION_PREFIX` and
         who takes 3 mandatory arguments (ev, arm, rep), using the
         :func:`~sonat.arm.register_arm_score_function`.
+    ARM sensitivity analysers
+        It registers as new ARM sensitivity analysers all classes that
+        are subclasses of :attr:`~sonat.arm.ARMSA`.
     CF variables
         It registers new standard :mod:`vacumm.data.cf` variables
         declared in the dictionary :attr:`vacumm_cf_variables`, with
@@ -98,7 +104,12 @@ def load_user_code_file(myfile=None):
 
             register_obs_platform(obj)
 
-        # User defined platforms
+        # User defined arm sensitivity analyser
+        if issubclass(obj, ARMSA):
+
+            register_arm_sensitivity_analyser(obj)
+
+        # User defined datasets
         elif issubclass(obj, Dataset):
 
             register_dataset(obj)
