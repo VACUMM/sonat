@@ -1130,7 +1130,7 @@ class Ensemble(Stacker, _NamedVariables_):
         return out
 
 
-    def assert_compatible_with_obs(self, obsmanager, syncnorms=True,
+    def assert_compatible_with_obs(self, obsmanager, sync_norms=True,
             sync_missing_values=True):
         """Assert that the :class:`Ensemble` current instance is compatible
         with a :class:`~sonat.obs.ObsManager` instance
@@ -1146,7 +1146,7 @@ class Ensemble(Stacker, _NamedVariables_):
                     ' in ensemble').format(varname))
 
         # Sync norms
-        if syncnorms:
+        if sync_norms:
             self.sync_norms(force=False)
             dnorms = self.get_named_norms()
             obsmanager.set_named_norms(dnorms)

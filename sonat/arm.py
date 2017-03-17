@@ -34,15 +34,16 @@
 #
 import inspect
 import math
+import re
 from collections import OrderedDict
 
 import numpy as N
 import MV2, cdms2
 
-from vcmq import (curve, create_axis, dict_check_defaults, kwfilter)
+from vcmq import (curve, create_axis, dict_check_defaults, kwfilter, m2deg)
 
 from .__init__ import SONATError, sonat_warn
-from .misc import _Base_, recursive_transform_att, vminmax
+from .misc import _Base_, recursive_transform_att, vminmax, xycompress
 from .ens import Ensemble
 from .obs import ObsManager, NcObsPlatform
 from ._fcore import f_arm
@@ -74,7 +75,7 @@ class ARM(_Base_):
 
     """
     def __init__(self, ens, obsmanager, logger=None, checkvars=True,
-            syncnorms=True, missing_value=default_missing_value,
+            sync_norms=True, missing_value=default_missing_value,
             bathy=None, **kwargs):
 
         # Init logger
@@ -94,7 +95,7 @@ class ARM(_Base_):
         elif not isinstance(obsmanager, ObsManager):
             raise SONATError(msg)
         self.ens = ens
-        self.obsmanager = obsmanager
+        self.obsmanager = self.obs = obsmanager
 
         # Sync missing values
         self._missing_value = missing_value
@@ -105,14 +106,8 @@ class ARM(_Base_):
             self.ens.check_variables()
             self.obsmanager.check_variables()
 
-        # Check compatibility (names, norms, projection)
-        diags = self.ens.assert_compatible_with_obs(self.obsmanager,
-            syncnorms=syncnorms)
-        self._ens_on_obs = diags['ens_on_obs']
-        self._packed_ens_on_obs = diags['packed_ens_on_obs']
-        self._packed_ens_on_obs_valid = diags['packed_ens_on_obs_valid']
-        self._final_packer = Simple1DPacker(self._packed_ens_on_obs,
-            self.missing_value, valid=diags['packed_ens_on_obs_valid'])
+        # Check compatibility (names, norms, projection) and project
+        self.project_ens_on_obs(sync_norms=sync_norms)
 
         # Inits
         self._inputs = {} # indirect input matrices
@@ -150,11 +145,18 @@ class ARM(_Base_):
         self.ens.set_bathy(bathy2d)
         self.obsmanager.set_bathy(bathy2d)
 
-    def project_ens_on_obs(self):
+    def project_ens_on_obs(self, sync_norms=True, sync_missing_values=True):
         """Interpolate the variables of an :class:`~sonat.ens.Ensemble` onto
         observation locations
         """
-        return self.ens.project_on_obs(self.obsmanager)
+        diags  = self.ens.assert_compatible_with_obs(self.obsmanager,
+            sync_norms=sync_norms, sync_missing_values=sync_missing_values)
+        self._ens_on_obs = diags['ens_on_obs']
+        self._packed_ens_on_obs = diags['packed_ens_on_obs']
+        self._packed_ens_on_obs_valid = diags['packed_ens_on_obs_valid']
+        self._final_packer = Simple1DPacker(diags['packed_ens_on_obs'],
+            self.missing_value, valid=diags['packed_ens_on_obs_valid'])
+#        return self.ens.project_on_obs(self.obsmanager)
 
     @property
     def Af(self):
@@ -175,6 +177,14 @@ class ARM(_Base_):
         return self._inputs['R']
 
     @property
+    def S(self):
+        if 'S' not in self._inputs:
+            err = self._final_packer.pack(self.obsmanager.stacked_data)
+            Rinv = N.diag(1/err)
+            self._inputs['S'] = N.dot(N.sqrt(Rinv / (self.ndof-1)), self.Yf)
+        return self._inputs['S']
+
+    @property
     def ndof(self):
         if 'raw_spect' in self._results:
             return len(self._results['raw_spect'])
@@ -187,7 +197,7 @@ class ARM(_Base_):
                                           long_name='Array mode id')
         return self._mode_axis
 
-    def analyse(self, ndof=None):
+    def analyse(self, ndof=None, force=False):
         """Perform the ARM analysis
 
         Parameters
@@ -195,8 +205,8 @@ class ARM(_Base_):
         ndof: int, None
             Number of mode to retain. It defaults to the smallest dimension
             of the observation matrix.
-        getraw: bool
-            Also return raw array modes and array mode representers from ARM
+        force: bool
+            Force the analysis without checking cache
 
         Return
         ------
@@ -218,13 +228,15 @@ class ARM(_Base_):
             ndof = min(ndof, + self.ndof)
 
         # Check cache / truncate to ndof
-        if 'spect' in self._results and ndof >= len(self._results[spect]):
-            self._clean_analysis_(raw=False)
-            self._results['spect'] = self._results['spect'][:ndof]
-            self._results['arm'] = self._results['arm'][:, :ndof]
-            self._results['rep'] = self._results['rep'][:, :ndof]
+        if (not force  and 'raw_spect' in self._results and
+            ndof >= len(self._results[raw_spect])):
+            self.clean_analysis(raw=False)
+            self._results['raw_spect'] = self._results['raw_spect'][:ndof]
+            self._results['raw_arm'] = self._results['raw_arm'][:, :ndof]
+            self._results['raw_rep'] = self._results['raw_rep'][:, :ndof]
+            return
         else:
-            self._clean_analysis_(raw=True)
+            self.clean_analysis(raw=True)
 
         # Call ARM
         spect, arm, rep, status = f_arm(ndof, self.Af, self.Yf, self.R)
@@ -241,18 +253,21 @@ class ARM(_Base_):
             raw_rep = rep,
         )
 
-    def _clean_analysis_(self, raw):
+    def clean_analysis(self, raw):
         """Remove results from cache"""
         keys = ['spect', 'arm', 'rep']
         if raw:
             keys.extend(['raw_spect', 'raw_arm', 'raw_rep'])
         for key in keys:
-            key = '_' + key
             if key in self._results:
                 del self._results[key]
 
+    def clean_inputs(self):
+        self._inputs = {}
+
     def clean(self):
-        self._clean_analysis_(True)
+        self.clean_analysis(True)
+        self.clean_inputs()
 
     def _check_analysis_(self):
         if 'raw_spect' not in self._results:
@@ -504,6 +519,339 @@ class ARM(_Base_):
             return dat
         return [self.extract_mode(dat, imode) for dat in data]
 
+#: Sensitivy analyser
+class ARMSA(_Base_):
+
+    def __init__(self, arm, logger=None, **kwargs):
+
+        # Check arm
+        if not isinstance(arm, ARM):
+            raise SONATError('Input must be an ARM instance')
+
+        # Init logger
+        _Base_.__init__(self, logger=logger, **kwargs)
+
+        self.arm = arm
+        self.obs = arm.obs
+        self.ens = arm.ens
+
+
+    def export(self, **kwargs):
+
+        raise SONATError('The method must be overwritten')
+
+RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
+
+class XYARMSA(ARMSA):
+
+
+    def __init__(self, arm, **kwargs):
+
+        ARMSA.__init__(self, arm, **kwargs)
+
+        if not any([obs.mobile for obs in self.arm.obs]):
+            self.warning("None of the platforms is mobile")
+
+        # Backup stuff
+        self.backups = {}
+        # - platform coordinates
+        self.backups['obs'] = {}
+        for obs in self.arm.obs:
+            if obs.mobile:
+                self.backups['obs'][obs] = {}
+                for att in 'lons', 'lats':
+                    self.backups['obs'][obs][att] = getattr(obs, att).copy()
+        # - ARM
+        self.backups['arm'] = {}
+        for att in ('_ens_on_obs', '_packed_ens_on_obs',
+                    '_packed_ens_on_obs_valid', '_final_packer'):
+            if hasattr(self.arm, att):
+                self.backups['arm'][att] = getattr(self.arm, att)
+
+    def restore_arm(self):
+        for att, val in self.backups['arm'].items():
+            setattr(self.arm, att, val)
+
+    def restore_platform(self, obs):
+        if not obs in self.backups['obs']:
+            return
+        for att, val in self.backups['obs'][obs].items():
+            setattr(obs, att, val)
+
+    def restore(self):
+        self.restore_arm()
+        for obs in self.obs:
+            self.restore_platform(obs)
+
+    def activate_platform_pert(self, obs, pert, direction, index):
+        """Change the horizontal location of the platform at a single point
+        and in a single direction.
+
+        Parameters
+        ----------
+        pert: float
+            Change in position in meridional degrees
+        direction: string
+            Possible values:
+
+            - "[+|-][x|y]": negative or positive perturbation along x or y
+            - "": back to original position
+
+        index: int
+            Index of a mobile observation.
+            Its coordinates are accessed at ``obs.lons[index]`` and
+            ``obs.lats[index]``.
+        """
+        if not obs.mobile:
+            return
+
+        if direction and pert:
+
+            # Parse direction
+            direction = str(direction).lower()
+            if not RE_PERTDIR_MATCH(direction):
+                raise SONATError("The direction of perturbation argument must"
+                    " be of the form: '{+|-}{x|y}'")
+            isx = direction[1]=='x'
+            sign = 1 if direction[0]=='-' else -1
+
+            # Reset
+            self.deactivate_platform_pert(obs)
+
+            # X and Y perturbation values
+            if isx:
+                lat = obs.lats.mean()
+                pert = m2deg(pert, lat)
+                cname = 'lons'
+            else:
+                cname = 'lats'
+            coords = getattr(obs, cname) # array of coordinates
+
+            # Change coordinates in place
+            coords[index] += pert
+
+        else: # back to orig
+
+            self.deactivate_platform_pert()
+
+
+    def deactivate_platform_pert(self, obs):
+        """Get back to original locations"""
+        self.restore_platform(obs)
+
+    def get_platform_pert_indices_iter(self, obs):
+        """Get an iterator on mobile indices
+
+        ``obs.lons[index]`` and ``obs.lats[index]`` are the coordinates
+        of a mobile point.
+        """
+        if not obs.mobile:
+            return iter([])
+        if not hasattr(obs, '_xy_pert_indices'):
+            obs._xy_pert_indices = N.where(obs.mobility>=1)[0]
+        return iter(obs._xy_pert_indices)
+
+    def init_platform_pert_arrays(self, obs):
+        """Init the arrays that will filled by the sensitivity analysis
+
+        Return
+        ------
+        array
+            Northward derivative
+        array
+            Southward derivative
+        array
+            Eastward derivative
+        array
+            Westward derivative
+        """
+        if not obs.mobile:
+            sonat_warn('This platform cannot be moved')
+            return
+
+        mobile = obs.mobility>=1
+        dsn = obs.mobility.clone().astype('d')
+        dsn[:] = N.ma.masked
+        dsn.id = 'dsn'
+        dsn.long_name = 'Northward derivative of score'
+        dss = dsn.clone()
+        dss.id = 'dss'
+        dss.long_name = 'Southward derivative of score'
+        dsw = dsn.clone()
+        dsw.id = 'dsw'
+        dsw.long_name = 'Westward derivative of score'
+        dse= dsn.clone()
+        dse.id = 'dse'
+        dse.long_name = 'Eastward derivative of score'
+
+        return dse, dsw, dsn, dss
+
+
+    def analyse(self, platforms=None, pert=0.001, score_type='fnev', direct=False):
+        """Perform the senisitivty analysis
+
+        Parameters
+        ----------
+        platforms: strings
+            Selected platform names
+        pert: float
+            Location perturbation in meridional degrees
+        score_type: string
+            One of the registered score types
+        direct: bool
+            If True, a full ARM analysis is made after each perturbation,
+            otherwise the spectrum is computed by projecting the new S matrix
+            onto the original EOFs, which is faster.
+
+        Return
+        ------
+        dict
+            Keys are the mobile platforms and values are the four sensitivity
+            arrays in each direction: east, west, north, south.
+            Each array has the size of the number of platform mobile locations.
+        """
+
+
+        # Reference
+        score0 = self.arm.get_score(score_type)
+        ev0=self.arm.raw_spect
+        r0=self.arm.R.copy()
+        Yf0=self.arm.Yf.copy()
+
+        # Loop on platforms
+        results = {}
+        score_func = get_arm_score_function(score_type)
+        for obs in self.obs:
+
+            # Nothing to move
+            if not obs.mobile:
+                continue
+
+            # Selected platforms only
+            if platforms is not None:
+                if isinstance(platforms, str):
+                    platforms = [platforms]
+                if not obs.name in platforms:
+                    continue
+
+            # Inits
+            dse, dsw, dsn, dss = self.init_platform_pert_arrays(obs)
+            results[obs] = dse, dsw, dsn, dss
+
+            # Loop on mobile points
+            for idx in self.get_platform_pert_indices_iter(obs):
+
+                # Check mobility
+                if not obs.mobility[idx]:
+                    continue
+
+                # Loop on directions
+                for ds, pdir in zip([dse, dsw, dsn, dss],
+                                    ['+x', '-x', '+y', '-y']):
+
+                    # Change location
+                    self.activate_platform_pert(obs, pert, pdir, idx)
+
+                    # Project ensemble on obs
+                    self.arm.project_ens_on_obs(sync_norms=False,
+                                                sync_missing_values=False)
+                    #FIXME: intercept changes in obs shape
+
+                    # Method
+                    if direct:
+
+                        # Reset ARM analysis
+                        self.arm.clean()
+
+                        # Analyse and get score
+                        score1 = self.arm.get_score(score_type)
+                        ev1=self.arm.raw_spect
+                        r1=self.arm.R.copy()
+                        Yf1=self.arm.Yf.copy()
+
+                    else:
+
+                        # Clean inputs only
+                        self.arm.clean_inputs()
+
+                        # Prevent change of size errors due to change of locations
+                        try:
+
+                            # Projection onto EOFs
+                            pcs = N.dot(self.arm.S.T, self.arm.raw_arm)
+
+                            # Indirect spectrum
+                            spect = (pcs**2).sum(axis=0)
+
+                            # Score
+                            score1 = score_func(spect, self.arm.raw_arm,
+                                                self.arm.raw_rep)
+
+                        except:
+
+                            score1 = N.ma.masked
+
+
+                    # Fill array
+                    print score1
+                    ds[idx] = (score1 - score0) / pert
+                    print ds[idx]
+
+        self.restore()
+
+        return results
+
+    def plot(self, platforms=None, pert=0.01, score_type='fnev'):
+
+        results = self.analysis(platforms=platforms, pert=pert,
+                                score_type=score_type, method=method)
+
+
+
+#: Registered ARM sensitivity analysers
+ARM_SENSITIVITY_ANALYSERS = {}
+
+def register_arm_sensitivity_analyser(cls, name=None, warn=True, replace=False):
+
+    # Check
+    if not issubclass(cls, ARMSA):
+        raise SONATError('cls must be a subclass of ARMSA')
+
+    # Name
+    if name is None:
+        name = cls.__class__.__name__.lower()
+        if name.endswith('armsa'):
+            name = name[:-5]
+
+    # Register
+    if name in ARM_SENSITIVITY_ANALYSERS:
+        if warn:
+            msg = 'ARM sensitivity analyser already registered: {}'.format(name)
+            if replace:
+                msg = msg + '. Replacing it...'
+            sonat_warn(msg)
+        if not replace:
+            return
+    ARM_SENSITIVITY_ANALYSERS[name] = cls
+    cls.name = name
+    return name, cls
+
+register_arm_sensitivity_analyser(XYARMSA)
+
+def get_arm_sensitivity_analyser(self, name, arm=None):
+    """Get an ARM sensitivity analyser class or instance"""
+    if name not in ARM_SENSITIVITY_ANALYSERS:
+        raise SONATerror(('Invalid ARM sensitivity analyser: {}. '
+                          'Please choose one of: {}').format(name,
+                          ' '.join(ARM_SENSITIVITY_ANALYSERS.keys())))
+
+    # Class
+    cls = ARM_SENSITIVITY_ANALYSERS[name]
+    if arm is None:
+        return cls
+
+    # Instance
+    return cls(arm)
 
 #: Prefix of all ARM score functions
 ARM_SCORE_FUNCTION_PREFIX = 'arm_score_'
@@ -587,6 +935,7 @@ def get_arm_score_function(fname):
             fname, ', '.join(ARM_SCORE_FUNCTIONS.keys())))
 
     return ARM_SCORE_FUNCTIONS[fname]
+
 
 # Register default score functions
 register_arm_score_function(arm_score_nev)

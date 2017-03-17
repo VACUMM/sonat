@@ -8,12 +8,13 @@ import cdtime
 from vcmq import comptime, netcdf4, P
 
 from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
-    NCFILE_MANGA1, NCFILE_OBS_HFRADARS, NCFILE_OBS_PROFILES, NCFILE_OBS_SATSST)
+    NCFILE_MANGA1, NCFILE_OBS_HFRADARS, NCFILE_OBS_PROFILES, NCFILE_OBS_SATSST,
+    get_bathy)
 
 from sonat.ens import Ensemble
 from sonat.obs import NcObsPlatform, ObsManager
 from sonat.arm import (ARM, register_arm_score_function, get_arm_score_function,
-    ARM_SCORE_FUNCTIONS)
+    ARM_SCORE_FUNCTIONS, XYARMSA)
 
 netcdf4()
 
@@ -34,14 +35,18 @@ def test_arm_arm_init():
     obs0 = NcObsPlatform(NCFILE_OBS_HFRADARS)
     obs1 = NcObsPlatform(NCFILE_OBS_PROFILES)
     obs2 = NcObsPlatform(NCFILE_OBS_SATSST)
-    obsmanager = ObsManager([obs0, obs1, obs2])
+#    obsmanager = ObsManager([obs0, obs1, obs2])
+    obsmanager = ObsManager([obs1])
+
+    # Bathymetry
+    bathy = get_bathy()[::2, ::2]
 
     # Init ARM
-    arm = ARM(ens, obsmanager, syncnorms=True)
+    arm = ARM(ens, obsmanager, syncnorms=True, bathy=bathy)
 
     # Checks
-    assert_allclose(arm.obsmanager[2].norms + arm.obsmanager[1].norms[:1],
-        arm.ens.norms[arm.ens.varnames.index('temp')])
+#    assert_allclose(arm.obsmanager[2].norms + arm.obsmanager[1].norms[:1],
+#        arm.ens.norms[arm.ens.varnames.index('temp')])
 
     return arm
 
@@ -102,7 +107,15 @@ def test_arm_arm_plot_arm():
     arm = get_arm()
 
     # Raw array modes
-    arm.plot_arm(size=40, close=False)
+    arm.plot_arm()
+
+def test_arm_arm_plot_rep():
+
+    # Load ARM
+    arm = get_arm()
+
+    # Raw array modes
+    arm.plot_rep(surf=True, obs_legend_loc='upper right')
 
 def test_arm_register_arm_score_function():
 
@@ -122,17 +135,31 @@ def test_arm_get_arm_score_function():
 
     assert func is myfunc
 
+def test_arm_xyarmsa():
+
+     # Load ARM
+    arm = get_arm()
+
+    # Init sensivity analyser
+    armsa = XYARMSA(arm)
+
+    # Sensitivity analysis
+    resd = armsa.analyse(direct=True)
+    resi = armsa.analyse(direct=False)
+
 
 if __name__=='__main__':
-#    res = test_arm_arm_init()
-#    res = test_arm_arm_project_ens_on_obs()
-#    res = test_arm_arm_inputs()
-#    res = test_arm_arm_analyse()
-#    res = test_arm_arm_results()
-#    res = test_arm_register_arm_score_function()
-#    res = test_arm_get_arm_score_function()
-#    test_arm_arm_plot_spect()
+    res = test_arm_arm_init()
+    res = test_arm_arm_project_ens_on_obs()
+    res = test_arm_arm_inputs()
+    res = test_arm_arm_analyse()
+    res = test_arm_arm_results()
+    res = test_arm_register_arm_score_function()
+    res = test_arm_get_arm_score_function()
+    test_arm_arm_plot_spect()
     test_arm_arm_plot_arm()
+    test_arm_arm_plot_rep()
+    test_arm_xyarmsa()
 
 
 
