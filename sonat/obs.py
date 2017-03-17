@@ -61,8 +61,6 @@ from .plot import (plot_scattered_locs, sync_scalar_mappable_plots_vminmax,
 
 npy = N
 
-RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
-
 OBS_PLATFORM_TYPES = {}
 
 def register_obs_platform(cls, warn=True, replace=True):
@@ -322,14 +320,16 @@ class NcObsPlatform(ObsPlatformBase):
                 raise SONATError("There are unkown dimensions in your gridded variable. "
                     "Current order: "+order)
             order = order[:-2]
+            xyshape = grid.shape
 
 
         else: # Unstructured grid
 
-            mask = N.ma.nomask #zeros(fs.shape[-1], '?')
+            xymask = N.ma.nomask #zeros(fs.shape[-1], '?')
             self.pshape = 'xy'
             paxis = fs.getAxis(-1)
             kwread = {}
+            xyshape = paxis.shape
 
             # Check order
             order = order[:-1]
@@ -356,11 +356,11 @@ class NcObsPlatform(ObsPlatformBase):
                 lons = lons.asma()
                 lats = lats.asma()
                 if self.lon:
-                    mask |= lons < self.lon[0]
-                    mask |= lons > self.lon[1]
+                    xymask |= lons < self.lon[0]
+                    xymask |= lons > self.lon[1]
                 if self.lat:
-                    mask |= lats < self.lat[0]
-                    mask |= lats > self.lat[1]
+                    xymask |= lats < self.lat[0]
+                    xymask |= lats > self.lat[1]
 
             # Vertical dimension
             if 'z' in order: # 1D axis
@@ -374,8 +374,8 @@ class NcObsPlatform(ObsPlatformBase):
                         self.pshape = self.pshape + 'z'
                     depths = self.depths.asma()
                     if self.level:
-                        mask |= depths < self.level[0]
-                        mask |= depths > self.level[1]
+                        xymask |= depths < self.level[0]
+                        xymask |= depths > self.level[1]
 
             # Time selection
             if 't' in order: # 1D axis
@@ -385,30 +385,46 @@ class NcObsPlatform(ObsPlatformBase):
                 if self.times is not None:
                     if self.time:
                         times = create_time(times[:], times.units)[:]
-                        mask |= times < reltime(self.time[0], times.units)
-                        mask |= times > reltime(self.time[1], times.units)
+                        xymask |= times < reltime(self.time[0], times.units)
+                        xymask |= times > reltime(self.time[1], times.units)
                     self.pshape = self.pshape + 't'
 
             # Check mask
-            if N.ma.isMA(mask):
-                mask = mask.filled(False)
-            if mask.all():
+            if N.ma.isMA(xymask):
+                xymask = xymask.filled(False)
+            if xymask.all():
                 SONATError("All your observation data are masked")
 
+
         # Read
+
         # - errors
         for vname in self.varnames:
             self.errors[vname] = f(vname + self.nc_error_suffix, **kwread)
-        self._sample = sample = self.errors[vname]
+        self.sample = sample = self.errors[vname]
         order = sample.getOrder()
         self.axes = []
-        # - lon/lat
+
+        # - lon/lat/xymask/xysample
         if grid:
             self.lons = sample.getLongitude()[:]
             self.lats = sample.getLatitude()[:]
+            xymask = N.ma.getmaskarray(sample)
+            while xymask.ndim != 2:
+                xymask = xymask.all(axis=0)
+            xysample = sample
+            while xysample.ndim != 2:
+                xysample = xysample[0]
         else:
             self.lons = lons
             self.lats = lats
+            if xymask is N.ma.nomask:
+                xymask = N.zeros(xyshape, '?')
+            xysample = sample
+            while xysample.ndim != 1:
+                xysample = xysample[0]
+        self.xysample = xysample
+
         # - times
         if 't' in order:
             self.times = sample.getTime()
@@ -416,6 +432,7 @@ class NcObsPlatform(ObsPlatformBase):
                 self.axes.append(self.times)
         else:
             self.times = None
+
         # - depths
         if 'z' in order:
             self.depths = sample.getLevel()
@@ -431,25 +448,32 @@ class NcObsPlatform(ObsPlatformBase):
             self.depths = 'bottom'
         else: # surf by default
             self.depths = 'surf'
+
         # - mobility
         if self.nc_mobility_name in f.listvariables():
             self.mobility = f(self.nc_mobility_name, **kwread)
-        elif hasattr(f, self.nc_mobility_name): # as an attribute
-            self.mobility = getattr(f, self.nc_mobility_name)
+        elif hasattr(f, self.nc_mobility_name): # as a scalar attribute
+            self.mobility = int(getattr(f, self.nc_mobility_name))
         elif self.pshape=='gridded': # don't move grid for the moment
-            self.mobility = 0.
+            self.mobility = 0
         else:
             sonat_warn('No mobility variable found in obs file. '
                 'Setting it to 1 everywhere.')
-            shape = grid.shape if grid else lons.shape
-            self.mobility = MV2.ones(shape, 'i')
-        self.mobile = (N.ma.asarray(self.mobility)==1).all()
+            self.mobility = 1
+        if N.ndim(self.mobility)==0: # to spatial array
+            mobility = xysample.astype('?') * 0
+            mobility[:] = self.mobility
+            self.mobility = mobility
+        self.mobility.id = 'mobility'
+        self.mobility = MV2.masked_where(xymask, self.mobility, copy=0)
+        self.mobile = (self.mobility==1).any()
 
         # Compression to remove masked points
-        if self.pshape != 'gridded' and mask.any():
-            valid = ~mask
+        if self.pshape != 'gridded' and xymask.any():
+            valid = ~xymask
             self.lons = xycompress(valid, self.lons)
             self.lats = xycompress(valid, self.lats)
+            self.mobility = xycompress(valid, self.mobility)
             for vname, var in self.errors.items():
                 self.errors[vname] = xycompress(valid, var)
             if self.times is not None and self.times not in self.axes:
@@ -465,6 +489,14 @@ class NcObsPlatform(ObsPlatformBase):
             else: # name from file name
                 self.name = os.path.splitext(os.path.basename(self.ncfile))[0]
         f.close()
+
+    def __repr__(self):
+        return '<{}.{} object named "{}" at {}>'.format(
+            self.__class__.__module__,
+            self.__class__.__name__,
+            self.name,
+            hex(id(self))
+        )
 
     @property
     def platform_name(self):
@@ -484,7 +516,7 @@ class NcObsPlatform(ObsPlatformBase):
 
     @property
     def ndim(self):
-        return self._sample.ndim
+        return self.sample.ndim
 
     @property
     def nsdim(self):
@@ -492,11 +524,11 @@ class NcObsPlatform(ObsPlatformBase):
 
     @property
     def shape(self):
-        return self._sample.shape
+        return self.sample.shape
 
     @property
     def grid(self):
-        return self._sample.getGrid()
+        return self.sample.getGrid()
 
     @property
     def is_surf(self):
@@ -534,7 +566,7 @@ class NcObsPlatform(ObsPlatformBase):
         scattered: bool
             Flatten in X and Y, for gridded platforms only.
         """
-        mask = N.ma.getmaskarray(self._sample)
+        mask = N.ma.getmaskarray(self.sample)
         if scattered and self.is_gridded:
             mask = mask.reshape(mask.shape[:-2] + (-1,))
         return mask
@@ -666,103 +698,6 @@ class NcObsPlatform(ObsPlatformBase):
                 mm[name] = self[i].data.min(), self[i].data.max()
         return mm
 
-
-    def activate_xy_pert(self, pert, zonal, index):
-        """
-
-        Parameters
-        ----------
-        pert: float
-            Positive or nagative position perturbation in meters
-        zonal: bool
-            Zonal perturbation? Else meridional.
-        index: int
-            Index of a mobile observation
-        """
-        if not self.mobile:
-            sonat_warn('This platform cannot be moved')
-            return
-
-        if direction:
-
-            # Parse direction
-            direction = str(direction).lower()
-            if not RE_PERTDIR_MATCH(direction):
-                raise SONATError("The direction of perturbation argument must"
-                    " be of the form: '{+|-}{x|y}'")
-            isx = direction[1]=='x'
-            sign = 1 if direction[0]=='-' else -1
-
-            # X and Y perturbation values
-            if zonal:
-                lat = self.lats.mean()
-                pert = m2deg(pert, lat)
-                cname = 'lons'
-            else:
-                cname = 'lats'
-            coords = getattr(self, cname) # array of coordinates
-
-            # Reset
-            self.deactivate_pert()
-
-            # Save original coordinates values
-            self._orig[cname] = coords.copy()
-
-            # Change coordinates in place
-            coords[index] += pert
-
-        elif self._orig: # back to orig
-
-            self.deactivate_pert()
-
-
-    def deactivate_xy_pert(self):
-        if not self.mobile:
-            return
-        for cname in 'lons', 'lats':
-            if cname in self._orig:
-                getattr(sel, cname)[:] = self._orig[cname]
-                del self._orig[cname]
-
-    def get_xy_pert_indices_iter(self):
-        if not self.mobile:
-            return iter([])
-        if not hasattr(self, '_xy_pert_indices'):
-            self._xy_pert_indices = N.where(self.mobility>=1)
-        return iter(self._xy_pert_indices)
-
-    def init_xy_pert_arrays(self):
-        """Get the results for a spatial perturbation sensitivity test
-
-        Return
-        ------
-        array
-            First order zonal derivative
-        array
-            First order meridional derivative
-        array
-            Second order zonal derivative
-        array
-            Second order meridional derivative
-        """
-        if not self.mobile:
-            sonat_warn('This platform cannot be moved')
-            return
-
-        mobile = self.mobility>=1
-        xder1 = xycompress(mobile, self._sample, id='xderiv1',
-            long_name='First order zonal derivative of variance')
-        yder1 = xder1.clone()
-        yder1 = 'xderiv1'
-        yder1.long_name = 'First order meridional derivative of variance'
-        xder2 = xder1.clone()
-        xder2.id = 'xderiv2'
-        xder2.long_name = 'Second order zonal derivative of variance'
-        yder2 = xder2.clone()
-        yder2.id = 'yderiv2'
-        yder2.long_name = 'Second order meridional derivative of variance'
-
-        return xder1, yder1, xder2, yder2
 
     def project_model(self, var, checkid=True):
         """Project model variables to observations positions"""
