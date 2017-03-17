@@ -356,17 +356,26 @@ class NcReader(object):
 
 
 def xycompress(valid, vari, **atts):
-    """Keep valid spatial points"""
+    """Keep valid spatial points
+
+    Parameters
+    ----------
+    valid: 1D or 2D bool array
+        2D array for data on structured grid
+    vari: array
+        The variable to compress
+    """
 
     # Slice for extra dimensions
-    pslice = (slice(None), ) * (valid.ndim-2)
+    pslice = (slice(None), ) * (vari.ndim - valid.ndim)
 
     if cdms2.isVariable(vari):
 
         nv = valid.sum()
 
 
-        if vari.getGrid() is not None and len(vari.getGrid().shape)==2:
+        if valid.ndim==2:
+
 
             # Init
             assert valid.ndim == 2, 'Valid must be a 2D array'
@@ -376,7 +385,7 @@ def xycompress(valid, vari, **atts):
             varo.setGrid(None)
 
             # Fill
-            varo[:] = vari.asma()[pslice, valid]
+            varo[:] = vari.asma()[pslice + (valid, )]
 
         else:
 
@@ -386,7 +395,7 @@ def xycompress(valid, vari, **atts):
 
             # Fill
             varo.getAxis(-1)[:] = N.compress(valid, ax[:])
-            varo[:] = N.compress(valid, vari.asma(), axis=-1)
+            varo[:] = N.ma.compress(valid, vari.asma(), axis=-1)
 
         # Attributes
         set_atts(varo, **atts)
