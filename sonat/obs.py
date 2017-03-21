@@ -49,11 +49,11 @@ from matplotlib.markers import MarkerStyle
 from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     ncget_time, ncget_level, ArgList, ncfind_obj, itv_intersect, intersect,
     MV2_axisConcatenate, transect, create_axis, regrid1d, isaxis,
-    dicttree_get, dict_check_defaults, meshgrid, P, kwfilter)
+    dicttree_get, dict_check_defaults, meshgrid, P, kwfilter, m2deg)
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES, get_logger
 from .misc import (xycompress, _Base_, _XYT_, check_variables, _NamedVariables_,
-                   rescale_itv, get_long_name, split_varname)
+                   rescale_itv, get_long_name, split_varname, dicttree_relpath)
 from .pack import default_missing_value
 from .stack import Stacker, _StackerMapIO_
 from .plot import (plot_scattered_locs, sync_scalar_mappable_plots_vminmax,
@@ -62,6 +62,8 @@ from .plot import (plot_scattered_locs, sync_scalar_mappable_plots_vminmax,
 npy = N
 
 OBS_PLATFORM_TYPES = {}
+
+RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
 
 def register_obs_platform(cls, warn=True, replace=True):
     """Register a new observation platform type"""
@@ -607,6 +609,14 @@ class NcObsPlatform(ObsPlatformBase):
             varo.setAxis(i, ax)
         return varo
 
+    def get_station_axis(self):
+        """Get a 1D station axis"""
+        if not self.is_gridded:
+            return self.sample.getAxis(-1)
+        if not hasattr(self, '_station_axis'):
+            self._station_axis = create_axis(self.xysample.size, id='station')
+        return self._station_axis
+
     def set_bathy(self, bathy2d):
         """Interpolate a bathymetry and save it"""
         if bathy2d is not None:
@@ -921,7 +931,7 @@ class NcObsPlatform(ObsPlatformBase):
                     continue
 
                 # Sync vmin/vmax with other plots
-                if sync_vminmax:
+                if sync_vminmax and var_name!='locations':
                     sync_scalar_mappable_plots_vminmax(this_plotter, sync_vminmax)
 
                 # Cache
@@ -938,9 +948,135 @@ class NcObsPlatform(ObsPlatformBase):
                     figs.update(self.save_cached_plot(this_plotter, figpat, **subst))
 
 
-
-        # TODO: plot other slices in obs
         return figs
+
+    def export(self, htmlfile, **kwargs):
+        """Make plots and export figures to an htmlfile"""
+
+        # Make plots
+        figs = self.plot(**kwargs)
+        if not figs:
+            return
+
+        # Figure paths
+        figs = dicttree_relpath(figs, os.path.dirname(htmlfile))
+
+        # Render with template
+        checkdir(htmlfile)
+        render_and_export_html_template('dict2tree.html', htmlfile,
+            title="Observation platform "+self.name, content=figs)
+        self.created(htmlfile)
+
+        return htmlfile
+
+
+    def xylocsa_backup(self):
+        """Backup coordinates for sensitivity analysis"""
+        if not self.mobile:
+            return
+        if not hasattr(self, '_xylocsa_backup'):
+            self._xylocsa_backup = {}
+        met = 'clone' if self.is_gridded else 'copy'
+        for att in 'lons', 'lats':
+            self._xylocsa_backup[att] = getattr(getattr(self, att), met)() # copy
+
+    def xylocsa_restore(self):
+        if hasattr(self, '_xylocsa_backup'):
+            for att in 'lons', 'lats':
+                met = 'clone' if self.is_gridded else 'copy'
+                setattr(self, att, getattr(self._xylocsa_backup[att], met)()) # copy
+
+    def xylocsa_activate_pert(self, direction, index, pert=0.01):
+        """Change the horizontal location of the platform at a single point
+        and in a single direction
+
+        Parameters
+        ----------
+        pert: float
+            Change in position in meridional degrees
+        direction: string
+            Possible values:
+
+            - "[+|-][x|y]": negative or positive perturbation along x or y
+            - "": back to original position
+
+        index: int
+            Index of a mobile observation.
+            Its coordinates are accessed at ``obs.lons[index]`` and
+            ``obs.lats[index]``.
+        """
+        if not self.mobile:
+            return
+
+        if direction and pert:
+
+            # Parse direction
+            direction = str(direction).lower()
+            if not RE_PERTDIR_MATCH(direction):
+                raise SONATError("The direction of perturbation argument must"
+                    " be of the form: '{+|-}{x|y}'")
+            isx = direction[1]=='x'
+            sign = 1 if direction[0]=='-' else -1
+
+            # Reset
+            self.xylocsa_deactivate_pert()
+
+            # X and Y perturbation values
+            if isx:
+                lat = self.lats.mean()
+                pert = pert * N.cos(lat * 180 / N.pi)
+                cname = 'lons'
+            else:
+                cname = 'lats'
+            coords = getattr(self, cname) # array of coordinates
+
+            # Change coordinates in place
+            coords[index] += pert *sign
+
+            return pert
+
+        else: # back to orig
+
+            self.xylocsa_deactivate_pert()
+
+
+    def xylocsa_deactivate_pert(self):
+        """Get back to original locations"""
+        self.xylocsa_restore()
+
+    def xylocsa_get_pert_indices_iter(self):
+        """Get an iterator on mobile indices
+
+        ``lons[index]`` and ``lats[index]`` are the coordinates
+        of a mobile point.
+        """
+        if not self.mobile:
+            return iter([])
+        if not hasattr(self, '_xy_pert_indices'):
+            self._xylocsa_pert_indices = N.ma.where(self.mobility.ravel()>=1)[0]
+        return iter(self._xylocsa_pert_indices)
+
+    def xylocsa_init_pert_output(self):
+        """Init the arrays that will filled by the sensitivity analysis
+
+        Return
+        ------
+        array(4,np)
+            Derivatives along east, west, north and south
+        """
+        if not self.mobile:
+            sonat_warn('This platform cannot be moved')
+            return
+
+        ds = MV2.zeros((4, ) + self.mobility.ravel().shape, id='xylocsa')
+        ds.setAxis(1, self.get_station_axis())
+        pert_axis = create_axis((4, ), id='pertdir',
+                                long_name='Perturbation directions',
+                                units='0:east, 1:west, 2:north, 3:south')
+        ds.setAxis(0, pert_axis)
+        ds[:] = MV2.masked
+
+        return ds
 
 
 
@@ -966,6 +1102,10 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
             self.inputs.append(obsplat.inputs)
         self._missing_value = missing_value
 
+        # Unique platform names
+        if len(obsplats) !=  len(set([obs.name for obs in obsplats])):
+            raise SONATError('Platform names must be inique')
+
         # Named norms
         if norms and isinstance(norms, dict):
             self.set_named_norms(norms)
@@ -988,6 +1128,11 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         return len(self.obsplats)
 
     def __getitem__(self, key):
+        if isinstance(key, str):
+            for obs in self.obsplats:
+                if obs.name == key:
+                    return obs
+            raise SONATError('Invalid platform name: '+key)
         return self.obsplats[key]
 
     def __iter__(self):
@@ -1404,6 +1549,25 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         return {}
 
 
+
+    def export(self, htmlfile, **kwargs):
+        """Make plots and export figures to an htmlfile"""
+
+        # Make plots
+        figs = self.plot(**kwargs)
+        if not figs:
+            return
+
+        # Figure paths
+        figs = dicttree_relpath(figs, os.path.dirname(htmlfile))
+
+        # Render with template
+        checkdir(htmlfile)
+        render_and_export_html_template('dict2tree.html', htmlfile,
+            title="Observations", content=figs)
+        self.created(htmlfile)
+
+        return htmlfile
 
 def load_obs(ncfiles, varnames=None, lon=None, lat=None,
         logger=None):

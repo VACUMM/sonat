@@ -14,7 +14,7 @@ from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
 from sonat.ens import Ensemble
 from sonat.obs import NcObsPlatform, ObsManager
 from sonat.arm import (ARM, register_arm_score_function, get_arm_score_function,
-    ARM_SCORE_FUNCTIONS, XYARMSA)
+    ARM_SCORE_FUNCTIONS, XYLocARMSA)
 
 netcdf4()
 
@@ -35,8 +35,7 @@ def test_arm_arm_init():
     obs0 = NcObsPlatform(NCFILE_OBS_HFRADARS)
     obs1 = NcObsPlatform(NCFILE_OBS_PROFILES)
     obs2 = NcObsPlatform(NCFILE_OBS_SATSST)
-#    obsmanager = ObsManager([obs0, obs1, obs2])
-    obsmanager = ObsManager([obs1])
+    obsmanager = ObsManager([obs0, obs1, obs2])
 
     # Bathymetry
     bathy = get_bathy()[::2, ::2]
@@ -45,8 +44,8 @@ def test_arm_arm_init():
     arm = ARM(ens, obsmanager, syncnorms=True, bathy=bathy)
 
     # Checks
-#    assert_allclose(arm.obsmanager[2].norms + arm.obsmanager[1].norms[:1],
-#        arm.ens.norms[arm.ens.varnames.index('temp')])
+    assert_allclose(arm.obsmanager[2].norms + arm.obsmanager[1].norms[:1],
+        arm.ens.norms[arm.ens.varnames.index('temp')])
 
     return arm
 
@@ -135,18 +134,43 @@ def test_arm_get_arm_score_function():
 
     assert func is myfunc
 
-def test_arm_xyarmsa():
+
+def test_arm_scores():
+
+    # Fake data
+    spect = N.array([4.5, 3.5, 2.5, 1.5, .5, 0.1])
+    arm = None
+    rep = None
+
+    # Scores
+    res = [get_arm_score_function(score_type)(spect, arm, rep)
+           for score_type in ('nev', 'fnev', 'relvar')]
+
+    return res
+
+def test_arm_xylocarmsa():
 
      # Load ARM
     arm = get_arm()
 
     # Init sensivity analyser
-    armsa = XYARMSA(arm)
+    armsa = XYLocARMSA(arm)
 
     # Sensitivity analysis
     resd = armsa.analyse(direct=True)
     resi = armsa.analyse(direct=False)
 
+def test_arm_xylocarmsa_plot():
+
+     # Load ARM
+    arm = get_arm()
+
+    # Init sensivity analyser
+    armsa = XYLocARMSA(arm)
+
+    # Plot
+    armsa.plot(score_type='fnev')
+    armsa.plot(score_type='relvar')
 
 if __name__=='__main__':
     res = test_arm_arm_init()
@@ -156,10 +180,12 @@ if __name__=='__main__':
     res = test_arm_arm_results()
     res = test_arm_register_arm_score_function()
     res = test_arm_get_arm_score_function()
-    test_arm_arm_plot_spect()
-    test_arm_arm_plot_arm()
-    test_arm_arm_plot_rep()
-    test_arm_xyarmsa()
+    res = test_arm_scores()
+    res = test_arm_arm_plot_spect()
+    res = test_arm_arm_plot_arm()
+    res = test_arm_arm_plot_rep()
+    res = test_arm_xylocarmsa()
+    res = test_arm_xylocarmsa_plot()
 
 
 

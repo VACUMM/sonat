@@ -40,7 +40,8 @@ from collections import OrderedDict
 import numpy as N
 import MV2, cdms2
 
-from vcmq import (curve, create_axis, dict_check_defaults, kwfilter, m2deg)
+from vcmq import (curve, create_axis, dict_check_defaults, kwfilter, m2deg, P,
+                  add_shadow, add_param_label)
 
 from .__init__ import SONATError, sonat_warn
 from .misc import _Base_, recursive_transform_att, vminmax, xycompress
@@ -48,6 +49,8 @@ from .ens import Ensemble
 from .obs import ObsManager, NcObsPlatform
 from ._fcore import f_arm
 from .pack import Simple1DPacker, default_missing_value
+from .plot import get_registered_scatters, plot_directional_quiver
+from .render import render_and_export_html_template
 
 class ARM(_Base_):
     """Interface to the ARM assessment algorithm
@@ -499,7 +502,11 @@ class ARM(_Base_):
 
         return figs
 
-
+    def plot(self, **kwargs):
+        """Make all ARM analysis plots in one"""
+        kwspect = kwfilter(kwargs, 'spect_')
+        kwarm = kwfilter(kwargs, 'arm_')
+        kwrep = kwfilter(kwargs, 'rep_')
 
 
     def format_mode(self, imode=None, fmt='{imode:0{ndigit}d}'):
@@ -522,6 +529,8 @@ class ARM(_Base_):
 #: Sensitivy analyser
 class ARMSA(_Base_):
 
+    long_name = ""
+
     def __init__(self, arm, logger=None, **kwargs):
 
         # Check arm
@@ -535,15 +544,45 @@ class ARMSA(_Base_):
         self.obs = arm.obs
         self.ens = arm.ens
 
+    @classmethod
+    def get_name(cls):
+        if hasattr(cls, 'name'):
+            return cls.name
+        if not hasattr(cls, '__name__'):
+            cls = cls.__class__
+        name = cls.__name__.lower()
+        if name.endswith('armsa'):
+            name = name[:-5]
+        return name
 
-    def export(self, **kwargs):
+    @classmethod
+    def get_long_name(cls):
+        if hasattr(cls, 'long_name'):
+            return cls.long_name
+        return self.name + " sensisitivity analysis"
+
+    def plot(self, **kwargs):
 
         raise SONATError('The method must be overwritten')
 
-RE_PERTDIR_MATCH = re.compile(r'[+\-][xy]$').match
+    def export(self, htmlfile, **kwargs):
+        """Make plots and export figures to an html file"""
 
-class XYARMSA(ARMSA):
+        # Get figures
+        figs = self.plot(**kwargs)
 
+        # Relative paths
+        figs = dicttree_relpath(figs, os.path.dirname(htmlfile))
+
+        # Render with template
+        checkdir(htmlfile)
+        render_and_export_html_template('dict2tree.html', htmlfile,
+            title=self.name + " sensitivity analysis", content=figs)
+        self.created(htmlfile)
+
+class XYLocARMSA(ARMSA):
+
+    long_name = "Sensitivity to observation X/Y locations"
 
     def __init__(self, arm, **kwargs):
 
@@ -553,138 +592,28 @@ class XYARMSA(ARMSA):
             self.warning("None of the platforms is mobile")
 
         # Backup stuff
-        self.backups = {}
         # - platform coordinates
-        self.backups['obs'] = {}
         for obs in self.arm.obs:
-            if obs.mobile:
-                self.backups['obs'][obs] = {}
-                for att in 'lons', 'lats':
-                    self.backups['obs'][obs][att] = getattr(obs, att).copy()
+            obs.xylocsa_backup()
         # - ARM
-        self.backups['arm'] = {}
+        self.backups = {}
         for att in ('_ens_on_obs', '_packed_ens_on_obs',
                     '_packed_ens_on_obs_valid', '_final_packer'):
             if hasattr(self.arm, att):
-                self.backups['arm'][att] = getattr(self.arm, att)
+                self.backups[att] = getattr(self.arm, att)
+
 
     def restore_arm(self):
-        for att, val in self.backups['arm'].items():
+        for att, val in self.backups.items():
             setattr(self.arm, att, val)
 
     def restore_platform(self, obs):
-        if not obs in self.backups['obs']:
-            return
-        for att, val in self.backups['obs'][obs].items():
-            setattr(obs, att, val)
+        obs.xylocsa_restore()
 
     def restore(self):
         self.restore_arm()
         for obs in self.obs:
             self.restore_platform(obs)
-
-    def activate_platform_pert(self, obs, pert, direction, index):
-        """Change the horizontal location of the platform at a single point
-        and in a single direction.
-
-        Parameters
-        ----------
-        pert: float
-            Change in position in meridional degrees
-        direction: string
-            Possible values:
-
-            - "[+|-][x|y]": negative or positive perturbation along x or y
-            - "": back to original position
-
-        index: int
-            Index of a mobile observation.
-            Its coordinates are accessed at ``obs.lons[index]`` and
-            ``obs.lats[index]``.
-        """
-        if not obs.mobile:
-            return
-
-        if direction and pert:
-
-            # Parse direction
-            direction = str(direction).lower()
-            if not RE_PERTDIR_MATCH(direction):
-                raise SONATError("The direction of perturbation argument must"
-                    " be of the form: '{+|-}{x|y}'")
-            isx = direction[1]=='x'
-            sign = 1 if direction[0]=='-' else -1
-
-            # Reset
-            self.deactivate_platform_pert(obs)
-
-            # X and Y perturbation values
-            if isx:
-                lat = obs.lats.mean()
-                pert = m2deg(pert, lat)
-                cname = 'lons'
-            else:
-                cname = 'lats'
-            coords = getattr(obs, cname) # array of coordinates
-
-            # Change coordinates in place
-            coords[index] += pert
-
-        else: # back to orig
-
-            self.deactivate_platform_pert()
-
-
-    def deactivate_platform_pert(self, obs):
-        """Get back to original locations"""
-        self.restore_platform(obs)
-
-    def get_platform_pert_indices_iter(self, obs):
-        """Get an iterator on mobile indices
-
-        ``obs.lons[index]`` and ``obs.lats[index]`` are the coordinates
-        of a mobile point.
-        """
-        if not obs.mobile:
-            return iter([])
-        if not hasattr(obs, '_xy_pert_indices'):
-            obs._xy_pert_indices = N.where(obs.mobility>=1)[0]
-        return iter(obs._xy_pert_indices)
-
-    def init_platform_pert_arrays(self, obs):
-        """Init the arrays that will filled by the sensitivity analysis
-
-        Return
-        ------
-        array
-            Northward derivative
-        array
-            Southward derivative
-        array
-            Eastward derivative
-        array
-            Westward derivative
-        """
-        if not obs.mobile:
-            sonat_warn('This platform cannot be moved')
-            return
-
-        mobile = obs.mobility>=1
-        dsn = obs.mobility.clone().astype('d')
-        dsn[:] = N.ma.masked
-        dsn.id = 'dsn'
-        dsn.long_name = 'Northward derivative of score'
-        dss = dsn.clone()
-        dss.id = 'dss'
-        dss.long_name = 'Southward derivative of score'
-        dsw = dsn.clone()
-        dsw.id = 'dsw'
-        dsw.long_name = 'Westward derivative of score'
-        dse= dsn.clone()
-        dse.id = 'dse'
-        dse.long_name = 'Eastward derivative of score'
-
-        return dse, dsw, dsn, dss
 
 
     def analyse(self, platforms=None, pert=0.001, score_type='fnev', direct=False):
@@ -710,13 +639,12 @@ class XYARMSA(ARMSA):
             arrays in each direction: east, west, north, south.
             Each array has the size of the number of platform mobile locations.
         """
-
+        self.verbose('Starting sensitivity analysis:')
+        self.verbose('  analysis type={}, score type={}, direct={}'.format(
+            self.name, score_type, direct))
 
         # Reference
         score0 = self.arm.get_score(score_type)
-        ev0=self.arm.raw_spect
-        r0=self.arm.R.copy()
-        Yf0=self.arm.Yf.copy()
 
         # Loop on platforms
         results = {}
@@ -735,22 +663,20 @@ class XYARMSA(ARMSA):
                     continue
 
             # Inits
-            dse, dsw, dsn, dss = self.init_platform_pert_arrays(obs)
-            results[obs] = dse, dsw, dsn, dss
+            ds = results[obs] = obs.xylocsa_init_pert_output()
 
             # Loop on mobile points
-            for idx in self.get_platform_pert_indices_iter(obs):
+            for idx in obs.xylocsa_get_pert_indices_iter():
 
                 # Check mobility
                 if not obs.mobility[idx]:
                     continue
 
                 # Loop on directions
-                for ds, pdir in zip([dse, dsw, dsn, dss],
-                                    ['+x', '-x', '+y', '-y']):
+                for idir, pdir in enumerate(['+x', '-x', '+y', '-y']):
 
                     # Change location
-                    self.activate_platform_pert(obs, pert, pdir, idx)
+                    dpert = obs.xylocsa_activate_pert(pdir, idx, pert=pert)
 
                     # Project ensemble on obs
                     self.arm.project_ens_on_obs(sync_norms=False,
@@ -765,9 +691,6 @@ class XYARMSA(ARMSA):
 
                         # Analyse and get score
                         score1 = self.arm.get_score(score_type)
-                        ev1=self.arm.raw_spect
-                        r1=self.arm.R.copy()
-                        Yf1=self.arm.Yf.copy()
 
                     else:
 
@@ -793,18 +716,122 @@ class XYARMSA(ARMSA):
 
 
                     # Fill array
-                    print score1
-                    ds[idx] = (score1 - score0) / pert
-                    print ds[idx]
+                    ds[idir, idx] = (score1 - score0) / dpert
+                    if pdir.startswith('-'):
+                        ds[idir, idx] *= -1
 
         self.restore()
 
         return results
 
-    def plot(self, platforms=None, pert=0.01, score_type='fnev'):
+    def plot(self, platforms=None, pert=0.01, score_type='fnev', direct=False,
+             figpat='arm.sa.{saname}.{score_type}.png',
+             title='{sa_long_name}',
+             alpha_static=.3, quiver_scale=None,
+             max_quiver_length=40, params_loc=(0.01, 0.01),
+             show=False, close=True, **kwargs):
+        """Plot the derivative of the score with respect to position changes
+        in all directions
+        """
 
-        results = self.analysis(platforms=platforms, pert=pert,
-                                score_type=score_type, method=method)
+        kwleg = kwfilter(kwargs,'legend_')
+        kwobs = kwfilter(kwargs,'obs_')
+        kwqui = kwfilter(kwargs,'quiver_')
+        kwpar = kwfilter(kwargs,'params_')
+
+        # Get numeric results
+        results = self.analyse(platforms=platforms, pert=pert,
+                                score_type=score_type, direct=direct)
+
+        # Plots
+        kwobs.update(savefig=False, full2d=True, full3d=False,
+                      title=None, legend=False, close=False)
+        self.obs.plot('locations', **kwobs)
+        plotter = self.obs.get_cached_plot('locations', 'map', '2d')
+
+        # Quiver scale
+        vmin, vmax = vminmax(results)
+        vmax = max(abs(vmin), abs(vmax))
+        quiver_scale = vmax / max_quiver_length
+
+
+        # Loop on platforms
+        for ip, (obs, ds) in enumerate(results.items()):
+
+            # Get scatter plot object
+            pobj = get_registered_scatters(plotter, obs.name)
+            add_shadow(pobj, ax=plotter.axes)
+            zorder = pobj.get_zorder() + 1
+            pobj.set_zorder(zorder)
+
+            # Coordinates
+            xx, yy = plotter(obs.lons1d, obs.lats1d)
+
+            # Quiver plots
+            kw = kwqui.copy()
+            kw.update(
+#                      color=pobj.get_facecolor()[0], width=2,
+                      scale_units='dots',
+#                      scale=quiver_scale,
+#                      zorder=zorder,
+                      angles='xy', shadow=True,
+                      units='dots', linewidth=0, edgecolor='k')
+            for iv, (values, ref_sign) in enumerate(zip(ds, [1, -1, 1j, -1j])):
+                values = values.asma()
+                tail = N.sign(values) == N.sign(ref_sign).real
+                tip = ~tail
+                tail = tail.filled(False)
+                tip = tip.filled(False)
+#                label = [None, 'Mobile'] if iv==0 and ip==0 else None
+                for valid, pivot in [(tail, 'tail'), (tip, 'tip')]:
+                    plot_directional_quiver(plotter.axes, xx, yy, values,
+                                            zonal=not ref_sign.imag,
+                                            valid=valid, pivot=pivot,
+                                            width=[2], #, .4],
+                                            color=[pobj.get_facecolor()[0]], #, 'k'],
+                                            headlength=[5], #, 0],
+                                            headwidth=[3], #, 0],
+                                            zorder=[zorder-0.01], #, zorder+0.01],
+                                            scale=[quiver_scale], #, 1.05*quiver_scale],
+#                                            label=label,
+                                            **kw)
+
+            # Cross for non-mobile points
+            valid = N.ma.getmaskarray(ds).all(axis=0)
+            if valid.any():
+                plotter.axes.scatter(xx[valid], yy[valid], c='k',
+                                     s=100, linewidth=.4, marker='+',
+                                     zorder=zorder+0.01,
+                                     label='Static' if ip==0 else None)
+
+        # Alpha on other
+        for obs in self.obs:
+            if obs not in results:
+                pobj = get_registered_scatters(plotter, obs.name)
+                P.setp(pobj, alpha=alpha_static)
+
+        # Finalise
+        plotter.legend(**kwleg)
+        params = dict(score_type=score_type, direct=direct)
+        kwpar.update(transform=plotter.axes.transAxes, fig=plotter.axes)
+        dict_check_defaults(kwpar, weight='bold')
+        add_param_label(params, loc=params_loc, **kwpar)
+        if title:
+            sa_long_name = self.get_long_name()
+            plotter.axes.set_title(title.format(**locals()))
+
+        # Save
+        saname = self.name
+        figfile = figpat.format(**locals())
+        plotter.savefig(figfile)
+        self.created(figfile)
+        if show:
+            plotter.show()
+        elif close:
+            plotter.close()
+
+        return {self.get_long_name():figfile}
+
 
 
 
@@ -819,9 +846,7 @@ def register_arm_sensitivity_analyser(cls, name=None, warn=True, replace=False):
 
     # Name
     if name is None:
-        name = cls.__class__.__name__.lower()
-        if name.endswith('armsa'):
-            name = name[:-5]
+        name = cls.get_name()
 
     # Register
     if name in ARM_SENSITIVITY_ANALYSERS:
@@ -836,7 +861,7 @@ def register_arm_sensitivity_analyser(cls, name=None, warn=True, replace=False):
     cls.name = name
     return name, cls
 
-register_arm_sensitivity_analyser(XYARMSA)
+register_arm_sensitivity_analyser(XYLocARMSA)
 
 def get_arm_sensitivity_analyser(self, name, arm=None):
     """Get an ARM sensitivity analyser class or instance"""
@@ -853,6 +878,7 @@ def get_arm_sensitivity_analyser(self, name, arm=None):
     # Instance
     return cls(arm)
 
+
 #: Prefix of all ARM score functions
 ARM_SCORE_FUNCTION_PREFIX = 'arm_score_'
 
@@ -868,6 +894,7 @@ def arm_score_fnev(spect, arm, rep):
     # Linear interpolation
     if nev==0 or nev==len(spect):
         return float(nev)
+    spect = spect -1
     return float(nev) + spect[nev-1] / (spect[nev-1] - spect[nev])
 
 
@@ -885,12 +912,14 @@ def arm_score_relvar(spect, arm, rep):
     # Base
     var = spect[:nev].sum()
     var -= spect[0] * .5
-    var -= spect[-1] * .5
+    var -= spect[nev-1] * .5
     if int(fnev)==len(spect):
         return var
 
     # Fraction
-    var += fnev//1 * spect[-1] * .5
+    var += fnev%1 * spect[nev-1] * .5
+
+    return var
 
 #: Registered ARM score functions
 ARM_SCORE_FUNCTIONS = {}

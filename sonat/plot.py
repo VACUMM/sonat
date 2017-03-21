@@ -47,7 +47,8 @@ from matplotlib.colors import Normalize
 import cdms2
 from vcmq import (map, hov, stick, curve, section, dict_check_defaults, plot2d,
                   kwfilter, curv2rect, deplab, isaxis, meshbounds,
-                  grid2xy, scalebox, Plot, land_color)
+                  grid2xy, scalebox, Plot, land_color, add_shadow,
+                  broadcast)
 
 from .__init__ import SONATError, sonat_warn
 from .misc import (slice_gridded_var, vminmax, mask_scattered_locs,
@@ -369,7 +370,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                         lon=None, lat=None, level=None, label='',
                         lon_bounds_margin=.1, lat_bounds_margin=.1,
                         data=None, warn=True, bathy=None, xybathy=None,
-                        size=30, color='#2ca02c', linewidth=0.4, edgecolor='k',
+                        size=40, color='#2ca02c', linewidth=0.4, edgecolor='k',
                         add_profile_line=None, add_bathy=True,
                         fig=None, title=True, register_sm=True,
                         legend=False, **kwargs):
@@ -723,16 +724,88 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         plotter.legend(**kwleg)
     if data is not None and register_sm:
         register_scalar_mappable(ax, pp)
+    register_scatter(ax, pp, label)
     return plotter
 
-def register_scalar_mappable(ax, p):
-    if isinstance(p, list):
-        for _ in p:
-            register_scalar_mappable(ax, _)
+def _register_(ax, attr, pobj):
+    if isinstance(pobj, list):
+        for _ in pobj:
+            _register_(ax, attr, _)
     else:
-        if not hasattr(ax, '_sonat_scalar_mappables'):
-            ax._sonat_scalar_mappables = []
-        ax._sonat_scalar_mappables.append(p)
+        if not hasattr(ax, attr):
+            setattr(ax, attr, [])
+        pol = getattr(ax, attr)
+        pol.append(pobj)
+
+def register_scalar_mappable(ax, pobj):
+    _register_(ax, '_sonat_scalar_mappables', pobj)
+
+def register_scatter(ax, pobj, label=None):
+    """Register a scatter plot object"""
+    if isinstance(pobj, list):
+        for p in pobj:
+            p._sonat_label = label
+    else:
+        pobj._sonat_label = label
+    _register_(ax, '_sonat_scatters', pobj)
+
+def get_registered_scatters(ax, label=None):
+    """Get registered scatter plot object"""
+    # Get the axes
+    if isinstance(ax, Plot):
+        ax = ax.axes
+    if not hasattr(ax, '_sonat_scatters'):
+        return
+
+    # Get scatter(s)
+    pobjs = ax._sonat_scatters
+    if label is None:
+        return pobjs
+
+    # Search for a given label
+    for pobj in pobjs:
+        if getattr(pobj, '_sonat_label', None)==label:
+            return pobj
+
+def plot_directional_quiver(ax, xx, yy, values, zonal, valid, pivot,
+#                            width=2,
+#                            color='k',
+#                            headlength=5,
+                            shadow=True,
+                            **kwargs):
+
+    if not valid.any():
+        return
+    u, v = values[valid], N.zeros(valid.sum())
+    if not zonal:
+        u, v = v, u
+    xx = xx[valid]
+    yy = yy[valid]
+
+    n = 0
+    keys = []
+    for att, val in kwargs.items():
+        if isinstance(val, list):
+            keys.append(att)
+            n = max(len(val), n)
+    vals = []
+    for key in keys:
+        vals.append(broadcast(kwargs.pop(key), n))
+
+    if keys:
+
+        for i, vv in enumerate(zip(*vals)):
+            kw = kwargs.copy()
+            for key, val in zip(keys, vv):
+                kw[key] = val
+            p = ax.quiver(xx, yy, u, v, pivot=pivot, **kw)
+            if not i:
+                p0 = p
+    else:
+        p0 = ax.quiver(xx, yy, u, v, pivot=pivot, **kwargs)
+
+    if shadow:
+        add_shadow(p0, ax=ax)
 
 def sync_scalar_mappable_plots_vminmax(ax, symetric=False):
     """Sync min ax max of all the scalar mappable plots for given axes"""
