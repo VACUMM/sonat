@@ -442,6 +442,20 @@ class _Base_(object):
     def debug(self, msg):
         self.logger.debug(msg)
 
+    def _dache_set_(self, *args, **kwargs):
+        if not hasattr(self, '_dcache'):
+            self._dcache = {}
+        dicttree_set(self._dcache, *args, **kwargs)
+
+    def _dcache_get_(self, *args, **kwargs):
+        if not hasattr(self, '_dcache'):
+            return
+        return dicttree_get(self._dcache, *args, **kwargs)
+
+    def _dcache_clean_(self):
+        if hasattr(self, '_dcache'):
+            del self._dcache
+
 def rescale_itv(itv, factor=1, target="both", min_width=.1):
     """Scale an interval of floats
 
