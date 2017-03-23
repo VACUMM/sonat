@@ -503,10 +503,83 @@ class ARM(_Base_):
         return figs
 
     def plot(self, **kwargs):
-        """Make all ARM analysis plots in one"""
+        """Make all ARM analysis plots in one
+
+        It calls :meth:`plot_spect`, :meth:`plot_arm` and :meth:`plot_rep`.
+
+        Return
+        ------
+        dict
+        """
+        # Kwargs
         kwspect = kwfilter(kwargs, 'spect_')
         kwarm = kwfilter(kwargs, 'arm_')
         kwrep = kwfilter(kwargs, 'rep_')
+
+        # Plots
+        figs = {}
+        figs['Spectrum'] = self.plot_spect(**kwspect)
+        figs['Array modes'] = self.plot_arm(**kwarm)
+        figs['Array mode representers'] = self.plot_rep(**kwrep)
+
+        return figs
+
+    def export_html(self, htmlfile, title="ARM analysis", **kwargs):
+
+        # File
+        htmlfile = htmlfile.format(**subst)
+
+        # Get figures
+        figs = self.plot(**kwargs)
+
+        # Relative paths
+        figs = dicttree_relpath(figs, os.path.dirname(htmlfile))
+
+        # Render with template
+        checkdir(htmlfile)
+        render_and_export_html_template('dict2tree.html', htmlfile,
+            title=title, content=figs)
+        self.created(htmlfile)
+        return htmlfile
+
+    def export_netcdf(self, ncfile_spect='arm.spect.nc',
+                      ncpat_arm='arm.arm.{platform_name}.nc',
+                      ncfile_rep='arm.rep.nc'):
+        """Export results to netcf files
+
+        Paramaters
+        ----------
+        ncfile_spect: string
+            Netcdf file name for the spectrum variable
+        ncpat_arm: string
+            Netcdf file name with patterns for the array modes.
+        ncfile_rep: string
+            Netcdf file name for the array mode representers
+        """
+        # Spectrum
+        if ncfile_spect:
+            f =  cdms2.open(ncfile_spect, 'w')
+            f.write(self.spect)
+            f.close()
+            self.created(ncfile_spect)
+
+        # Array modes
+        if ncfile_arm:
+            for arm, obs in zip(self.arm, self.obsmanager):
+                platform_name = obs.platform_name
+                ncfile_arm = ncpat_arm.format(**locals())
+                f = cdms2.open(ncfile_arm, 'w')
+                for varm in arm:
+                    f.write(varm)
+                f.close()
+                self.created(ncfile_arm)
+
+        # Array mode representers
+        f = cdms2.open(ncfile_rep, 'w')
+        for vrep in self.rep:
+            f.write(vrep)
+        f.close()
+
 
 
     def format_mode(self, imode=None, fmt='{imode:0{ndigit}d}'):
@@ -525,6 +598,35 @@ class ARM(_Base_):
             dat = data[imode]
             return dat
         return [self.extract_mode(dat, imode) for dat in data]
+
+    def analyse_sensitivity(self, sa_name, htmlfile=None, ncfile=None, **kwargs):
+        """Perform a sensitivity analysis
+
+        Parameters
+        ----------
+        sa_name: string
+            A registered sensitivity analyser
+        htmlfile: string
+            Exportation html file name with possible string patterns
+        ncfile: string
+            Exportation netcdf file name possible string patterns
+        \**kwargs
+            Extra arguments are ultimately parsed by the :meth:`~ARMSA.analyse`
+            of the current analyser. They typically contains the analysis
+            parameters.
+        """
+        # Get the SA analyser
+        sa = get_arm_sensitivity_analyser(sa_name, self)
+
+        # Plot
+        if htmlfile:
+            sa.export_html(**kwargs)
+        else:
+            sa.plot(**kwargs)
+
+        # Netcdf
+        if ncfile:
+            sa.export_netcdf(ncfile, **kwargs)
 
 #: Sensitivy analyser
 class ARMSA(_Base_):
@@ -561,12 +663,22 @@ class ARMSA(_Base_):
             return cls.long_name
         return self.name + " sensisitivity analysis"
 
+    def analyse(self, **kwargs):
+
+        raise SONATError('The method must be overwritten')
+
     def plot(self, **kwargs):
 
         raise SONATError('The method must be overwritten')
 
-    def export(self, htmlfile, **kwargs):
-        """Make plots and export figures to an html file"""
+    def export_html(self, htmlfile, title='{sa_name} sensitivity analysis',  **kwargs):
+        """Export figures to an html file"""
+        # Variables for substitution in path
+        subst = kwargs.copy()
+        subst.update(sa_name=self.name)
+
+        # File
+        htmlfile = htmlfile.format(**subst)
 
         # Get figures
         figs = self.plot(**kwargs)
@@ -577,8 +689,31 @@ class ARMSA(_Base_):
         # Render with template
         checkdir(htmlfile)
         render_and_export_html_template('dict2tree.html', htmlfile,
-            title=self.name + " sensitivity analysis", content=figs)
+            title=title.format(**subst), content=figs)
         self.created(htmlfile)
+        return htmlfile
+
+    def export_netcdf(self, ncfile, *args, **kwargs):
+        """Export results to a netcdf file"""
+        sonat_warn('The method must be overwritten')
+
+    def export(self, htmlfile=None, ncfile=None, *args, **kwargs):
+        """Export figures to an html file and/or data to a netcdf file"""
+        # Variables for substitution in path
+        subst = kwargs.copy()
+        subst.update(sa_name=self.name)
+        res = {}
+
+        # Plots
+        if htmlfile:
+            res['html'] = self.export_html(htmlfile, *args, **kwargs)
+
+        # Data
+        if ncfile:
+            res['netcdf'] = self.export_netcdf(ncfile, *args, **kwargs)
+
+        return res
+
 
 class XYLocARMSA(ARMSA):
 
@@ -616,7 +751,8 @@ class XYLocARMSA(ARMSA):
             self.restore_platform(obs)
 
 
-    def analyse(self, platforms=None, pert=0.001, score_type='fnev', direct=False):
+    def analyse(self, platforms=None, pert=0.001, score_type='fnev',
+                direct=False, force=False):
         """Perform the senisitivty analysis
 
         Parameters
@@ -662,8 +798,18 @@ class XYLocARMSA(ARMSA):
                 if not obs.name in platforms:
                     continue
 
+            # Check cache
+            if not force:
+                ds = self._dcache_get_(obs, pert, score_type, direct)
+                if ds is not None:
+                    results[obs] = ds
+                    continue
+
             # Inits
             ds = results[obs] = obs.xylocsa_init_pert_output()
+            ds.score_type = score_type
+            ds.pert = pert
+            ds.direct = int(direct)
 
             # Loop on mobile points
             for idx in obs.xylocsa_get_pert_indices_iter():
@@ -831,6 +977,34 @@ class XYLocARMSA(ARMSA):
             plotter.close()
 
         return {self.get_long_name():figfile}
+
+
+    def export_netcdf(self, ncpat, *args, **kwargs):
+        """Export results to netcdf files"""
+        # Variables for substitution in path
+        subst = kwargs.copy()
+        subst.update(sa_name=self.name)
+
+        # Get results
+        results = self.analyse(*args, **kwargs)
+
+        # Loop on obs
+        ncfiles = []
+        for obs, var in results.items():
+            subst['platform_name'] = obs.name
+
+            # File
+            ncfile = ncpat.format(**subst)
+
+            # Write
+            f = cdms2.open(ncfile, 'w')
+            f.write(var)
+            f.close()
+            self.created(ncfile)
+            ncfiles.append(ncfile)
+
+        return ncfiles
+
 
 
 
