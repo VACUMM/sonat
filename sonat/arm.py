@@ -524,10 +524,10 @@ class ARM(_Base_):
 
         return figs
 
-    def export_html(self, htmlfile, title="ARM analysis", **kwargs):
+    def export_html(self, htmlfile='arm.html', **kwargs):
 
         # File
-        htmlfile = htmlfile.format(**subst)
+#        htmlfile = htmlfile.format(**subst)
 
         # Get figures
         figs = self.plot(**kwargs)
@@ -538,7 +538,7 @@ class ARM(_Base_):
         # Render with template
         checkdir(htmlfile)
         render_and_export_html_template('dict2tree.html', htmlfile,
-            title=title, content=figs)
+            title='ARM analysis', content=figs)
         self.created(htmlfile)
         return htmlfile
 
