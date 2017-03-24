@@ -617,17 +617,33 @@ class NcObsPlatform(ObsPlatformBase):
             self._station_axis = create_axis(self.xysample.size, id='station')
         return self._station_axis
 
+    def set_bathy2d(self, bathy2d):
+        """Interpolate a bathymetry and save it"""
+        self._bathy2d = bathy2d
+        return bathy2d
+
+    def get_bathy2d(self, bathy2d=None, force=False):
+        if bathy2d is not None and (force or not hasattr(self, '_bathy2d')):
+            self.set_bathy2d(bathy2d)
+        return getattr(self, '_bathy2d', None)
+
+    bathy2d = property(fget=get_bathy2d, fset=set_bathy2d, doc='Gridded bathymetry')
+
     def set_bathy(self, bathy2d):
         """Interpolate a bathymetry and save it"""
+        bathy2d = self.get_bathy2d(bathy2d)
         if bathy2d is not None:
             self._bathy = grid2xy(bathy2d, self.lons1d, self.lats1d)
 
     def get_bathy(self, bathy2d=None, force=False):
         if bathy2d is not None and (force or not hasattr(self, '_bathy')):
             self.set_bathy(bathy2d)
+        elif self.bathy2d is not None:
+            self.set_bathy(self.bathy2d)
         return getattr(self, '_bathy', None)
 
     bathy = property(fget=get_bathy, fset=set_bathy, doc='Colocated bathymetry')
+
 
     def get_num_depths(self, bathy2d=None):
         """Get the depths as numeric array"""
@@ -768,7 +784,8 @@ class NcObsPlatform(ObsPlatformBase):
              savefig=True, add_bathy=True, add_profile_line=None,
              vmin=None, vmax=None, cmap=None,
              figpat='sonat.obs.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
-             reset_cache=True, label=None, legend=True, title=True,
+             reset_cache=True, label=None, legend=True,
+             title='Observations: {var_long_name}',
              zorder=2.5, sync_vminmax=True, subst={},
              fmtlonlat=u'{:.2f}°{}', fmtdep='{:04.0f}m',
              **kwargs):
@@ -824,9 +841,10 @@ class NcObsPlatform(ObsPlatformBase):
             add_profile_line = not self.is_zscattered
 
         # Bathy at obs locations
+        bathy = self.get_bathy2d(bathy)
         xybathy = None
         if add_profile_line or bottom:
-            xybathy = self.get_bathy(bathy)
+            xybathy = self.bathy
 
         # Bounds
         if (level is None and (self.depths!='bottom' or bathy is not None) and
@@ -891,7 +909,7 @@ class NcObsPlatform(ObsPlatformBase):
                 var_name = split_varname(var_name)[0] # no suffixes
                 varname = var_name
                 self.debug('  Var: ' + var_name)
-                long_name = get_long_name(var, var_name)
+                var_long_name = get_long_name(var, var_name)
 
                 # Local args
                 default_plotter = dicttree_get(plotter, var_name, slice_type, slice_loc)
@@ -905,8 +923,8 @@ class NcObsPlatform(ObsPlatformBase):
                 this_vmax = dicttree_get(vmax, var_name, slice_type, slice_loc)
                 this_cmap = dicttree_get(cmap, var_name, slice_type, slice_loc)
                 this_title = dicttree_get(title, var_name, slice_type, slice_loc)
-                if this_title is True:
-                    this_title = long_name
+                if this_title :
+                    this_title = this_title.format(**locals())
 
                 kw = kwargs.copy()
                 if slice_loc=="3d":
@@ -1248,6 +1266,17 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
 
         return self._depths
 
+    def set_bathy2d(self, bathy2d):
+        """Save a gridded bathymetry"""
+        self._bathy2d = bathy2d
+        for obs in self:
+           obs.bathy2d = bathy2d
+
+    def get_bathy2d(self):
+        return [obs.bathy2d for obs in self]
+
+    bathy2d = property(fget=get_bathy2d, fset=set_bathy2d,
+                     doc='Gridded bathymetries for each platform')
 
     def set_bathy(self, bathy2d):
         """Interpolate a bathymetry and save it"""
@@ -1445,6 +1474,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
              sync_vminmax=True,
              color=None, marker=['o', '^', 's', '<', '>', '*'], legend=True,
              reset_cache=True, fig=None, savefig=True, close=True,
+             title='Observations: {var_long_name}',
              figpat='sonat.obs.{var_name}_{slice_type}_{slice_loc}.png',
              subst={}, **kwargs):
         """Plot the locations of all platforms
@@ -1533,6 +1563,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
                      legend='cache' if legend else False,
                      sync_vminmax=sync_vminmax,
                      color=this_color, marker=this_marker,
+                     title=title,
                      **kwargs)
 
         # Plot all pending legends
