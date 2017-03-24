@@ -1006,7 +1006,7 @@ class XYLocARMSA(ARMSA):
         return ncfiles
 
 
-
+## SENSITIVITY ANALYSES
 
 
 #: Registered ARM sensitivity analysers
@@ -1037,7 +1037,7 @@ def register_arm_sensitivity_analyser(cls, name=None, warn=True, replace=False):
 
 register_arm_sensitivity_analyser(XYLocARMSA)
 
-def get_arm_sensitivity_analyser(self, name, arm=None):
+def get_arm_sensitivity_analyser(name, arm=None):
     """Get an ARM sensitivity analyser class or instance"""
     if name not in ARM_SENSITIVITY_ANALYSERS:
         raise SONATerror(('Invalid ARM sensitivity analyser: {}. '
@@ -1052,6 +1052,12 @@ def get_arm_sensitivity_analyser(self, name, arm=None):
     # Instance
     return cls(arm)
 
+def list_arm_sensitivity_analysers():
+    """Get the list of registered sensitivity analysers"""
+    return ARM_SENSITIVITY_ANALYSERS.keys()
+
+
+## SCORES
 
 #: Prefix of all ARM score functions
 ARM_SCORE_FUNCTION_PREFIX = 'arm_score_'
@@ -1139,6 +1145,9 @@ def get_arm_score_function(fname):
 
     return ARM_SCORE_FUNCTIONS[fname]
 
+def list_arm_score_functions():
+    """Get the list of registered ARM score functions"""
+    return ARM_SCORE_FUNCTIONS.keys()
 
 # Register default score functions
 register_arm_score_function(arm_score_nev)
