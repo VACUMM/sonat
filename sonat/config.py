@@ -112,6 +112,43 @@ def _get_domain_minmax_(cfg, key, defmin, defmax, bounds, none=True):
          itv += bounds,
     return itv
 
+def get_cfg_plot_slice_specs(cfg, exclude=None):
+    """Get kwargs that specify slices for plot functions
+
+    Parameters
+    ----------
+    exclude: strings
+        Exclude some slices.
+
+    Example
+    -------
+    >>> print get_cfg_plot_slice_specs(cfg, exclude=["full2d", "full3d"])
+    {'surf': True, 'bottom': False ....}
+
+    Return
+    ------
+    dict
+        With at most the following keys:
+        full2d, full3d, surf, bottom,
+        zonal_sections, merid_section and horiz_section.
+
+
+    """
+    cfgp = cfg['plots']
+    kwargs = dict(full3d=cfgp['full3d'], full2d=cfgp['full2d'],
+        surf=cfgp['surf'], bottom=cfgp['bottom'],
+        zonal_sections=cfgp['sections']['zonal'],
+        merid_sections=cfgp['sections']['merid'],
+        horiz_sections=cfgp['sections']['horiz'],
+    )
+    if isinstance(exclude, str):
+        exclude = [exclude]
+    if isinstance(exclude, list):
+        for exc in exclude:
+            if exc in kwargs:
+                del kwargs[exc]
+    return kwargs
+
 def get_cfg_path(cfg, secname, pathname, format=False, *args, **kwargs):
     """Format a relative path from the config with optional subtitutions
 
