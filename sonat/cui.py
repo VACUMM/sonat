@@ -38,11 +38,12 @@ import os
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pylab import register_cmap, get_cmap
+import cdms2
 from vcmq import dict_merge, itv_intersect
 
 from .__init__ import sonat_help, get_logger, SONATError
 from .config import (parse_args_cfg, get_cfg_xminmax, get_cfg_yminmax,
-    get_cfg_tminmax, get_cfg_path)
+    get_cfg_tminmax, get_cfg_path, get_cfg_plot_slice_specs)
 from .misc import interpret_level
 from .obs import load_obs_platform, ObsManager
 from .ens import generate_pseudo_ensemble, Ensemble
@@ -59,7 +60,7 @@ def main():
         description='use "<subcommand> --help" to have more help')
 
     # Help
-    hparser = subparsers.add_parser('open_help', help='open the sonat help url')
+    hparser = subparsers.add_parser('open_help', help='open the sonat help url', )
     hparser.add_argument('text', help='text to search for', nargs='?')
     hparser.set_defaults(func=open_help)
 
@@ -74,14 +75,16 @@ def main():
         help='generate a pseudo-ensemble from model outputs')
     egparser.add_argument('ncmodfile', nargs='*',
         help='model netcdf file path or pattern')
-    egparser.set_defaults(func=ens_gen_pseudo)
+    egparser.add_argument('--add-obs', type=bool,
+        help='add observation locations')
+    egparser.set_defaults(func=ens_gen_pseudo_from_args)
 
     # - ensemble plot_diags
     epparser = esubparsers.add_parser('plot_diags',
         help='make and plot ensemble diagnostics')
     epparser.add_argument('ncensfile', nargs='?',
         help='ensemble netcdf file')
-    egparser.set_defaults(func=ens_plot_diags)
+    egparser.set_defaults(func=ens_plot_diags_from_args)
 
 
     # Obs
@@ -89,15 +92,35 @@ def main():
     osubparsers = oparser.add_subparsers(title='subcommands',
         description='use "<subcommand> --help" to have more help')
 
-    # - ensemble plot_diags
+    # - plot
     opparser = osubparsers.add_parser('plot',
         help='plot observations locations or errors')
-    opparser.add_argument('ncensfile', nargs='?',
-        help='ensemble netcdf file')
-    ogparser.set_defaults(func=obs_plot)
+#    opparser.add_argument('platform', nargs='?',
+#        help='platform name')
+    opparser.set_defaults(func=obs_plot_from_args)
+
+    # ARM
+    aparser = subparsers.add_parser('arm', help='ARM tools')
+    asubparsers = aparser.add_subparsers(title='subcommands',
+        description='use "<subcommand> --help" to have more help')
+
+    # - analysis
+    aaparser = asubparsers.add_parser('analysis',
+        help='run an ARM analysis and export results')
+    aaparser.set_defaults(func=arm_analysis_from_args)
+
+    # - sensitivity analysis
+    asparser = asubparsers.add_parser('sa',
+        help='run an ARM sensitivity analysis')
+    asparser.add_argument('saname', nargs='?',
+        help='sensitivity analyser name')
+    asparser.set_defaults(func=arm_sa_from_args)
+
+
 
     # Read/check config and parse commandline arguments
     args, cfg = parse_args_cfg(parser)
+    args.func(parser, args, cfg)
 
 
 ## HELP
@@ -109,10 +132,8 @@ def open_help(args):
 
 ## ENSEMBLE
 
-def ens_gen_pseudo_from_args(parser, args):
+def ens_gen_pseudo_from_args(parser, args, cfg):
     """ens gen_pseudo subcommand"""
-    # Get the config
-    cfg = args.vacumm_cfg
 
     # List of model files from args and config
     ncmodfiles = (args.ncmodfile if args.ncmodfile else
@@ -211,11 +232,8 @@ def ens_gen_pseudo_from_cfg(cfg):
     return ncensfile
 
 
-def ens_plot_diags_from_args(args):
+def ens_plot_diags_from_args(parser, args, cfg):
     """ens plot_diags subcommand"""
-    # Get the config
-    cfg = args.vacumm_cfg
-
     # List of model files from args and config
     ncensfile = (args.ncensfile if args.ncensfile else
         get_cfg_path(cfg, 'ens', 'ncensfile'))
@@ -225,10 +243,10 @@ def ens_plot_diags_from_args(args):
     'to the command line, or in the configuration file')
 
     # Execute using config only
-    return ens_plot_diags_from_cfg(CFG)
+    return ens_plot_diags_from_cfg(cfg, add_obs=args.add_obs)
 
 
-def ens_plot_diags_from_cfg(cfg):
+def ens_plot_diags_from_cfg(cfg, add_obs=None):
 
     # Config
     cfgd = cfg['domain']
@@ -237,8 +255,10 @@ def ens_plot_diags_from_cfg(cfg):
     cfgc = cfg['cmaps']
     cfgef = cfge['fromobs']
     cfgedp = cfged['plots']
-#    cfgp = cfg['plots']
+    cfgp = cfg['plots']
     cfgps = cfgp['sections']
+    cfgop = cfg['obs']
+    cfgo = cfgo['plots']
 
     # Init
     logger = init_from_cfg(cfg)
@@ -253,10 +273,9 @@ def ens_plot_diags_from_cfg(cfg):
     figpatslice = get_cfg_path(cfg, 'ens', 'figpatslice')
     figpatgeneric = get_cfg_path(cfg, 'ens', 'figpatgeneric')
     htmlfile = get_cfg_path(cfg, 'ens', 'htmlfile')
-    depths = interpret_level(cfgeds('depths').dict())
-    zonal_sections =  cfgps('zonal')
-    merid_sections =  cfgps('merid')
     kwargs = cfged.dict().copy()
+    kwslices = get_cfg_plot_slice_specs(cfg, exclude=['full2d', 'full3d'])
+    kwargs.update(kwslices)
     del kwargs['plots']
     props = cfgedp.dict()
     for vname, pspecs in cfgedp.keys(): # default colormaps
@@ -266,10 +285,19 @@ def ens_plot_diags_from_cfg(cfg):
     ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
         lon=lon, lat=lat)
 
+    # Observations
+    if add_obs:
+        kwargs.update(obs=load_obs_from_cfg(cfg),
+                      obs_color=cfgop['colorcycle'],
+                      obs_marker=cfgop['markercycle'],
+                      obs_size=cfgop['size'],
+                      )
+
+
+
     # Plot diags
     return ens.export_diags(htmlfile, figpat_slice=figpatslice,
-        figpat_generic=figpatgeneric, depths=depths, props=props,
-        zonal_sections=zonal_sections, merid_sections=merid_sections,
+        figpat_generic=figpatgeneric, props=props,
         **kwargs)
 
 
@@ -311,8 +339,15 @@ def load_obs_from_cfg(cfg):
 
     return manager
 
+def obs_plot_from_args(parser, args, cfg):
+    """obs plot subcommand"""
+#    # List of model files from args and config
+#    platforms = args.platform if args.platform else None
 
-def obs_plot_from_cfg(cfg):
+    # Execute using config only
+    return obs_plot_from_cfg(cfg)#, platforms=platforms)
+
+def obs_plot_from_cfg(cfg, platforms=None):
 
     # Config
     cfgo = cfg['obs']
@@ -322,12 +357,21 @@ def obs_plot_from_cfg(cfg):
     cfgop = cfgo['plots']
     cfgp = cfg['plots']
     cfps = cfgp['sections']
+    figpat = get_cfg_path(cfg, 'obs', 'figpat')
+    kwslices = get_cfg_plot_slice_specs(cfg)
+    kwargs = {}
+    kwargs.update(kwslices)
 
     # Init
     logger = init_from_cfg(cfg)
 
     # Load obs manager
     obsmanager = load_obs_from_cfg(cfg)
+
+    # Bathy
+    bathy = read_bathy_from_cfg(cfg, logger)
+    if bathy is not None:
+        obsmanager.set_bathy(bathy)
 
     # Var names
     varnames = []
@@ -336,14 +380,129 @@ def obs_plot_from_cfg(cfg):
     varnames.extend(cfgop['varnames'])
 
     # Plot
-    obsmanager.plot(varnames=varnames, figpat=cfgo['figpat'],
-                    lon=lon, lat=lat,
-                    full3d=cfgp['full3d'], full2d=cfgp['full2d'],
-                    surf=cfgp['surf'], bottom=cfgp['bottom'],
-                    zonal_sections=cfgps['zonal'],
-                    merid_sections=cfgps['merid'],
-                    horiz_sections=cfgps['horiz'],
+    obsmanager.plot(varnames, figpat=figpat, lon=lon, lat=lat,
+                    color=cfgop['colorcycle'], marker=cfgop['markercycle'],
+                    map_elev=cfgp['3d']['elev'], map_azim=cfgp['3d']['azim'],
+                    size=cfgop['size'],
+                    **kwargs)
+
+
+## ARM
+
+def arm_analysis_from_args(parser, args, cfg):
+    """arm analysis subcommmand"""
+
+    # Execute using config only
+    return arm_analysis_from_cfg(cfg)
+
+def arm_analysis_from_cfg(cfg):
+
+    # Config
+    cfga = cfg['arm']
+    cfge = cfg['ens']
+    cfgo = cfg['obs']
+    cfgp = cfg['plots']
+    cfgps = cfgp['sections']
+    lon = get_cfg_xminmax(cfg)
+    lat = get_cfg_yminmax(cfg)
+    ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
+    varnames = cfge['varnames'] or None
+
+    # Init
+    logger = init_from_cfg(cfg)
+
+    # Load ensemble
+    ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
+        lon=lon, lat=lat)
+
+    # Load obs manager
+    obs = load_obs_from_cfg(cfg)
+
+    # Init ARM
+    arm = ARM(ens, obs)
+
+    # Bathy
+    bathy = read_bathy_from_cfg(cfg, logger)
+    if bathy is not None:
+        arm.set_bathy(bathy)
+
+    # Analyse and export
+    htmlfile = arm.export_html(get_cfg_path(cfg, 'arm', 'htmlfile'),
+                    spect_figfgile=get_cfg_path(cfg, 'arm', 'figfile_spect'),
+                    arm_figpat=get_cfg_path(cfg, 'arm', 'figpat_arm'),
+                    rep_figpat=get_cfg_path(cfg, 'arm', 'figpat_rep'),
                     )
+
+    return htmlfile
+
+def arm_sa_from_args(parser, args, cfg):
+    """arm sa subcommmand"""
+
+    # List of sensitivity analysers
+    sanames = args.saname or None
+    all_sanames = list_arm_sensitivity_analysers()
+    if sanames is not None:
+        for saname in sanames:
+            if saname not in all_sanames:
+                parser.error('Invalid sensitivity analyser name: '+ saname +
+                             '\nPlease choose one of: '+' '.join(all_sanames))
+
+    # Execute using config only
+    return arm_sa_from_cfg(cfg, sanames=sanames)
+
+def arm_sa_from_cfg(cfg, sanames=None):
+
+    # Config
+    cfga = cfg['arm']
+    cfgas = cfga['sa']
+    cfge = cfg['ens']
+    cfgo = cfg['obs']
+    cfgp = cfg['plots']
+    cfgps = cfgp['sections']
+    lon = get_cfg_xminmax(cfg)
+    lat = get_cfg_yminmax(cfg)
+    ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
+    varnames = cfge['varnames'] or None
+
+    # Load ensemble
+    ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
+        lon=lon, lat=lat)
+
+    # Load obs manager
+    obs = load_obs_from_cfg(cfg)
+
+    # Init ARM
+    arm = ARM(ens, obs)
+
+    # Bathy
+    bathy = read_bathy_from_cfg(cfg, logger)
+    if bathy is not None:
+        arm.set_bathy(bathy)
+
+    # SA names
+    if sanames is None:
+        sanames = list_arm_sensitivity_analysers()
+
+    # Loop
+    htmlfiles = []
+    for sa_name in sanames:
+
+        # Config
+        kwargs = cfgas[saname].dict()
+        activate = kwargs.pop('activate')
+        if not activate:
+            continue
+
+        # Setup analyser
+        sa = get_arm_sensitivity_analyser(saname, arm)
+
+        # Run and export
+        htmlfile = sa.export_html(htmlfile=cfgsa['htmlfile'], **kwargs)
+        htmlfiles.append(htmlfile)
+
+    return htmlfile
+
+
 
 
 ## MISC
@@ -363,11 +522,11 @@ def load_my_sonat_from_cfg(cfg, logger):
 def register_cmaps_from_cfg(cfg, logger):
     """Register cmap aliases into matplotlib"""
     logger.debug('Registering colormaps')
-    for name, cmap in cfg['cmaps']:
+    for name, cmap in cfg['cmaps'].items():
         register_cmap(name, cmap)
 
 
-def init_from_cfg(cfg, logger):
+def init_from_cfg(cfg):
     """Init stuff that is always performed
 
 
@@ -385,6 +544,34 @@ def init_from_cfg(cfg, logger):
     load_my_sonat_from_cfg(cfg, logger)
 
     return logger
+
+def read_bathy_from_cfg(cfg, logger):
+    """Return a gridded bathymetry variable that is positive on sea"""
+    # Config
+    cfgb = cfg['bathy']
+    ncfile = get_cfg_path(cfg, 'bathy', 'ncfile')
+    lon = get_cfg_xminmax(cfg, bounds='cce')
+    lat = get_cfg_yminmax(cfg, bounds='cce')
+
+    # Read
+    if ncfile:
+        logger.debug('Reading bathymetry: '+ncfile)
+        if not os.path.exists(ncfile):
+            logger.error('Bathymetry file not found: '+ncfile)
+        f = cdms2.open(ncfile)
+        varid = cfgb['varid']
+        if not varid:
+            for varid in f.listvariables():
+                if len(f[varid].shape)==2:
+                    break
+            else:
+                logger.error("Can't find a bathy variable in: "+ncfile)
+        elif varid not in f.listvariables():
+            logger.error('Invalid id for bathy variable: '+varid)
+        bathy = f(varid, lon=lon, lat=lat)
+        f.close()
+        return bathy
+
 
 if __name__=='__main__':
     main()

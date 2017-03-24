@@ -14,6 +14,9 @@ from sonat.config import load_cfg
 from sonat.cui import (
     ens_gen_pseudo_from_cfg,
     ens_plot_diags_from_cfg,
+    obs_plot_from_cfg,
+    arm_analysis_from_cfg,
+    arm_sa_from_cfg,
     )
 
 netcdf4()
@@ -43,10 +46,38 @@ def test_cui_ens_plot_diags_from_cfg():
     # Run
     ens_plot_diags_from_cfg(cfg)
 
+def test_cui_obs_plot_from_cfg():
+
+    # Load config
+    cfg = get_cfg()
+
+    # Run
+    obs_plot_from_cfg(cfg)
+
+def test_arm_analysis_from_cfg():
+
+
+    # Load config
+    cfg = get_cfg()
+
+    # Run
+    arm_analysis_from_cfg(cfg)
+
+def test_arm_sa_from_cfg():
+
+    # Load config
+    cfg = get_cfg()
+
+    # Run
+    arm_sa_from_cfg(cfg)
 
 if __name__=='__main__':
 
-    test_cui_ens_gen_pseudo_from_cfg()
-    test_cui_ens_plot_diags_from_cfg()
+#    test_cui_ens_gen_pseudo_from_cfg()
+#    test_cui_ens_plot_diags_from_cfg()
+    test_cui_obs_plot_from_cfg()
+#    test_arm_analysis_from_cfg()
+#    test_arm_sa_from_cfg()
+
 
 
