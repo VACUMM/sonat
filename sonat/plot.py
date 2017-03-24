@@ -433,16 +433,19 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         need_xybathy = 2
     if need_xybathy and xybathy is not None:
 
-        if bathy is None and need_xybathy==2: # we really need it
-            if warn:
-                sonat_warn('Bathymetry is needed at obs locations. Skipping...')
-                return
-        xybathy = grid2xy(bathy, lons, lats)
-        if xybathy.mask.all():
-            if warn:
-                sonat_warn('Bathymetry is fully masked at bottom locs. Skipping...')
-            if need_xybathy==2:
-                return
+        if bathy is not None:
+            xybathy = grid2xy(bathy, lons, lats)
+            if xybathy.mask.all():
+                if warn:
+                    sonat_warn('Bathymetry is fully masked at bottom locs. Skipping...')
+                if need_xybathy==2:
+                    return
+                xybathy = None
+        elif need_xybathy==2 and warn: # we really need it
+            sonat_warn('Bathymetry is needed at obs locations. Skipping...')
+            return
+    if xybathy is None:
+        add_profile_line = False
 
     # Special depths: surf and bottom
     indepths = depths
