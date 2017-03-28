@@ -964,6 +964,7 @@ def get_long_name(var, default=None):
         return var.id.title().replace('_', ' ')
     return default
 
+
 def recursive_transform_att(data, att, func, *args, **kwargs):
     """Strip ids of a recursive lists of arrays"""
     if not isinstance(data, list):

@@ -380,12 +380,14 @@ def obs_plot_from_cfg(cfg, platforms=None):
     varnames.extend(cfgop['varnames'])
 
     # Plot
-    obsmanager.plot(varnames, figpat=figpat, lon=lon, lat=lat,
+    htmlfile = obsmanager.export_html(cfgo['htmlfile'],
+        varnames, figpat=figpat, lon=lon, lat=lat,
                     color=cfgop['colorcycle'], marker=cfgop['markercycle'],
                     map_elev=cfgp['3d']['elev'], map_azim=cfgp['3d']['azim'],
                     size=cfgop['size'],
                     **kwargs)
 
+    return htmlfile
 
 ## ARM
 

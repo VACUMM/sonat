@@ -48,7 +48,7 @@ from matplotlib import rcParams
 from matplotlib.markers import MarkerStyle
 from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     ncget_time, ncget_level, ArgList, ncfind_obj, itv_intersect, intersect,
-    MV2_axisConcatenate, transect, create_axis, regrid1d, isaxis,
+    MV2_axisConcatenate, transect, create_axis, regrid1d, isaxis, checkdir,
     dicttree_get, dict_check_defaults, meshgrid, P, kwfilter, m2deg)
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES, get_logger
@@ -59,6 +59,7 @@ from .stack import Stacker, _StackerMapIO_
 from .plot import (plot_scattered_locs, sync_scalar_mappable_plots_vminmax,
                    get_color_marker_cycler, sync_scalar_mappables_vminmax,
                    add_colorbar, get_registered_scatter_mappables)
+from .render import render_and_export_html_template
 
 npy = N
 
@@ -172,8 +173,8 @@ class _ObsBase_(_XYT_):
 
         Return
         ------
-        figs
-            dict(var_name={slice_type: {slice_loc:figfile}})
+        dict: figs
+            {var_name:  {slice_type: {slice_loc: figfile}}}
         """
         if not hasattr(plotter, '_sonat_plot'):
             raise SONATError('This plot has not been cached')
@@ -183,7 +184,7 @@ class _ObsBase_(_XYT_):
         figfile = figpat.format(**subst)
         plotter.savefig(figfile)
         self.created(figfile)
-        return dict(var_name={slice_type: {slice_loc:figfile}})
+        return {var_name.title():{slice_type.title(): {slice_loc.title():figfile}}}
 
 
     def save_cached_plots(self, figpat, **subst):
@@ -1597,13 +1598,14 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
 
 
 
-    def export(self, htmlfile, **kwargs):
+    def export_html(self, htmlfile, *args, **kwargs):
         """Make plots and export figures to an htmlfile"""
 
         # Make plots
-        figs = self.plot(**kwargs)
+        figs = self.plot(*args, **kwargs)
         if not figs:
             return
+        figs = {'Observations': figs}
 
         # Figure paths
         figs = dicttree_relpath(figs, os.path.dirname(htmlfile))
@@ -1615,6 +1617,12 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         self.created(htmlfile)
 
         return htmlfile
+
+    def export(self, htmlfile=None, *args, **kwargs):
+
+        # Html
+        if htmlfile:
+            self.export_html(htmlfile, *args, **kwargs)
 
 def load_obs(ncfiles, varnames=None, lon=None, lat=None,
         logger=None):
