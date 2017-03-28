@@ -57,7 +57,8 @@ from .misc import (xycompress, _Base_, _XYT_, check_variables, _NamedVariables_,
 from .pack import default_missing_value
 from .stack import Stacker, _StackerMapIO_
 from .plot import (plot_scattered_locs, sync_scalar_mappable_plots_vminmax,
-                   get_color_marker_cycler)
+                   get_color_marker_cycler, sync_scalar_mappables_vminmax,
+                   add_colorbar, get_registered_scatter_mappables)
 
 npy = N
 
@@ -194,7 +195,7 @@ class _ObsBase_(_XYT_):
 
 
     def mark_cached_plot_legend(self, plotter):
-        """Mark a plot to indicate it has a pending legen to plot
+        """Mark a plot to indicate it has a pending legend to plot
         with :meth:`add_cached_plots_legend`
         """
         plotter._sonat_legend = True
@@ -203,6 +204,14 @@ class _ObsBase_(_XYT_):
         for plotter in self.get_cached_plots():
             if hasattr(plotter, '_sonat_legend'):
                 plotter.legend(**kwargs)
+
+    def add_cached_plots_colorbar(self, sync_vminmax=True, **kwargs):
+        """Add a colorbar to each plat that have scalar mappables"""
+        for plotter in self.get_cached_plots():
+            sm = get_registered_scatter_mappables(plotter.axes)
+            if sync_vminmax:
+                sync_scalar_mappables_vminmax(sm)
+            add_colorbar(plotter, sm, **kwargs)
 
 
     def get_level(self, bathy2d=None, margin=0, zmax=0):
@@ -784,7 +793,7 @@ class NcObsPlatform(ObsPlatformBase):
              savefig=True, add_bathy=True, add_profile_line=None,
              vmin=None, vmax=None, cmap=None,
              figpat='sonat.obs.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
-             reset_cache=True, label=None, legend=True,
+             reset_cache=True, label=None, legend=True, colorbar=True,
              title='Observations: {var_long_name}',
              zorder=2.5, sync_vminmax=True, subst={},
              fmtlonlat=u'{:.2f}°{}', fmtdep='{:04.0f}m',
@@ -942,7 +951,8 @@ class NcObsPlatform(ObsPlatformBase):
                                     warn=False, bathy=bathy, label=label,
                                     vmin=this_vmin, vmax=this_vmax, cmap=this_cmap,
                                     lon=lon, lat=lat,
-                                    legend=False, title=this_title,
+                                    colorbar=colorbar, legend=legend,
+                                    title=this_title,
                                     add_bathy=this_add_bathy, zorder=zorder,
                                     **kw)
                 if this_plotter is None:
@@ -950,16 +960,15 @@ class NcObsPlatform(ObsPlatformBase):
 
                 # Sync vmin/vmax with other plots
                 if sync_vminmax and var_name!='locations':
-                    sync_scalar_mappable_plots_vminmax(this_plotter, sync_vminmax)
+                    sync_scalar_mappable_plots_vminmax(this_plotter, symetric=False)
 
                 # Cache
                 self.set_cached_plot(var_name, slice_type, slice_loc, this_plotter)
 
-                # Legend
-                if legend:
-                    self.mark_cached_plot_legend(this_plotter, **kwleg)
-                    if legend is True:
-                        this_plotter.legend(**kwleg)
+
+#                # Colorbar
+#                if not colorbar: # mark for future use just in case
+#                    self.mark_cached_plot_colorbar(this_plotter)
 
                 # Save
                 if savefig:
@@ -1472,7 +1481,8 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
              zonal_sections=None, merid_sections=None, horiz_sections=None,
              level=None, lon=None, lat=None,
              sync_vminmax=True,
-             color=None, marker=['o', '^', 's', '<', '>', '*'], legend=True,
+             color=None, marker=['o', '^', 's', '<', '>', '*'],
+             legend=True, colorbar=True,
              reset_cache=True, fig=None, savefig=True, close=True,
              title='Observations: {var_long_name}',
              figpat='sonat.obs.{var_name}_{slice_type}_{slice_loc}.png',
@@ -1506,6 +1516,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
 
         # Inits
         kwleg = kwfilter(kwargs, 'legend_')
+        kwcb = kwfilter(kwargs, 'colorbar_')
 
         # Input mode
         valid_input_modes = ['names', 'arrays']
@@ -1563,12 +1574,17 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
                      legend='cache' if legend else False,
                      sync_vminmax=sync_vminmax,
                      color=this_color, marker=this_marker,
+                     colorbar=False,
                      title=title,
                      **kwargs)
 
         # Plot all pending legends
         if legend:
             self.add_cached_plots_legend(**kwleg)
+
+        # Plot all pending colorbars
+        if colorbar:
+            self.add_cached_plots_colorbar(**kwcb)
 
         # Save all plots
         if savefig:
