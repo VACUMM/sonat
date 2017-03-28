@@ -72,7 +72,32 @@ TEMPLATE_HTML_DICT2TREE = """
                                 <li>
                                     <span class="tlevel3">{{ name3 }}</span><br/>
 
+                                    {% if content3 is string %}
                                     {{ content3|checkimg }}
+                                    {% elif content3 is mapping %}
+                                    <ul>
+                                    {% for name4, content4 in content3.iteritems() %}
+                                        {% if content4 %}
+                                        <li>
+                                            <span class="tlevel3">{{ name4 }}</span><br/>
+
+                                            {{ content4|checkimg }}
+
+                                        </li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    </ul>
+                                    {% elif content3 is sequence %}
+                                    <ul>
+                                    {% for item in content3 %}
+                                        {% if item %}
+                                        <li>
+                                            {{ item|checkimg }}
+                                        </li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    </ul>
+                                    {% endif %}
 
                                 </li>
                                 {% endif %}
