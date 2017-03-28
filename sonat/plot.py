@@ -372,8 +372,8 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                         data=None, warn=True, bathy=None, xybathy=None,
                         size=40, color='#2ca02c', linewidth=0.4, edgecolor='k',
                         add_profile_line=None, add_bathy=True,
-                        fig=None, title=True, register_sm=True,
-                        legend=False, **kwargs):
+                        fig=None, title="{long_name}", register_sm=True,
+                        legend=False, colorbar=True, **kwargs):
     """Plot scattered localisations
 
     Parameters
@@ -403,8 +403,17 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
     dict_check_defaults(kwmap, **kwplt)
     kwpf = kwfilter(kwargs, 'add_profile_line')
     kwleg = kwfilter(kwargs, 'legend')
-    if title is True:
-        title = get_long_name(data)
+    kwcb = kwfilter(kwargs, 'colorbar')
+    long_name = get_long_name(data)
+    units = getattr(data, 'units', '')
+    if long_name is None:
+        long_name = "Locations"
+    if not title:
+        title = None
+    elif title is True:
+        title = long_name
+    else:
+        title = title.format(**locals())
 
     # Slice type
     if slice_type is None:
@@ -659,7 +668,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
     elif slice_type in ['2d', 'surf', 'bottom', 'horiz']:
 
         # Barotropic case
-        if slice_type == "2d" and data is not None and data.ndim!=1:
+        if data is not None and data.ndim!=1:
             data = data.mean(axis=0)
 
         # Scatter plot
@@ -668,6 +677,9 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         else:
             kwargs['c'] = color
         pp.append(ax.scatter(xx, yy, label=label, **kwargs))
+        if pp[-1].norm.vmin is None:
+            pass
+
 
 
     # Sections
@@ -725,8 +737,10 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         ax.set_title(title)
     if legend:
         plotter.legend(**kwleg)
+    if colorbar and data is not None:
+        add_colorbar(plotter, pp, units=units, **kwcb)
     if data is not None and register_sm:
-        register_scalar_mappable(ax, pp)
+        register_scalar_mappable(ax, pp, units=units)
     register_scatter(ax, pp, label)
     return plotter
 
@@ -740,8 +754,20 @@ def _register_(ax, attr, pobj):
         pol = getattr(ax, attr)
         pol.append(pobj)
 
-def register_scalar_mappable(ax, pobj):
+def register_scalar_mappable(ax, pobj, units=None):
+    ax._sonat_units = units
     _register_(ax, '_sonat_scalar_mappables', pobj)
+
+def get_registered_scatter_mappables(ax):
+    """Get registered scatter mappable objects"""
+    # Get the axes
+    if isinstance(ax, Plot):
+        ax = ax.axes
+
+    # Get scatter(s)
+    return getattr(ax, '_sonat_scalar_mappables', None)
+
+
 
 def register_scatter(ax, pobj, label=None):
     """Register a scatter plot object"""
@@ -769,6 +795,60 @@ def get_registered_scatters(ax, label=None):
     for pobj in pobjs:
         if getattr(pobj, '_sonat_label', None)==label:
             return pobj
+
+
+def add_colorbar(ax, sm, units=None, **kwargs):
+    """Add a colorbar to the plot"""
+    if not sm:
+        return
+    if hasattr(ax, 'axes'):
+        ax = ax.axes
+    if isinstance(sm, list):
+        sm = sm[0]
+    if units is None and hasattr(ax, '_sonat_units'):
+        units = ax._sonat_units
+    if units:
+        kwargs.setdefault('label', units)
+    kwargs.setdefault('fraction',  0.13 if 'label' in kwargs else 0.09)
+    return P.colorbar(sm, ax=ax, **kwargs)
+
+def sync_scalar_mappable_plots_vminmax(ax, symetric=False):
+    """Sync min ax max of all the scalar mappable plots for given axes"""
+    # Get the axes
+    if isinstance(ax, Plot):
+        ax = ax.axes
+    if not hasattr(ax, '_sonat_scalar_mappables'):
+        return
+
+    # Sync
+    return sync_scalar_mappables_vminmax(ax._sonat_scalar_mappables)
+
+def sync_scalar_mappables_vminmax(pobjs, symetric=False):
+    """Sync min ax max of all given scalar mappables"""
+    if not isinstance(pobjs, list):
+        return
+
+    # Get min and max
+    vmin = N.inf
+    vmax = -N.inf
+    for p in pobjs:
+        if p.norm.vmin is not None:
+            vmin = min(p.norm.vmin, vmin)
+            vmax = max(p.norm.vmax, vmax)
+
+    # Symetric?
+    if symetric:
+        vmax = max(abs(vmin), abs(vmax))
+        vmin = -vmax
+
+    # Set min and max
+    norm = Normalize(vmin, vmax)
+    for p in pobjs:
+        p.set_norm(norm)
+
+    return norm
+
+
 
 def plot_directional_quiver(ax, xx, yy, values, zonal, valid, pivot,
 #                            width=2,
@@ -809,32 +889,6 @@ def plot_directional_quiver(ax, xx, yy, values, zonal, valid, pivot,
 
     if shadow:
         add_shadow(p0, ax=ax)
-
-def sync_scalar_mappable_plots_vminmax(ax, symetric=False):
-    """Sync min ax max of all the scalar mappable plots for given axes"""
-    # Get the axes
-    if isinstance(ax, Plot):
-        ax = ax.axes
-    if not hasattr(ax, '_sonat_scalar_mappables'):
-        return
-
-    # Get min and max
-    vmin = N.inf
-    vmax = -N.inf
-    for p in ax._sonat_scalar_mappables:
-        vmin = min(p.norm.vmin, vmin)
-        vmax = max(p.norm.vmax, vmax)
-
-    # Symetric?
-    if symetric:
-        vmax = max(abs(vmin), abs(vmax))
-        vmin = -vmax
-
-    # Set min and max
-    norm = Normalize(vmin, vmax)
-    for p in ax._sonat_scalar_mappables:
-        p.set_norm(norm)
-
 
 def plot_profile_line_3d(ax, x, y, bathy, linewidth=.3, linestyle='--', color='.6',
                          size=3, clip=True, **kwargs):
