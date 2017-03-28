@@ -45,10 +45,13 @@ __url__ = 'http://www.ifremer.fr/sonat'
 __coryright__ = 'IFREMER'
 
 import os
-from warnings import warn
+from warnings import warn, filterwarnings
 from vcmq import (Logger, )
 
 import _fcore
+
+filterwarnings("ignore", "The get_axis_bgcolor function was deprecated")
+filterwarnings("ignore", "setting an item on a masked array which has a shared mask")
 
 
 #: Bottom generic variable names
