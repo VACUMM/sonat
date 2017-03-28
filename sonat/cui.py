@@ -555,6 +555,7 @@ def read_bathy_from_cfg(cfg, logger):
 
     # Read
     if ncfile:
+
         logger.debug('Reading bathymetry: '+ncfile)
         if not os.path.exists(ncfile):
             logger.error('Bathymetry file not found: '+ncfile)
@@ -568,8 +569,22 @@ def read_bathy_from_cfg(cfg, logger):
                 logger.error("Can't find a bathy variable in: "+ncfile)
         elif varid not in f.listvariables():
             logger.error('Invalid id for bathy variable: '+varid)
-        bathy = f(varid, lon=lon, lat=lat)
+
+        kw = {}
+        if lon is not None:
+            kw['lon'] = lon
+        if lat is not None:
+            kw['lat'] = lat
+
+        bathy = f(varid, **kw)
         f.close()
+
+        if cfgb['samp']>1:
+            bathy = bathy[::samp, ::samp]
+
+        if cfgb['positive']:
+            bathy *= -1
+
         return bathy
 
 
