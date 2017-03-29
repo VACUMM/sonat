@@ -16,6 +16,8 @@ def test_pack_mv2_curved_with_record():
     # Fake data
     nt = 5
     data = create_mv2_gridder_xyzt(nt=nt, rotate=30)
+    data.id = 'mydata'
+    data.long_name = 'My long name'
     data[:, :, 3:5, 2:4] = MV2.masked
     raxis = data.getTime()
     del raxis.axis
@@ -27,7 +29,7 @@ def test_pack_mv2_curved_with_record():
     packed = packer.packed_data.copy()
 
     # Unpacked
-    unpacked = packer.unpack(packed)
+    unpacked = packer.unpack(packed, format=2)
     unpacked2 = packer.unpack(packed[:, :nt/2])
 
     # Repack
@@ -54,6 +56,8 @@ def test_pack_mv2_curved_with_record():
     assert_allclose(packed.shape, (svalid.sum(), data.shape[0]))
     assert_allclose(packed, cdata.T)
     assert_allclose(unpacked, data)
+    assert unpacked.id == 'mydata'
+    assert unpacked.long_name == 'My long name'
     assert_allclose(unpacked2, unpacked[:nt/2])
     assert_allclose(repacked, packer.packed_data)
     assert_allclose(renormed, packed/2)

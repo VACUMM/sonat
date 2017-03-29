@@ -17,6 +17,8 @@ def test_stack_mv2_with_record():
     # - first array
     nt = 5
     data0 = create_mv2_gridder_xyzt(nt=nt, rotate=30)
+    data0.id = 'data0'
+    data0.units = 'units0'
     data0[:, :, 3:5, 2:4] = MV2.masked
     raxis = data0.getTime()
     del raxis.axis
@@ -24,6 +26,8 @@ def test_stack_mv2_with_record():
     raxis.id = 'member'
     # - second array
     data1 = create_mv2_gridder_xyzt(rotate=0, nx=10, ny=9, nz=4)
+    data1.id = 'data1'
+    data1.long_name = 'long_name1'
     data1[:, :, 5:7, 6:7] = MV2.masked
     data1.setAxis(0, raxis)
 
@@ -32,7 +36,7 @@ def test_stack_mv2_with_record():
     stacked = stacker.stacked_data
 
     # Unstack
-    unstacked0, unstacked1 = stacker.unstack(stacker.stacked_data)
+    unstacked0, unstacked1 = stacker.unstack(stacker.stacked_data, format=2)
     unstacked0b, unstacked1b = stacker.unstack(stacker.stacked_data[:, :nt/2])
 
     # Restack
@@ -49,6 +53,8 @@ def test_stack_mv2_with_record():
     assert_allclose(stacked.shape,
         ((~data0[0].mask).sum()+(~data1[0].mask).sum(), data0.shape[0]))
     assert_allclose(unstacked0, data0)
+    assert unstacked0.id == 'data0'
+    assert unstacked0.units == 'units0'
     assert_allclose(unstacked1, data1)
     assert_allclose(unstacked0[:nt/2], unstacked0b)
     assert_allclose(unstacked1[:nt/2], unstacked1b)
