@@ -40,6 +40,7 @@ import os
 import re
 from collections import OrderedDict
 import scipy.stats as SS
+from matplotlib.ticker import MultipleLocator
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
     MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var,
     CaseChecker, curve, bar, dict_check_defaults, dict_merge, checkdir,
@@ -770,15 +771,16 @@ class Ensemble(Stacker, _NamedVariables_):
                 diags['variance'] = self._diags['variance'] = self.unmap(vars)
 
 
-            # Explained variance
+            # Spectrum
             if self.ev is not None and hasattr(self.ev, 'total_variance'):
-                if 'explained_variance' in self._diags:
-                    diags['explained_variance'] = self._diags['explained_variance']
+                if 'spectrum' in self._diags:
+                    diags['spectrum'] = self._diags['spectrum']
                 else:
-                    diags['explained_variance'] = self._diags['explained_variance'] = \
+                    diags['spectrum'] = self._diags['spectrum'] = \
                         100 * (self.ev**2) / self.ev.total_variance
-                    diags['explained_variance'].id = 'explained_variance'
-                    diags['explained_variance'].units = '%'
+                    diags['spectrum'].id = 'spectrum'
+                    diags['spectrum'].units = '%'
+                    diags['spectrum'].long_name = 'Relative spectrum'
 
             # Local explained variance
             if self.variance is not None:
@@ -824,14 +826,14 @@ class Ensemble(Stacker, _NamedVariables_):
 
     def plot_diags(self, mean=True, variance=True, kurtosis=True, skew=True,
             skewtest=True, kurtosistest=True, normaltest=True,
-            titlepat = '{var_name} - {diag_longname} - {slice_loc}',
+            titlepat = '{var_name} - {diag_long_name} - {slice_loc}',
             surf=None, bottom=None, horiz_sections=None, points=None,
             zonal_sections=None, merid_sections=None,
             fmtlonlat='{:.2f}', fmtdep='{:04.0f}m',
             figpat_slice='sonat.ens.{diag_name}_{var_name}_{slice_type}_{slice_loc}.png',
             figpat_generic='sonat.ens.{diag_name}.png',
             figfir=None, show=False, savefig=True,
-            htmlfile=None, props=None, **kwargs):
+            props=None, **kwargs):
         """Create figures for diagnostics
 
         Parameters
@@ -868,20 +870,26 @@ class Ensemble(Stacker, _NamedVariables_):
         figs = OrderedDict()
         for diag_name, diag_var in diags.items():
 
-            diag_longname = diag_name.title().replace('_', ' ')
-            self.debug('Plotting ens diag: '+diag_longname)
+            diag_long_name = diag_name.title().replace('_', ' ')
+            self.debug('Plotting ens diag: '+diag_long_name)
 
             # Explained variance
-            if diag_name=='explained_variance':
+            if diag_name=='spectrum':
 
+                self.debug(' Variable: spectrum')
                 figfile = figpat_generic.format(**locals())
                 checkdir(figfile)
                 kw = kwprops.get(diag_name, {})
-                dict_check_defaults(kw, xmax=len(diag_var)+.5, savefig=figfile,
-                    **DEFAULT_PLOT_KWARGS)
+                dict_check_defaults(kw, xmin=.5, xmax=len(diag_var)+.5,
+                                    width=.5, xminor_locator=False,
+                                    ymax=1.1*diag_var.max(),
+                                    savefig=figfile,
+                                    fig='new', xlabel='%(xlong_name)s',
+                                    xlocator=MultipleLocator(1),
+                                    **DEFAULT_PLOT_KWARGS)
                 bar(diag_var, **kw)
                 self.created(figfile)
-                figs[diag_longname] = figfile
+                figs[diag_long_name] = figfile
 
             # Plot other sliced variables
             else:
@@ -895,24 +903,13 @@ class Ensemble(Stacker, _NamedVariables_):
                                       figpat=figpat_slice, savefig=savefig,
                                       titlepat=titlepat,
                                       fmtlonlat=fmtlonlat, fmtdep=fmtdep,
-                                      subst={'diag_longname':diag_longname},
+                                      subst={'diag_long_name':diag_long_name,
+                                             'diag_name':diag_name},
                                       props=props,
                                       )
                 if ff:
-                    figs[diag_longname] = ff
+                    figs[diag_long_name] = ff
 
-
-        # Export to html
-        if htmlfile:
-
-            # Figure paths
-            figs = dicttree_relpath(figs, os.path.dirname(htmlfile))
-
-            # Render with template
-            checkdir(htmlfile)
-            render_and_export_html_template('dict2tree.html', htmlfile,
-                title="Ensemble diagnostics", content=figs)
-            self.created(htmlfile)
 
         return figs
 
@@ -925,6 +922,7 @@ class Ensemble(Stacker, _NamedVariables_):
                     figpat='sonat.ens.{var_name}_{slice_type}_{slice_loc}.png',
                     fmtlonlat=u'{:.2f}°{}', fmtdep='{:04.0f}m',
                     savefig=True, obs=None,
+                    close=True, show=False,
                     **kwargs):
         """Plot one or several platform like variables
 
@@ -955,7 +953,6 @@ class Ensemble(Stacker, _NamedVariables_):
 
         # Loop on variables
         for variable in ArgList(variables).get():
-
             var_name, vdepth, diag_name = split_varname(variable)
             varname = var_name
             id = variable.id
@@ -1068,7 +1065,7 @@ class Ensemble(Stacker, _NamedVariables_):
                 slice_loc = spec['slice_loc']
                 slice_type = spec['slice_type']
                 obs_plot = spec['obs_plot']
-                keys = spec['keys']
+                keys = map(str.title, spec['keys'])
                 kw = kwargs.copy()
                 kw.update(spec['kw'])
                 self.debug('  Location: '+slice_loc)
@@ -1099,11 +1096,17 @@ class Ensemble(Stacker, _NamedVariables_):
                     self.created(figfile)
                     kw = {keys[-1]:figfile, '__class__':OrderedDict}
                     dicttree_set(figs, *keys[:-1], **kw)
+                if not show and close:
+                    p.close()
+        if show:
+            P.show()
+        elif close:
+            P.close()
 
         return figs
 
 
-    def export_diags(self, htmlfile, **kwargs):
+    def export_html_diags(self, htmlfile, **kwargs):
         """Make and export diagnostics as an html file
 
         Parameters
@@ -1113,10 +1116,24 @@ class Ensemble(Stacker, _NamedVariables_):
         **kwargs
             All other params are passed to :meth:`plot_diags`
 
+        Return
+        ------
+        string
+            Html file name
         """
-        kwargs['htmlfile'] = htmlfile
+        # Get figures
         figs = self.plot_diags(**kwargs)
-        return htmlfile, figs
+        figs = {'Ensemble diagnostics': figs}
+
+        # Figure paths
+        figs = dicttree_relpath(figs, os.path.dirname(htmlfile))
+
+        # Render with template
+        checkdir(htmlfile)
+        render_and_export_html_template('dict2tree.html', htmlfile,
+            title='Ensemble diagnostics', content=figs)
+        self.created(htmlfile)
+        return htmlfile
 
     def project_on_obs(self, obsmanager):
         """Interpolate the variables onto the observation locations or the
