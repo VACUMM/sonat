@@ -933,8 +933,10 @@ class NcObsPlatform(ObsPlatformBase):
                 this_vmax = dicttree_get(vmax, var_name, slice_type, slice_loc)
                 this_cmap = dicttree_get(cmap, var_name, slice_type, slice_loc)
                 this_title = dicttree_get(title, var_name, slice_type, slice_loc)
+                this_subst = locals().copy()
+                this_subst.update(subst)
                 if this_title :
-                    this_title = this_title.format(**locals())
+                    this_title = this_title.format(**this_subst)
 
                 kw = kwargs.copy()
                 if slice_loc=="3d":
@@ -961,7 +963,8 @@ class NcObsPlatform(ObsPlatformBase):
 
                 # Sync vmin/vmax with other plots
                 if sync_vminmax and var_name!='locations':
-                    sync_scalar_mappable_plots_vminmax(this_plotter, symetric=False)
+                    sync_scalar_mappable_plots_vminmax(this_plotter,
+                        symetric=sync_vminmax=='symetric')
 
                 # Cache
                 self.set_cached_plot(var_name, slice_type, slice_loc, this_plotter)
@@ -1203,7 +1206,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         for obs in self:
             obs.check_variables(searchmode)
 
-    def select_variables(self, varnames=None, source=None):
+    def select_variables(self, varnames=None, source=None, prefix_to_rm=None):
         """Select variables according to their prefix name on all platforms
 
         Parameters
@@ -1221,7 +1224,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         """
         if source is None:
             source = self.variables
-        return [obs.select_variables(varnames, src)
+        return [obs.select_variables(varnames, src, prefix_to_rm=prefix_to_rm)
                  for obs, src in zip(self.obsplats, source)]
 
     @property
@@ -1576,7 +1579,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
                      sync_vminmax=sync_vminmax,
                      color=this_color, marker=this_marker,
                      colorbar=False,
-                     title=title,
+                     title=title, subst=subst,
                      **kwargs)
 
         # Plot all pending legends

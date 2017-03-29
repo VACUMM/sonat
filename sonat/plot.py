@@ -83,7 +83,7 @@ load_mplrc()
 
 #: Default arguments to vacumm plot functions
 DEFAULT_PLOT_KWARGS = dict(
-    contour_linewidths=.7,
+    contour_linewidths=.3,
     colorbar_fraction=.1,
     quiver_units='dots',
     quiver_width=1.2,
@@ -810,6 +810,8 @@ def add_colorbar(ax, sm, units=None, **kwargs):
     if units:
         kwargs.setdefault('label', units)
     kwargs.setdefault('fraction',  0.13 if 'label' in kwargs else 0.09)
+    if isinstance(ax, Axes3D):
+        kwargs.setdefault('shrink', .5)
     return P.colorbar(sm, ax=ax, **kwargs)
 
 def sync_scalar_mappable_plots_vminmax(ax, symetric=False):
@@ -821,7 +823,8 @@ def sync_scalar_mappable_plots_vminmax(ax, symetric=False):
         return
 
     # Sync
-    return sync_scalar_mappables_vminmax(ax._sonat_scalar_mappables)
+    return sync_scalar_mappables_vminmax(ax._sonat_scalar_mappables,
+                                         symetric=symetric)
 
 def sync_scalar_mappables_vminmax(pobjs, symetric=False):
     """Sync min ax max of all given scalar mappables"""
