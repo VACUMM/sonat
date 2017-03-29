@@ -79,9 +79,36 @@ TEMPLATE_HTML_DICT2TREE = """
                                     {% for name4, content4 in content3.iteritems() %}
                                         {% if content4 %}
                                         <li>
-                                            <span class="tlevel3">{{ name4 }}</span><br/>
+                                            <span class="tlevel4">{{ name4 }}</span><br/>
 
+                                            {% if content4 is string %}
                                             {{ content4|checkimg }}
+                                            {% elif content4 is mapping %}
+                                            <ul>
+                                            {% for name5, content5 in content4.iteritems() %}
+                                                {% if content5 %}
+                                                <li>
+                                                    <span class="tlevel5">{{ name5 }}</span><br/>
+
+                                                    {{ content5|checkimg }}
+
+                                                </li>
+                                                {% endif %}
+                                            {% endfor %}
+                                            </ul>
+                                            {% elif content4 is sequence %}
+                                            <ul>
+                                            {% for item in content4 %}
+                                                {% if item %}
+                                                <li>
+                                                    {{ item|checkimg }}
+                                                </li>
+                                                {% endif %}
+                                            {% endfor %}
+                                            </ul>
+                                            {% else %}
+                                            {{ content4|string }}
+                                            {% endif %}
 
                                         </li>
                                         {% endif %}
@@ -97,6 +124,8 @@ TEMPLATE_HTML_DICT2TREE = """
                                         {% endif %}
                                     {% endfor %}
                                     </ul>
+                                    {% else %}
+                                    {{ content3|string }}
                                     {% endif %}
 
                                 </li>
@@ -113,6 +142,8 @@ TEMPLATE_HTML_DICT2TREE = """
                                 {% endif %}
                             {% endfor %}
                             </ul>
+                            {% else %}
+                            {{ content2|string }}
                             {% endif %}
 
                         </li>
@@ -129,6 +160,8 @@ TEMPLATE_HTML_DICT2TREE = """
                         {% endif %}
                     {% endfor %}
                     </ul>
+                    {% else %}
+                    {{ content1|string }}
                     {% endif %}
 
                 </li>
@@ -145,6 +178,8 @@ TEMPLATE_HTML_DICT2TREE = """
                 {% endif %}
             {% endfor %}
             </ul>
+            {% else %}
+            {{ content0|string }}
             {% endif %}
 
         </li>
@@ -232,6 +267,9 @@ def do_checkimg(obj):
     return obj
 JINJA_ENV.filters['checkimg'] = do_checkimg
 
+def do_fallback(obj):
+    return str(obj)
+JINJA_ENV.filters['fallback'] = do_fallback
 
 # 0HTML_TEMPLATES = {}
 register_html_template('base.html', TEMPLATE_HTML_BASE)
