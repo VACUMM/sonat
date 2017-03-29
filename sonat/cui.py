@@ -433,6 +433,7 @@ def arm_analysis_from_cfg(cfg):
                     spect_figfgile=get_cfg_path(cfg, 'arm', 'figfile_spect'),
                     arm_figpat=get_cfg_path(cfg, 'arm', 'figpat_arm'),
                     rep_figpat=get_cfg_path(cfg, 'arm', 'figpat_rep'),
+                    score_types=cfga['score_types'],
                     )
 
     return htmlfile

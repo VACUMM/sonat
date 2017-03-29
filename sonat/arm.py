@@ -351,7 +351,7 @@ class ARM(_Base_):
         recursive_transform_att(self._results['rep'], 'long_name', set_long_name)
         return self._results['rep']
 
-    def get_score(self, type='nev'):
+    def get_score(self, score_type='nev'):
         """Get the score for the current analysis
 
         Parameters
@@ -359,7 +359,22 @@ class ARM(_Base_):
         type: string
             Score type
        """
-        return get_arm_score_function(type)(self.spect, self.arm, self.rep)
+        return get_arm_score_function(score_type)(self.spect, self.arm, self.rep)
+
+    def get_scores(self, score_types=None):
+        """Export different scores as a dict
+
+        Return
+        ------
+        dict: score
+            {'Scores': {score_type1:score1, ...}
+        """
+        if score_types is None:
+            score_types = list_arm_score_types()
+        scores = {}
+        for score_type in score_types:
+            score[score_type] = self.get_score(score_type)
+        return {'Scores': scores}
 
     def plot_spect(self, figfile='arm.spect.png', savefig=True, close=True,
                    title='ARM Sepctrum', hline=1., score='nev',
@@ -509,7 +524,8 @@ class ARM(_Base_):
 
         Return
         ------
-        dict
+        dict: figs
+            {'Figures': {'Spectrum': 'arm.spect.png', ...}}
         """
         # Kwargs
         kwspect = kwfilter(kwargs, 'spect_')
@@ -522,23 +538,29 @@ class ARM(_Base_):
         figs['Array modes'] = self.plot_arm(**kwarm)
         figs['Array mode representers'] = self.plot_rep(**kwrep)
 
-        return figs
+        return {'Figures': figs}
 
-    def export_html(self, htmlfile='arm.html', **kwargs):
+    def export_html(self, htmlfile='arm.html', score_types=None, **kwargs):
 
         # File
 #        htmlfile = htmlfile.format(**subst)
 
         # Get figures
         figs = self.plot(**kwargs)
-
-        # Relative paths
         figs = dicttree_relpath(figs, os.path.dirname(htmlfile))
+
+        # Get score
+        scores = self.get_scores(score_types)
+
+        # Merge
+        results = OrderedDict()
+        results.update(scores)
+        results.update(figs)
 
         # Render with template
         checkdir(htmlfile)
         render_and_export_html_template('dict2tree.html', htmlfile,
-            title='ARM analysis', content=figs)
+            title='ARM analysis', content=results)
         self.created(htmlfile)
         return htmlfile
 
@@ -978,6 +1000,14 @@ class XYLocARMSA(ARMSA):
 
         return {self.get_long_name():figfile}
 
+    def export_html(self, htmlfile, *args, **kwargs):
+        """Export results to an htmlfile with figures"""
+
+        # Get results
+        figs = self.plot(*args, **kwargs)
+
+
+
 
     def export_netcdf(self, ncpat, *args, **kwargs):
         """Export results to netcdf files"""
@@ -1147,6 +1177,10 @@ def get_arm_score_function(fname):
 
 def list_arm_score_functions():
     """Get the list of registered ARM score functions"""
+    return ARM_SCORE_FUNCTIONS.values()
+
+def list_arm_score_types():
+    """Get the list of registered ARM score types"""
     return ARM_SCORE_FUNCTIONS.keys()
 
 # Register default score functions
