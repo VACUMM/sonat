@@ -13,6 +13,8 @@ from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
 from sonat.ens import (load_model_at_regular_dates, generate_pseudo_ensemble,
     Ensemble)
 
+ENS_NCFILE = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
+
 netcdf4()
 
 def test_ens_load_model_at_regular_dates():
@@ -61,7 +63,7 @@ def test_ens_generate_pseudo_ensemble():
 #    nrens = 2
     enrich = 1.5
     dtfile = (12, 'day')
-    ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
+    ncfile = ENS_NCFILE
     level = {'temp':('3d', 'surf'), 'u':'surf', 'v':'surf'}
     depths = create_dep([-40., -30, -20, -10, 0.])
 
@@ -123,7 +125,7 @@ def test_ens_generate_pseudo_ensemble():
 def test_ens_ensemble_init():
 
     # Load file from previous routine
-    ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
+    ncfile = ENS_NCFILE
     varnames = ['sal', 'temp', 'temp_surf', 'u_surf',  'v_surf']
     vars = []
     f = cdms2.open(ncfile)
@@ -172,17 +174,21 @@ def test_ens_ensemble_plot_diags():
     ens = get_ens()
 
     # Diags
-    figs = ens.plot_diags(zonal_sections=[47.5], merid_sections=[-4],
-        depths=['surf', -15.5])
+    figs = ens.plot_diags(
+        zonal_sections=[47.5], merid_sections=[-4],
+        kurtosis=False, normaltest=False, skewtest=False,
+        kurtosistest=False, skew=False, mean=False,
+        )
 
-def test_ens_ensemble_export_diags():
+def test_ens_ensemble_export_html_diags():
 
     # Get ens
     ens = get_ens()
 
     # Plot and export diags
-    ens.export_diags(func_name()+'.html', depths='surf', variance=True,
+    ens.export_html_diags(func_name()+'.html', surf=True, variance=True,
         mean=False, skewtest=False, kurtosistest=False, normaltest=False)
+
 
 
 if __name__=='__main__':
@@ -191,4 +197,4 @@ if __name__=='__main__':
     test_ens_ensemble_init()
     test_ens_ensemble_get_diags()
     test_ens_ensemble_plot_diags()
-    test_ens_ensemble_export_diags()
+    test_ens_ensemble_export_html_diags()
