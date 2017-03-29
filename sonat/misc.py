@@ -889,8 +889,11 @@ def dicttree_relpath(dd, refdir):
         for i, d in enumerate(dd):
             dd[i] = os.path.relpath(d, refdir)
     else:
-        for key, val in dd.items():
-            dd[key] = dicttree_relpath(val, refdir)
+        try:
+            for key, val in dd.items():
+                dd[key] = dicttree_relpath(val, refdir)
+        except:
+            pass
     return dd
 
 def interpret_level(level, astuple=False):
@@ -945,12 +948,15 @@ def interpret_level(level, astuple=False):
     return (level, ) if astuple else level
 
 
-def vminmax(data, asdict=False):
+def vminmax(data, asdict=False, symetric=False):
     """Get min and max of dict, list, tuple, array"""
     if isinstance(data, dict):
         vmin, vmax  = vminmax(data.values())
     else:
         vmin, vmax = minmax(data)
+    if symetric:
+        vmax = min(abs(vmin), abs(vmax))
+        vmin = -vmax
     if asdict:
         return dict(vmin=vmin, vmax=vmax)
     return vmin, vmax
