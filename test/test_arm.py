@@ -5,7 +5,7 @@ import sys
 import numpy as N
 import cdms2
 import cdtime
-from vcmq import comptime, netcdf4, P
+from vcmq import comptime, netcdf4, P, func_name
 
 from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
     NCFILE_MANGA1, NCFILE_OBS_HFRADARS, NCFILE_OBS_PROFILES, NCFILE_OBS_SATSST,
@@ -106,7 +106,7 @@ def test_arm_arm_plot_arm():
     arm = get_arm()
 
     # Raw array modes
-    arm.plot_arm()
+    arm.plot_arm(imodes=[0, 1])
 
 def test_arm_arm_plot_rep():
 
@@ -114,7 +114,7 @@ def test_arm_arm_plot_rep():
     arm = get_arm()
 
     # Raw array modes
-    arm.plot_rep(surf=True, obs_legend_loc='upper right')
+    arm.plot_rep(imodes=[0, 1], surf=True, obs_legend_loc='upper right')
 
 def test_arm_register_arm_score_function():
 
@@ -148,6 +148,16 @@ def test_arm_scores():
 
     return res
 
+def test_arm_arm_export_html():
+
+    # Load ARM
+    arm = get_arm()
+
+    # Raw array modes
+    arm.export_html(func_name()+'.html', obs_legend_loc='upper right',
+                    imodes=0, varnames=['temp'],
+                    arm_full2d=False)
+
 def test_arm_xylocarmsa():
 
      # Load ARM
@@ -172,6 +182,18 @@ def test_arm_xylocarmsa_plot():
     armsa.plot(score_type='fnev')
     armsa.plot(score_type='relvar')
 
+def test_arm_xylocarmsa_export_html():
+
+     # Load ARM
+    arm = get_arm()
+
+    # Init sensivity analyser
+    armsa = XYLocARMSA(arm)
+
+     # Plot
+    armsa.export_html(func_name()+'.html', score_type='fnev')
+
+
 if __name__=='__main__':
     res = test_arm_arm_init()
     res = test_arm_arm_project_ens_on_obs()
@@ -184,8 +206,10 @@ if __name__=='__main__':
     res = test_arm_arm_plot_spect()
     res = test_arm_arm_plot_arm()
     res = test_arm_arm_plot_rep()
+    res = test_arm_arm_export_html()
     res = test_arm_xylocarmsa()
     res = test_arm_xylocarmsa_plot()
+    res = test_arm_xylocarmsa_export_html()
 
 
 

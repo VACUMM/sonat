@@ -32,6 +32,7 @@
 # The fact that you are presently reading this means that you have had
 # knowledge of the CeCILL license and that you accept its terms.
 #
+import os
 import inspect
 import math
 import re
@@ -41,10 +42,11 @@ import numpy as N
 import MV2, cdms2
 
 from vcmq import (curve, create_axis, dict_check_defaults, kwfilter, m2deg, P,
-                  add_shadow, add_param_label)
+                  add_shadow, add_param_label, checkdir)
 
 from .__init__ import SONATError, sonat_warn
-from .misc import _Base_, recursive_transform_att, vminmax, xycompress
+from .misc import (_Base_, recursive_transform_att, vminmax, xycompress,
+                   dicttree_relpath)
 from .ens import Ensemble
 from .obs import ObsManager, NcObsPlatform
 from ._fcore import f_arm
@@ -373,8 +375,8 @@ class ARM(_Base_):
             score_types = list_arm_score_types()
         scores = {}
         for score_type in score_types:
-            score[score_type] = self.get_score(score_type)
-        return {'Scores': scores}
+            scores[score_type] = self.get_score(score_type)
+        return scores
 
     def plot_spect(self, figfile='arm.spect.png', savefig=True, close=True,
                    title='ARM Sepctrum', hline=1., score='nev',
@@ -419,13 +421,19 @@ class ARM(_Base_):
         if savefig:
             p.savefig(figfile)
             self.created(figfile)
-            return {'Spectrum':figfile}
+            return figfile
 
 
-    def plot_arm(self, varnames=None,
+    def plot_arm(self, varnames=None, imodes=None,
                  figpat='arm.arm.mode{mode}_{var_name}_{slice_type}_{slice_loc}.png',
                  **kwargs):
-        """Plot the array modes"""
+        """Plot the array modes
+
+        Return
+        ------
+        dict: figs
+            ``{'Mode00':{'Temp':{'Map':'mode00.temp.map.png'...}}}
+        """
         self.verbose('Plotting array modes')
 
         # Select data
@@ -435,26 +443,30 @@ class ARM(_Base_):
         # Plot
         modemax = self.format_mode()
         figs = OrderedDict()
-        subfigs = figs['Array modes'] = OrderedDict()
         dict_check_defaults(kwargs, sync_vminmax='symetric', cmap='cmocean_balance')
-        for imode in range(self.ndof):
+        if imodes is None:
+            imodes = range(self.ndof)
+        elif N.isscalar(imodes):
+            imodes = [imodes]
+        for imode in imodes:
             mode = self.format_mode(imode)
             self.debug(' Plotting array mode {}/{}'.format(mode, modemax))
 
             # Extract single mode
             kwargs['subst'] = {'mode':mode, 'modemax':modemax}
             mvars = self.extract_mode(variables, imode)
-            remove_arm = lambda id: id[4:]
-            recursive_transform_att(mvars, 'id', remove_arm)
+#            remove_arm = lambda id: id[4:] if id.startswith('arm_')
+#            recursive_transform_att(mvars, 'id', remove_arm)
 
             # Make plots
             mfigs = self.obsmanager.plot(mvars, input_mode='arrays',
                                          title='Array mode {mode}/{modemax} - {var_name} - {slice_loc}',
-                                         figpat=figpat, **kwargs)
+                                         figpat=figpat,
+                                         **kwargs)
 
             # Register figures
             if isinstance(mfigs, dict):
-                subfigs['Mode '+mode] = mfigs
+                figs['Mode '+mode] = mfigs
 
         return figs
 
@@ -486,11 +498,12 @@ class ARM(_Base_):
         # Plot
         mode_max = self.format_mode()
         figs = OrderedDict()
-        subfigs = figs['Representer of array modes'] = OrderedDict()
         dict_check_defaults(kwargs, cmap='cmocean_balance',
                             levels_mode='symetric')
         if sync_vminmax:
-             dict_check_defaults(kwargs, **vminmax(self.rep, asdict=True))
+             dict_check_defaults(kwargs, **vminmax(self.rep, asdict=True,
+                                                   symetric=True))
+        kwargs['levels_mode'] = 'symetric'
         if imodes is None:
             imodes = range(self.ndof)
         elif N.isscalar(imodes):
@@ -513,11 +526,11 @@ class ARM(_Base_):
 
             # Register figures
             if isinstance(ff, dict):
-                subfigs['Mode '+mode] = ff
+                figs['Mode '+mode] = ff
 
         return figs
 
-    def plot(self, **kwargs):
+    def plot(self, varnames=None, imodes=None, **kwargs):
         """Make all ARM analysis plots in one
 
         It calls :meth:`plot_spect`, :meth:`plot_arm` and :meth:`plot_rep`.
@@ -531,14 +544,15 @@ class ARM(_Base_):
         kwspect = kwfilter(kwargs, 'spect_')
         kwarm = kwfilter(kwargs, 'arm_')
         kwrep = kwfilter(kwargs, 'rep_')
+        for kw in kwarm, kwrep:
+            dict_check_defaults(kw, varnames=varnames, imodes=imodes)
 
         # Plots
-        figs = {}
-        figs['Spectrum'] = self.plot_spect(**kwspect)
-        figs['Array modes'] = self.plot_arm(**kwarm)
-        figs['Array mode representers'] = self.plot_rep(**kwrep)
+        figs = OrderedDict([('Spectrum', self.plot_spect(**kwspect)),
+                            ('Array modes',  self.plot_arm(**kwarm)),
+                            ('Array mode representers', self.plot_rep(**kwrep))])
 
-        return {'Figures': figs}
+        return figs
 
     def export_html(self, htmlfile='arm.html', score_types=None, **kwargs):
 
@@ -553,15 +567,14 @@ class ARM(_Base_):
         scores = self.get_scores(score_types)
 
         # Merge
-        results = OrderedDict()
-        results.update(scores)
-        results.update(figs)
+        results = OrderedDict([('Scores', scores), ('Figures', figs)])
 
         # Render with template
         checkdir(htmlfile)
         render_and_export_html_template('dict2tree.html', htmlfile,
             title='ARM analysis', content=results)
         self.created(htmlfile)
+
         return htmlfile
 
     def export_netcdf(self, ncfile_spect='arm.spect.nc',
