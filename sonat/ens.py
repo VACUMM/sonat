@@ -1085,7 +1085,8 @@ class Ensemble(Stacker, _NamedVariables_):
                 if obs:
                     kwo = kwobs.copy()
                     kwo.update(obs_plot, full3d=False, full2d=False, plotter=p,
-                               savefig=False, close=False, title=False)
+                               savefig=False, close=False, title=False,
+                               colorbar=False)
                     obs.plot('locations', **kwo)
 
                 # Finalise
