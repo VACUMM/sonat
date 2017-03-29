@@ -507,7 +507,7 @@ class Packer(_Base_):
         return self._format_array_(data, firstdims, firstaxes, mode,
             id=id, atts=atts, format_atts=format_atts)
 
-    def _format_array_(self, data, firstdims, firstaxes, mode, id=None, atts=None,
+    def _format_array_(self, data, firstdims, firstaxes, mode, id=True, atts=None,
                        format_atts=True):
 
         if firstaxes:
@@ -524,28 +524,31 @@ class Packer(_Base_):
 
         # Id
         if atts is None:
-            atts = self.atts.copy()
-            atts['id'] = self.id
+            atts = subst = self.atts.copy()
         else:
             mode = 2
-        if id is True:
-            id = self.id
-        elif isinstance(id, basestring):
-            id = id.format(**self.atts)
-        else:
-            id = None
-        if id:
+            subst = self.atts.copy()
+            subst.update(atts)
+        subst.setdefault('id', self.id)
+        if id is not False:
+            if not isinstance(id, str):
+                id = atts.get('id', self.id)
+            try:
+                id = id.format(**subst)
+            except:
+                pass
             data.id = id
 
         # Attributes
         if mode=='full' or mode>1:
+
             if 'id' in atts:
                 del atts['id']
 
             # Format string attributes
             for att, val in atts.items():
                 if isinstance(val, str):
-                    atts[att] = val.format(**self.atts)
+                    atts[att] = val.format(**subst)
 
             # Set
             set_atts(data, atts)
