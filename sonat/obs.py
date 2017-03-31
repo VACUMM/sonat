@@ -1114,7 +1114,7 @@ class NcObsPlatform(ObsPlatformBase):
 class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
     """Class to manage several observation platform instances"""
 
-    def __init__(self, input, logger=None, norms=None, syncnorms=True,
+    def __init__(self, input, logger=None, norms=None, sync_norms=True,
             missing_value=default_missing_value, **kwargs):
 
         # Init logger
@@ -1137,14 +1137,17 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         if len(obsplats) !=  len(set([obs.name for obs in obsplats])):
             raise SONATError('Platform names must be inique')
 
-        # Named norms
-        if norms and isinstance(norms, dict):
-            self.set_named_norms(norms)
-
         # Synchronise norms
         self._norm_synced = False
-        if syncnorms:
+        if sync_norms:
             self.sync_norms()
+
+        # Norms
+        if norms:
+            if isinstance(norms, dict):
+                self.set_named_norms(norms)
+            else:
+                self.set_norms(norms)
 
         # Stack stacked data
         self._core_stack_()
@@ -1470,14 +1473,14 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         return self.unmap([obs.project_model(var, checkid=checkid)
                            for obs in self])
 
-    def assert_compatible_with_ens(self, ens, syncnorms=True):
+    def assert_compatible_with_ens(self, ens, sync_norms=True):
         """Assert that an :class:`~sonat.obs.Ensemble` current instance is compatible
         with the current :class:`ObsManager` instance
 
         It checks that observed variable are provided by the ensemble.
         It optinonally synchonise norms between model and observations.
         """
-        ens.assert_compatible_with_obs(self, syncnorms=syncnorms)
+        ens.assert_compatible_with_obs(self, sync_norms=sync_norms)
 
     def plot(self, variables=None, input_mode='names',
              full3d=True, full2d=True,
