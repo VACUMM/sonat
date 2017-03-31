@@ -75,9 +75,9 @@ def test_obs_obsmanager_init_surf():
 
     # Load and stack surface obs
     obs_surf0 = NcObsPlatform(NCFILE_OBS_SURF, lon=(-7, -5), varnames=['temp'],
-        norms=0.2)
+        norms=0.2, name='surf_west')
     obs_surf1 = NcObsPlatform(NCFILE_OBS_SURF, lon=(-5, 0), varnames=['temp', 'sal'],
-        norms=[0.2, 0.1])
+        norms=[0.2, 0.1], name='surf_east')
 
     # Setup manager
     manager = ObsManager([obs_surf0, obs_surf1])

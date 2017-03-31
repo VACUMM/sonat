@@ -82,5 +82,5 @@ def test_plot_create_map():
 
 
 if __name__=='__main__':
-#    test_plot_gridded_var()
+    test_plot_gridded_var()
     test_plot_create_map()
