@@ -37,16 +37,20 @@
 import os
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
+import matplotlib
 from pylab import register_cmap, get_cmap
 import cdms2
 from vcmq import dict_merge, itv_intersect
 
 from .__init__ import sonat_help, get_logger, SONATError
 from .config import (parse_args_cfg, get_cfg_xminmax, get_cfg_yminmax,
-    get_cfg_tminmax, get_cfg_path, get_cfg_plot_slice_specs)
+    get_cfg_tminmax, get_cfg_path, get_cfg_plot_slice_specs,
+    get_cfg_cmap, get_cfg_norms)
 from .misc import interpret_level
 from .obs import load_obs_platform, ObsManager
 from .ens import generate_pseudo_ensemble, Ensemble
+from .arm import (ARM, XYLocARMSA, list_arm_sensitivity_analysers,
+                  get_arm_sensitivity_analyser)
 from .my import load_user_code_file, SONAT_USER_CODE_FILE
 
 
@@ -153,6 +157,7 @@ def ens_gen_pseudo_from_cfg(cfg):
     cfge = cfg['ens']
     cfgeg = cfge['gen']
     cfgegf = cfgeg['fromobs']
+    cfgegl = cfgeg['levels']
 
     # Init
     logger = init_from_cfg(cfg)
@@ -170,13 +175,13 @@ def ens_gen_pseudo_from_cfg(cfg):
     nens = cfgeg['nens']
     enrich = cfgeg['enrich']
     norms = cfg['norms']
-    level = interpret_level(cfgeg['level'])
+    level = interpret_level(cfgegl.dict())
     depths = cfgeg['depths']
     varnames = cfgeg['varnames'] or None
     getmodes = enrich > 1
 
     # Options from obs
-    if cfgef['activate']:
+    if cfgegf['activate']:
 
         # Load obs manager
         obsmanager = load_obs_from_cfg(cfg)
@@ -185,38 +190,38 @@ def ens_gen_pseudo_from_cfg(cfg):
         specs = obsmanager.get_model_specs()
 
         # Intervals
-        margin = cfgef['margin']
-        if cfgef['lon'] and specs['lon']:
+        margin = cfgegf['margin']
+        if cfgegf['lon'] and specs['lon']:
             olon = specs['lon']
             if margin:
                 olon = (olon[0]-margin, olon[1]+margin, olon[2])
-            if lon is not None and cfgef['lon']==2:
+            if lon is not None and cfgegf['lon']==2:
                 lon = itv_intersect(olon, lon)
             else:
                 lon = olon
-        if cfgef['lat'] and specs['lat']:
+        if cfgegf['lat'] and specs['lat']:
             olat = specs['lat']
             if margin:
                 olat = (olat[0]-margin, olat[1]+margin, olat[2])
-            if lat is not None and cfgef['lat']==2:
+            if lat is not None and cfgegf['lat']==2:
                 lat = itv_intersect(olat, lat)
             else:
                 lat = olat
 
         # Varnames
-        if cfgef['varnames'] and specs['varnames']:
-            if varnames is None or cfgef['varnames']==1:
-                varnames = cfgef['varnames']
+        if cfgegf['varnames'] and specs['varnames']:
+            if varnames is None or cfgegf['varnames']==1:
+                varnames = cfgegf['varnames']
             else:
                 varnames = list(set(varnames + specs['varnames']))
 
         # Depths
         olevel = interpret_level(specs['depths'])
-        if cfgef['level']==1: # from obs only
+        if cfgegf['level']==1: # from obs only
 
             level = olevel
 
-        elif cfgef['level']==2: # merge
+        elif cfgegf['level']==2: # merge
 
             level = dict_merge(olevel, level, mergetuples=True,
                 unique=True, cls=dict)
@@ -250,15 +255,14 @@ def ens_plot_diags_from_cfg(cfg, add_obs=None):
 
     # Config
     cfgd = cfg['domain']
+    cfgc = cfg['cmaps']
     cfge = cfg['ens']
     cfged = cfge['diags']
-    cfgc = cfg['cmaps']
-    cfgef = cfge['fromobs']
     cfgedp = cfged['plots']
     cfgp = cfg['plots']
     cfgps = cfgp['sections']
-    cfgop = cfg['obs']
-    cfgo = cfgo['plots']
+    cfgo = cfg['obs']
+    cfgop = cfgo['plots']
 
     # Init
     logger = init_from_cfg(cfg)
@@ -278,12 +282,13 @@ def ens_plot_diags_from_cfg(cfg, add_obs=None):
     kwargs.update(kwslices)
     del kwargs['plots']
     props = cfgedp.dict()
-    for vname, pspecs in cfgedp.keys(): # default colormaps
-        pspecs.setdefault('cmap', cfgc[vname])
+    for param, pspecs in cfgedp.items(): # default colormaps
+        pspecs.setdefault('cmap', get_cfg_cmap(cfg, param))
+    norms = get_cfg_norms(cfg)
 
     # Setup ensemble from file
     ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
-        lon=lon, lat=lat)
+        lon=lon, lat=lat, norms=norms)
 
     # Observations
     if add_obs:
@@ -296,9 +301,11 @@ def ens_plot_diags_from_cfg(cfg, add_obs=None):
 
 
     # Plot diags
-    return ens.export_diags(htmlfile, figpat_slice=figpatslice,
+    htmlfile = ens.export_html_diags(htmlfile, figpat_slice=figpatslice,
         figpat_generic=figpatgeneric, props=props,
         **kwargs)
+
+    return htmlfile
 
 
 ## OBS
@@ -334,8 +341,11 @@ def load_obs_from_cfg(cfg):
     if not obsplats:
         raise SONATError('No observation platform to load were found!')
 
+    # Norms
+    norms = get_cfg_norms(cfg)
+
     # Init manager
-    manager = ObsManager(obsplats)
+    manager = ObsManager(obsplats, norms=norms)
 
     return manager
 
@@ -409,6 +419,7 @@ def arm_analysis_from_cfg(cfg):
     lat = get_cfg_yminmax(cfg)
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
     varnames = cfge['varnames'] or None
+    norms = get_cfg_norms(cfg)
 
     # Init
     logger = init_from_cfg(cfg)
@@ -421,7 +432,7 @@ def arm_analysis_from_cfg(cfg):
     obs = load_obs_from_cfg(cfg)
 
     # Init ARM
-    arm = ARM(ens, obs)
+    arm = ARM(ens, obs, norms=norms)
 
     # Bathy
     bathy = read_bathy_from_cfg(cfg, logger)
@@ -466,6 +477,10 @@ def arm_sa_from_cfg(cfg, sanames=None):
     lat = get_cfg_yminmax(cfg)
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
     varnames = cfge['varnames'] or None
+    norms = get_cfg_norms(cfg)
+
+    # Init
+    logger = init_from_cfg(cfg)
 
     # Load ensemble
     ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
@@ -475,7 +490,7 @@ def arm_sa_from_cfg(cfg, sanames=None):
     obs = load_obs_from_cfg(cfg)
 
     # Init ARM
-    arm = ARM(ens, obs)
+    arm = ARM(ens, obs, norms=norms)
 
     # Bathy
     bathy = read_bathy_from_cfg(cfg, logger)
@@ -525,8 +540,11 @@ def load_my_sonat_from_cfg(cfg, logger):
 def register_cmaps_from_cfg(cfg, logger):
     """Register cmap aliases into matplotlib"""
     logger.debug('Registering colormaps')
-    for name, cmap in cfg['cmaps'].items():
-        register_cmap(name, cmap)
+    for name in cfg['cmaps']:
+        cmap_name = get_cfg_cmap(cfg, name, check_aliases=False)
+        if (name != cmap_name and
+            cmap_name in matplotlib.cm.cmap_d.keys()): # add an alias
+            register_cmap(name, matplotlib.cm.cmap_d[cmap_name])
 
 
 def init_from_cfg(cfg):
