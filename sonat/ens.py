@@ -57,14 +57,18 @@ from .render import register_html_template, render_and_export_html_template
 
 #: Default plotting keyword per ensemble diagnostic
 DEFAULT_PLOT_KWARGS_PER_ENS_DIAG = {
-    'explained_variance':dict(
+    'spectrum':dict(
         xmin=.5, ymin=0,
         title='Explained variance', width=.5,
         xlabel="%(long_name)s",
         bottom=.2,
     ),
-    'local_explained_variance':{
-        'cmap':'speed',
+    'explained_variance':{
+        'cmap':'positive',
+        'levels_mode':'positive',
+    },
+    'variance':{
+        'cmap':'positive',
         'levels_mode':'positive',
     },
     'skew':{
@@ -446,17 +450,22 @@ class Ensemble(Stacker, _NamedVariables_):
         Eigen values from EOF decomposition
     variance: array or list of arrays
         Variance of each variable
-    syncnorms: bool, optional
+    norms: list or dict of floats
+        Coefficients used to normalise variance.
+        Either a list of ordered coefficient, one per variable,
+        or a dict whose keys are variable prefix name.
+        .. note:: Norms are set after syncing if sync_norms is True.
+    sync_norms: bool, optional
         Make sur that all variable whose id has the same prefix (string
         before "_") have the same norm
     """
 
     def __init__(self, data, ev=None, variance=None, logger=None, norms=None,
-            means=None, syncnorms=True, checkvars=False, bathy=None, **kwargs):
+            means=None, sync_norms=True, check_vars=False, bathy=None, **kwargs):
 
         # Check input variables
         datas = ArgList(data).get()
-        if checkvars:
+        if check_vars:
             check_variables(datas)
         for var in datas: # rename first axis
             var.getAxis(0).id = 'member'
@@ -464,18 +473,20 @@ class Ensemble(Stacker, _NamedVariables_):
         # Init base
         kwargs['nordim'] = False
         Stacker.__init__(self, data, logger=logger,
-                         norms=None if isinstance(norms, dict) else norms,
-                         means=means, **kwargs)
+                         norms=None, means=means, **kwargs)
         self.variables = self.inputs
-
-        # Named norms
-        if norms and isinstance(norms, dict):
-            self.set_named_norms(norms)
 
         # Synchronise norms
         self._norm_synced = False
-        if syncnorms:
+        if sync_norms:
             self.sync_norms()
+
+        # Norms
+        if norms:
+            if isinstance(norms, dict):
+                self.set_named_norms(norms)
+            else:
+                self.norms = norms
 
         # Add more variables
         self.ev = ev
@@ -501,7 +512,11 @@ class Ensemble(Stacker, _NamedVariables_):
 
         # Open
         f = NcReader(ncfile, readertype, logger_level='error')
-        allvars = f.get_variables()
+        try:
+            allvars = f.get_variables()
+        except:
+            raise SONATError('Error while retreiving the list of variable in '
+                             'netcdf file: '+ncfile)
 
         # Get the list of variables
         varinames = []
@@ -646,6 +661,7 @@ class Ensemble(Stacker, _NamedVariables_):
 
     bathy = property(fget=get_bathy, fset=set_bathy, doc='Colocated bathymetry')
 
+
     def sync_norms(self, force=True):
         """Synchronise norms between variables whose id has the same prefix
 
@@ -701,6 +717,7 @@ class Ensemble(Stacker, _NamedVariables_):
 
         return dnorms
 
+
     def _ss_diag_(self, diag_name, diag_dict, index=None, format=1, **kwargs):
         """Compute a scipy.stats diagnostic are store it in diags"""
         # From cache
@@ -716,6 +733,8 @@ class Ensemble(Stacker, _NamedVariables_):
         dds = [ss_func(self.datas[i], axis=0, **kwargs) for i in range(self.nvar)]
         dds = self.format_arrays(dds, firstdims=False,
             id='{id}_'+diag_name, mode=format)
+        for dd in dds:
+            dd.sonat_ens_diag = diag_name
         diag_dict[diag_name] = self.unmap(dds)
 
 
@@ -768,7 +787,10 @@ class Ensemble(Stacker, _NamedVariables_):
                 vars = [v.var(axis=0) for v in manoms]
                 vars = self.fill_arrays(vars, firstdims=False,
                     id='{id}_variance', format=2)
+                for var in vars:
+                    var.sonat_ens_diag = 'variance'
                 diags['variance'] = self._diags['variance'] = self.unmap(vars)
+
 
 
             # Spectrum
@@ -780,12 +802,13 @@ class Ensemble(Stacker, _NamedVariables_):
                         100 * (self.ev**2) / self.ev.total_variance
                     diags['spectrum'].id = 'spectrum'
                     diags['spectrum'].units = '%'
+                    diags['spectrum'].sonat_ens_diag = 'spectrum'
                     diags['spectrum'].long_name = 'Relative spectrum'
 
             # Local explained variance
             if self.variance is not None:
-                if 'local_explained_variance' in self._diags:
-                    diags['local_explained_variance'] = self._diags['local_explained_variance']
+                if 'explained_variance' in self._diags:
+                    diags['explained_variance'] = self._diags['explained_variance']
                 else:
                     evars = []
                     for lvar, var in zip(diags['variance'], self.remap(self.variance)):
@@ -797,8 +820,9 @@ class Ensemble(Stacker, _NamedVariables_):
                             evar = lvar.copy()
                         evar[:] /= var
                         evar[:] *= 100
+                        evar.sonat_ens_diag = 'explained_variance'
                         evars.append(evar)
-                    diags['local_explained_variance'] = self._diags['local_explained_variance'] = \
+                    diags['explained_variance'] = self._diags['explained_variance'] = \
                         self.unmap(evars)
 
 
@@ -887,7 +911,7 @@ class Ensemble(Stacker, _NamedVariables_):
                                     fig='new', xlabel='%(xlong_name)s',
                                     xlocator=MultipleLocator(1),
                                     **DEFAULT_PLOT_KWARGS)
-                bar(diag_var, **kw)
+                p = bar(diag_var, **kw)
                 self.created(figfile)
                 figs[diag_long_name] = figfile
 
@@ -954,6 +978,7 @@ class Ensemble(Stacker, _NamedVariables_):
         # Loop on variables
         for variable in ArgList(variables).get():
             var_name, vdepth, diag_name = split_varname(variable)
+            diag_name = getattr(variable, 'sonat_ens_diag', diag_name)
             varname = var_name
             id = variable.id
             self.debug(' Variable: '+id)
