@@ -57,6 +57,18 @@ from .render import render_and_export_html_template
 class ARM(_Base_):
     """Interface to the ARM assessment algorithm
 
+    Parameters
+    ----------
+    ens: :class:`~sonat.ens.Ensemble`
+    obsmanager: :class:`~sonat.obs.ObsManager` or list of :class:`~sonat.obs.NcObsPlatform`
+    check_vars: bool
+        Make sur that variables have a known name.
+    sync_norms: bool
+        Synchronise variables having the same name
+    norms: dict
+        Normalisation coefficients with one per named variable.
+        They are applied after syncing of norms.
+
     Example
     -------
 
@@ -78,10 +90,11 @@ class ARM(_Base_):
     >>> print arm.raw_arm
     >>> print arm.raw_rep
 
+
     """
-    def __init__(self, ens, obsmanager, logger=None, checkvars=True,
+    def __init__(self, ens, obsmanager, logger=None, check_vars=True,
             sync_norms=True, missing_value=default_missing_value,
-            bathy=None, **kwargs):
+            bathy=None, norms=None, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -107,12 +120,16 @@ class ARM(_Base_):
         self.set_missing_value(missing_value)
 
         # Check variables
-        if checkvars:
+        if check_vars:
             self.ens.check_variables()
             self.obsmanager.check_variables()
 
         # Check compatibility (names, norms, projection) and project
         self.project_ens_on_obs(sync_norms=sync_norms)
+
+        # Norms
+        if norms:
+            selfet_named_norms(norms)
 
         # Inits
         self._inputs = {} # indirect input matrices
@@ -144,6 +161,18 @@ class ARM(_Base_):
 
     missing_value = property(fget=get_missing_value, fset=set_missing_value)
     fill_value = missing_value
+
+    def set_named_norms(self, norms):
+        """Set normalisation coefficient with one per named variable.
+
+        Parameter
+        ---------
+        norms: dict
+        """
+        if not isinstance(norms, dict):
+            raise SONATError('norms must be a dict')
+        self.ens.set_named_norms(norms)
+        self.obsmanager.set_named_norms(norms)
 
     def set_bathy(self, bathy2d):
         """Interpolate a bathymetry and save it"""
@@ -1122,7 +1151,7 @@ def arm_score_fnev(spect, arm, rep):
 
 
 def arm_score_relvar(spect, arm, rep):
-    """ARM score as the fractional number of eigen values greater than one"""
+    """ARM score as the integration of the variance greater than one"""
     # Float value
     fnev = arm_score_fnev(spect, arm, rep)
     if fnev==0:
