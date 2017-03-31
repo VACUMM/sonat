@@ -597,7 +597,7 @@ class _NamedVariables_(object):
         """
         dnorms = dict(*anorms, **knorms)
         notnormed = []
-        restacked = False
+        restack = False
         for packer in self:
             for varname, norm in dnorms.items():
                 if (norm is not None and packer.id and
@@ -889,11 +889,8 @@ def dicttree_relpath(dd, refdir):
         for i, d in enumerate(dd):
             dd[i] = os.path.relpath(d, refdir)
     else:
-        try:
-            for key, val in dd.items():
-                dd[key] = dicttree_relpath(val, refdir)
-        except:
-            pass
+        for key, val in dd.items():
+            dd[key] = dicttree_relpath(val, refdir)
     return dd
 
 def interpret_level(level, astuple=False):
