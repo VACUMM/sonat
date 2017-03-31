@@ -36,7 +36,9 @@
 # knowledge of the CeCILL license and that you accept its terms.
 #
 
+import re
 import os
+import matplotlib
 from matplotlib import rcParams, rc_params_from_file
 from validate import VdtTypeError, force_list
 from vcmq import (ConfigManager, cfgargparse, ArgList,
@@ -61,20 +63,48 @@ def parse_args_cfg(parser, cfgfilter=None):
     return cfgargparse(SONAT_INIFILE, parser, cfgfile=SONAT_DEFAULT_CFGFILE,
         interpolation=False, cfgfilter=cfgfilter)
 
-def get_cfg_cmap(cfg, param):
-    """Get the config colormap for a given parameter"""
+def check_cfg_aliases(cfg, param):
+    for gen_param, aliases in cfg['aliases'].items():
+        for alias in aliases:
+            if alias==param:
+                return gen_param
+    return param
+
+def get_cfg_cmap(cfg, param, check_aliases=True):
+    """Get the config colormap name for a given parameter
+
+    Checks aliases using :func:`get_cfg_aliases`.
+    """
 
     # Default
     default_cmap = cfg['cmaps']['default']
     if default_cmap.lower()=='none':
         default_cmap = None
 
+    # Aliases
+    if check_aliases:
+        param = check_cfg_aliases(cfg, param)
+
     # From configuration
     cmap_name = cfg['cmaps'].get(param, default_cmap)
-    try:
-        return get_cmap(default_cmap)
-    except:
-        return get_cmap()
+    if cmap_name in matplotlib.cm.cmap_d.keys():
+        return cmap_name
+    if cmap_name in cfg['cmaps']:
+        return get_cfg_cmap(cfg, cmap_name, check_aliases=check_aliases)
+    return default_cmap
+
+def get_cfg_norms(cfg):
+    """Get a dict of norms
+
+    Checks aliases using :func:`get_cfg_aliases`.
+    """
+    norms = cfg['norms'].dict()
+    for param in norms.keys():
+        if param in cfg['aliases']:
+            for alias in cfg['aliases'][param]:
+                norms[alias] = norms[param]
+            del norms[param]
+    return norms
 
 def get_cfg_xminmax(cfg, bounds=None, none=True):
     """Get a ``(min,max[,bb])`` longitude interval from config"""
