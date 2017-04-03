@@ -60,7 +60,7 @@ DEFAULT_PLOT_KWARGS_PER_ENS_DIAG = {
     'spectrum':dict(
         xmin=.5, ymin=0,
         title='Explained variance', width=.5,
-        xlabel="%(long_name)s",
+        xlabel="%(xlong_name)s",
         bottom=.2,
     ),
     'explained_variance':{
