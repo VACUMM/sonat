@@ -8,7 +8,7 @@ import numpy as N
 from scipy.signal import convolve2d
 from scipy.interpolate import interp1d
 
-from util import THISDIR, assert_allclose
+from util import THIS_DIR, assert_allclose
 from vcmq import meshbounds, func_name
 
 from sonat._fcore import f_arm, f_eofcovar, f_sampleens, f_computeensstats
@@ -40,12 +40,12 @@ def test_fcore_arm():
     pcs = N.dot(dsamples.T/N.sqrt(0.1 * (nens-1)), arm)
 
     # True values
-    arm_spect_true = N.loadtxt(os.path.join(THISDIR,
+    arm_spect_true = N.loadtxt(os.path.join(THIS_DIR,
         'sangoma_example_arm_output--RM_spectrum'), usecols=[1])
-    arm_true =  N.array([N.loadtxt(os.path.join(THISDIR,
+    arm_true =  N.array([N.loadtxt(os.path.join(THIS_DIR,
             'sangoma_example_arm_output--mode{:04d}'.format(i+1)), usecols=[1])
         for i in xrange(dsamples.shape[0])]).T
-    arm_rep_true = N.array([N.loadtxt(os.path.join(THISDIR,
+    arm_rep_true = N.array([N.loadtxt(os.path.join(THIS_DIR,
             'sangoma_example_arm_output--modrep{:04d}'.format(i+1)), usecols=[1])
         for i in xrange(ssamples.shape[0])]).T
 
@@ -185,7 +185,7 @@ def test_fcore_eofcovar():
 
     # Read states
     for it in range(1, nfiles+1):
-        states[:, it-1] = N.loadtxt(os.path.join(THISDIR, inpath, infile).format(**locals()))
+        states[:, it-1] = N.loadtxt(os.path.join(THIS_DIR, inpath, infile).format(**locals()))
 
     # EOF decomposition
     stddev, svals, svec, status = f_eofcovar(dim_fields, offsets, remove_mstate,
@@ -193,10 +193,10 @@ def test_fcore_eofcovar():
 
     # True values
     stddev_true = 1.
-    svals_true = N.loadtxt(os.path.join(THISDIR, outfile_svals))
-    svec_true = N.array([N.loadtxt(os.path.join(THISDIR, outfile_eof.format(i+1)))
+    svals_true = N.loadtxt(os.path.join(THIS_DIR, outfile_svals))
+    svec_true = N.array([N.loadtxt(os.path.join(THIS_DIR, outfile_eof.format(i+1)))
         for i in xrange(nfiles-1)]).T
-    meanstate_true = N.loadtxt(os.path.join(THISDIR, outfile_mstate))
+    meanstate_true = N.loadtxt(os.path.join(THIS_DIR, outfile_mstate))
 
     # Checks
     assert_allclose(status, 0)
@@ -218,16 +218,16 @@ def test_fcore_sampleens():
     flag = N.array(0)
 
     # Read eofcovar_mv results
-    svals = N.loadtxt(os.path.join(THISDIR, infile_svals))
-    svecs = N.array([N.loadtxt(os.path.join(THISDIR, infile_eof.format(i+1)))
+    svals = N.loadtxt(os.path.join(THIS_DIR, infile_svals))
+    svecs = N.array([N.loadtxt(os.path.join(THIS_DIR, infile_eof.format(i+1)))
         for i in xrange(neofs)]).T
-    meanstate = N.loadtxt(os.path.join(THISDIR, infile_mstate))
+    meanstate = N.loadtxt(os.path.join(THIS_DIR, infile_mstate))
 
     # Generate ensemble
     ens = f_sampleens(svecs, svals, meanstate, flag)
 
     # True values
-    ens_true = N.array([N.loadtxt(os.path.join(THISDIR, outfile_ens.format(i+1)))
+    ens_true = N.array([N.loadtxt(os.path.join(THIS_DIR, outfile_ens.format(i+1)))
         for i in xrange(ens.shape[1])]).T
 
     # Check
@@ -246,7 +246,7 @@ def test_fcore_computeensstats():
 
     # Read states
     for it in range(1, nfiles+1):
-        states[:, it-1] = N.loadtxt(os.path.join(THISDIR, inpath, infile).format(**locals()))
+        states[:, it-1] = N.loadtxt(os.path.join(THIS_DIR, inpath, infile).format(**locals()))
 
     # Anomaly
     meanstate = states.mean(axis=1)

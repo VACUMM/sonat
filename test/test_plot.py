@@ -5,13 +5,13 @@ import cdms2
 #from matplotlib import rcParams
 from vcmq import adatetime, comptime, func_name, P
 
-from util import (NCFILE_MANGA0, THISDIR)
+from util import (NCFILE_MANGA0, THIS_DIR)
 
 from sonat.plot import (plot_gridded_var, create_map)
 
 def test_plot_gridded_var():
     # Get var
-    ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
+    ncfile = os.path.join(THIS_DIR, 'test_ens_generate_pseudo_ensemble.nc')
     f = cdms2.open(ncfile)
     temp = f('temp')
     temp_surf = f('temp_surf')
@@ -21,7 +21,7 @@ def test_plot_gridded_var():
     f.close()
 
     # Figure file
-    figpat = os.path.join(THISDIR, func_name()) + '.{}.png'
+    figpat = os.path.join(THIS_DIR, func_name()) + '.{}.png'
 
     # Plots
     kw = dict(show=False)

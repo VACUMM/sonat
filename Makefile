@@ -95,7 +95,7 @@ dist: sdist
 
 test-install: clean-build clean-test-install
 	python setup.py install -O1 --prefix=$(TEST_SETUP_INST_DIR)
-	PYTHONPATH=$(TEST_SETUP_INST_DIR)/lib/python$(PYTHON_VERSION)/site-packages python -c "import "$(PYTHON_PACKAGE_NAME)"; "$(PYTHON_PACKAGE_NAME)".info()"
+	python -c "import sys;sys.path.insert(0,'$(TEST_SETUP_INST_DIR)/lib/python$(PYTHON_VERSION)/site-packages');import $(PYTHON_PACKAGE_NAME); $(PYTHON_PACKAGE_NAME).info()"
 
 test-unittests:
 	cd test && nosetests

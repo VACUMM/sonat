@@ -26,12 +26,10 @@ requirements:
     - libsangoma_tools >=2.0.1
 
 test:
-    source_files:
-    - test/*.py
     requires:
     - nose
     commands:
-    - nosetests "{{ environ['SRC_DIR'] }}"
+    - nosetests $(python -c "import sonat.test;sonat.test.print_test_order()")
     imports:
     - sonat
     - sonat._fcore

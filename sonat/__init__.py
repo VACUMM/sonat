@@ -42,7 +42,7 @@ __email__ = "raynaud@actimar.fr, charria@actimar.fr"
 __version__ = '0.0.1'
 __date__ = '2016-11-01'
 __url__ = 'http://www.ifremer.fr/sonat'
-__coryright__ = 'IFREMER'
+__copyright__ = 'IFREMER'
 
 import os
 from warnings import warn, filterwarnings
@@ -52,6 +52,8 @@ import _fcore
 
 filterwarnings("ignore", "The get_axis_bgcolor function was deprecated")
 filterwarnings("ignore", "setting an item on a masked array which has a shared mask")
+
+SONAT_LIB_DIR = os.path.dirname(__file__)
 
 
 #: Bottom generic variable names
@@ -158,4 +160,33 @@ def sonat_help(text=None, url=None):
         url += text
     open(url,  new=2)
 
-#import plot # register cmaps
+def get_data_dir():
+    """Get the directory that contains sample data"""
+    data_dir = os.path.join(SONAT_LIB_DIR, 'data')
+    if not os.path.exists(data_dir):
+        data_dir = os.path.abspath(os.path.join(SONAT_LIB_DIR,  '..', 'data'))
+    return data_dir
+
+def get_test_dir():
+    """Get the directory that contains test scripts"""
+    test_dir = os.path.join(SONAT_LIB_DIR, 'test')
+    if not os.path.exists(test_dir):
+        test_dir = os.path.abspath(os.path.join(SONAT_LIB_DIR,  '..', 'test'))
+    return test_dir
+
+
+SONAT_INFO = dict(version=__version__, author=__author__, email=__email__,
+                       date=__date__, url=__url__, copyright=__copyright__,
+                       data_dir=get_data_dir(), test_dir=get_test_dir(),
+                       lib_dir=SONAT_LIB_DIR)
+
+def info():
+    print """SONAT-{version}
+  Date: {date}
+  Author: {author}
+  Email: {email}
+  URL: {url}
+  Copyright: {copyright}
+  Library dir: {lib_dir}
+  Data dir: {data_dir}
+  Test dir: {test_dir}""".format(**SONAT_INFO)

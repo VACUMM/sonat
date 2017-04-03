@@ -6,29 +6,31 @@ import MV2, cdms2, cdtime
 from vcmq import (lindates, create_time, create_lon, create_lat, create_dep,
     create_time, N, rotate_grid, set_grid, create_axis)
 
+THIS_DIR = os.path.dirname(__file__)
+LIB_DIR = os.path.abspath(os.path.join(THIS_DIR, '..', 'sonat'))
+if os.path.exists(os.path.join(LIB_DIR, '__init__.py')):
+    sys.path.insert(0, os.path.dirname(LIB_DIR))
+from sonat import get_logger, get_data_dir
+
 assert_allclose = N.testing.assert_allclose
 assert_raises = N.testing.assert_raises
 
-THISDIR = os.path.dirname(__file__)
+DATA_DIR = get_data_dir()
 
-NCPAT_MANGA = os.path.abspath(os.path.join(THISDIR, '../data/manga-{date:%Y-%m-%d}.nc'))
-NCFILE_MANGA0 = os.path.abspath(os.path.join(THISDIR, '../data/manga-2014-01-01.nc'))
-NCFILE_MANGA1 = os.path.abspath(os.path.join(THISDIR, '../data/manga-2014-01-16.nc'))
-NCGLOB_MANGA = os.path.abspath(os.path.join(THISDIR, '../data/manga-*-[01][0-9]-??.nc'))
-NCPATGLOB_MANGA = os.path.abspath(os.path.join(THISDIR, '../data/manga-*-{date:%m-%d}.nc'))
-NCFILE_OBS_SURF = os.path.abspath(os.path.join(THISDIR, '../data/obs.surf.nc'))
-NCFILE_OBS_HFRADARS = os.path.abspath(os.path.join(THISDIR, '../data/obs.hfradars.nc'))
-NCFILE_OBS_PROFILES = os.path.abspath(os.path.join(THISDIR, '../data/obs.profiles.nc'))
-NCFILE_OBS_SATSST = os.path.abspath(os.path.join(THISDIR, '../data/obs.satsst.nc'))
-NCFILE_BATHY = os.path.abspath(os.path.join(THISDIR, '../data/bathy.brittany.nc'))
+NCPAT_MANGA = os.path.abspath(os.path.join(DATA_DIR, 'manga-{date:%Y-%m-%d}.nc'))
+NCFILE_MANGA0 = os.path.abspath(os.path.join(DATA_DIR, 'manga-2014-01-01.nc'))
+NCFILE_MANGA1 = os.path.abspath(os.path.join(DATA_DIR, 'manga-2014-01-16.nc'))
+NCGLOB_MANGA = os.path.abspath(os.path.join(DATA_DIR, 'manga-*-[01][0-9]-??.nc'))
+NCPATGLOB_MANGA = os.path.abspath(os.path.join(DATA_DIR, 'manga-*-{date:%m-%d}.nc'))
+NCFILE_OBS_SURF = os.path.abspath(os.path.join(DATA_DIR, 'obs.surf.nc'))
+NCFILE_OBS_HFRADARS = os.path.abspath(os.path.join(DATA_DIR, 'obs.hfradars.nc'))
+NCFILE_OBS_PROFILES = os.path.abspath(os.path.join(DATA_DIR, 'obs.profiles.nc'))
+NCFILE_OBS_SATSST = os.path.abspath(os.path.join(DATA_DIR, 'obs.satsst.nc'))
+NCFILE_BATHY = os.path.abspath(os.path.join(DATA_DIR, 'bathy.brittany.nc'))
 NCFILE_BATHY_VARNAME = 'elevation'
 NCFILE_BATHY_POSITIVE_UP = True
-CFGFILE = os.path.abspath(os.path.join(THISDIR, 'sonat.cfg'))
+CFGFILE = os.path.abspath(os.path.join(THIS_DIR, 'sonat.cfg'))
 
-LIBDIR = os.path.abspath(os.path.join(THISDIR, '..', 'sonat'))
-if os.path.exists(os.path.join(LIBDIR, '__init__.py')):
-    sys.path.insert(0, os.path.dirname(LIBDIR))
-from sonat import get_logger
 
 LOGGER = get_logger(level="error")
 

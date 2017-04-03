@@ -3,7 +3,7 @@
 import os
 from vcmq import adatetime, comptime
 
-from util import (THISDIR, NCPAT_MANGA, NCFILE_MANGA0, NCFILE_MANGA1,
+from util import (THIS_DIR, NCPAT_MANGA, NCFILE_MANGA0, NCFILE_MANGA1,
     NCGLOB_MANGA, NCPATGLOB_MANGA,
     assert_allclose, assert_raises, N, cdms2, cdtime)
 
@@ -74,7 +74,7 @@ def test_slice_gridded_var():
     f = cdms2.open(NCFILE_MANGA0)
     temp = f('TEMP', time=slice(0, 3))
     f.close()
-    ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
+    ncfile = os.path.join(THIS_DIR, 'test_ens_generate_pseudo_ensemble.nc')
     f = cdms2.open(ncfile)
     sal = f('sal', member=slice(0, 3))
     f.close()

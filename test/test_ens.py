@@ -7,13 +7,13 @@ import cdms2
 import cdtime
 from vcmq import comptime, netcdf4, create_dep, func_name
 
-from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
+from util import (THIS_DIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
     NCFILE_MANGA1)
 
 from sonat.ens import (load_model_at_regular_dates, generate_pseudo_ensemble,
     Ensemble)
 
-ENS_NCFILE = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
+ENS_NCFILE = os.path.join(THIS_DIR, 'test_ens_generate_pseudo_ensemble.nc')
 
 netcdf4()
 
@@ -155,7 +155,7 @@ def get_ens():
         return CACHE['ens']
 
      # Load from file
-    ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
+    ncfile = os.path.join(THIS_DIR, 'test_ens_generate_pseudo_ensemble.nc')
     ens = Ensemble.from_file(ncfile, logger=LOGGER)
     CACHE['ens'] = ens
     return ens

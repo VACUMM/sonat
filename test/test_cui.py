@@ -7,7 +7,7 @@ import sys
 #import cdtime
 from vcmq import netcdf4
 
-from util import (THISDIR, CFGFILE)
+from util import (THIS_DIR, CFGFILE)
 
 
 from sonat.config import load_cfg

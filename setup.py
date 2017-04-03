@@ -37,7 +37,7 @@ import sys
 import re
 import shutil
 from numpy.distutils.core import setup, Extension
-#from numpy.f2py import crackfortran
+from numpy.distutils.misc_util import Configuration
 
 rootdir = os.path.dirname(__file__)
 
@@ -60,6 +60,7 @@ author = __author__
 author_email = __email__
 url = __url__
 license = "CeCILL"
+long_description = open('README.rst').read()
 
 # Special setups
 if __name__=='__main__':
@@ -70,11 +71,17 @@ if __name__=='__main__':
     if not os.path.exists(cfg_file):
         shutil.copy(default_cfg_file, cfg_file)
 
+    # Distutils config
+    def configuration(parent_package='',top_path=None):
+        config = Configuration()
+        config.add_data_dir(('sonat/data', 'data')) # all data files
+        return config
 
     # Setup the python module
     s = setup(name="sonat",
         version = version,
         description = description,
+        long_description = long_description,
         author = author,
         author_email=author_email,
         maintainer = author,
@@ -83,7 +90,11 @@ if __name__=='__main__':
         ext_modules = [
             Extension('sonat._fcore', ['sonat/fcore.f90'])
         ],
-        packages = ["sonat"],
+        packages = ["sonat", "sonat.test"],
+        package_dir = {"sonat.test": "test"},
+        package_data = {"sonat": ["matplotlibrc", "sonat.ini"],
+            "sonat.test": ["sonat.cfg", "sangoma*", "inputs/*.txt"]},
+        configuration = configuration,
 
     )
 

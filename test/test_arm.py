@@ -7,7 +7,7 @@ import cdms2
 import cdtime
 from vcmq import comptime, netcdf4, P, func_name
 
-from util import (THISDIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
+from util import (THIS_DIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
     NCFILE_MANGA1, NCFILE_OBS_HFRADARS, NCFILE_OBS_PROFILES, NCFILE_OBS_SATSST,
     get_bathy)
 
@@ -28,7 +28,7 @@ def get_arm():
 def test_arm_arm_init():
 
     # Load ensemble
-    ncfile = os.path.join(THISDIR, 'test_ens_generate_pseudo_ensemble.nc')
+    ncfile = os.path.join(THIS_DIR, 'test_ens_generate_pseudo_ensemble.nc')
     ens = Ensemble.from_file(ncfile, checkvars=True, logger=LOGGER)
 
     # Load observations
