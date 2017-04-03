@@ -11,6 +11,13 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
+   intro
+   install
+   core
+   conv
+   ui
+   lib
+
 
 
 Indices and tables
