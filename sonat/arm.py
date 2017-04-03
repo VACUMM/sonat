@@ -453,10 +453,17 @@ class ARM(_Base_):
             return figfile
 
 
-    def plot_arm(self, varnames=None, imodes=None,
+    def plot_arm(self, varnames=None, modes=None,
                  figpat='arm.arm.mode{mode}_{var_name}_{slice_type}_{slice_loc}.png',
                  **kwargs):
         """Plot the array modes
+
+        Parameters
+        ----------
+        varnames: string, strings
+            Selection of generic variable names such as "temp"
+        modes: int, ints
+            Selected mode with **1 as the the first one**
 
         Return
         ------
@@ -470,22 +477,19 @@ class ARM(_Base_):
                                                      prefix_to_rm='arm_')
 
         # Plot
-        modemax = self.format_mode()
         figs = OrderedDict()
         dict_check_defaults(kwargs, sync_vminmax='symetric', cmap='cmocean_balance')
-        if imodes is None:
-            imodes = range(self.ndof)
-        elif N.isscalar(imodes):
-            imodes = [imodes]
-        for imode in imodes:
-            mode = self.format_mode(imode)
-            self.debug(' Plotting array mode {}/{}'.format(mode, modemax))
+        modes = self.parse_modes(modes)
+        mode_max = self.format_mode(modes[-1])
+        for mode in modes:
+
+            imode = mode
+            mode = self.format_mode(mode)
+            self.debug(' Plotting array mode {}/{}'.format(mode, mode_max))
 
             # Extract single mode
-            kwargs['subst'] = {'mode':mode, 'modemax':modemax}
+            kwargs['subst'] = {'mode':mode, 'modemax':mode_max}
             mvars = self.extract_mode(variables, imode)
-#            remove_arm = lambda id: id[4:] if id.startswith('arm_')
-#            recursive_transform_att(mvars, 'id', remove_arm)
 
             # Make plots
             mfigs = self.obsmanager.plot(mvars, input_mode='arrays',
@@ -499,7 +503,7 @@ class ARM(_Base_):
 
         return figs
 
-    def plot_rep(self, varnames=None, imodes=None,
+    def plot_rep(self, varnames=None, modes=None,
                  add_obs=True,
                  titlepat='Representer {mode}/{mode_max} - {var_name} - {slice_loc}',
                  figpat='arm.rep.mode{mode}_{var_name}_{slice_type}_{slice_loc}.png',
@@ -509,8 +513,10 @@ class ARM(_Base_):
 
         Parametes
         ---------
-        varnames: strings
-            List variable names to select
+        varnames: string, strings
+            Selection of generic variable names such as "temp"
+        modes: int, ints
+            Selected mode with **1 as the the first one**
         add_obs: bool
             Add the location of all observations?
         figpat: string
@@ -525,7 +531,6 @@ class ARM(_Base_):
                                               prefix_to_rm='rep_')
 
         # Plot
-        mode_max = self.format_mode()
         figs = OrderedDict()
         dict_check_defaults(kwargs, cmap='cmocean_balance',
                             levels_mode='symetric')
@@ -533,13 +538,12 @@ class ARM(_Base_):
              dict_check_defaults(kwargs, **vminmax(self.rep, asdict=True,
                                                    symetric=True))
         kwargs['levels_mode'] = 'symetric'
-        if imodes is None:
-            imodes = range(self.ndof)
-        elif N.isscalar(imodes):
-            imodes = [imodes]
-        for imode in imodes:
+        modes = self.parse_modes(modes)
+        mode_max = self.format_mode(modes[-1])
+        for mode in modes:
 
-            mode = self.format_mode(imode)
+            imode = mode
+            mode = self.format_mode(mode)
             self.debug(' Plotting representer of mode {}/{}'.format(mode, mode_max))
 
             # Extract single mode
@@ -559,10 +563,17 @@ class ARM(_Base_):
 
         return figs
 
-    def plot(self, varnames=None, imodes=None, **kwargs):
+    def plot(self, varnames=None, modes=None, **kwargs):
         """Make all ARM analysis plots in one
 
         It calls :meth:`plot_spect`, :meth:`plot_arm` and :meth:`plot_rep`.
+
+        Parametes
+        ---------
+        varnames: string, strings
+            Selection of generic variable names such as "temp"
+        modes: int, ints
+            Selected mode with **1 as the the first one**
 
         Return
         ------
@@ -574,7 +585,7 @@ class ARM(_Base_):
         kwarm = kwfilter(kwargs, 'arm_')
         kwrep = kwfilter(kwargs, 'rep_')
         for kw in kwarm, kwrep:
-            dict_check_defaults(kw, varnames=varnames, imodes=imodes)
+            dict_check_defaults(kw, varnames=varnames, modes=modes)
 
         # Plots
         figs = OrderedDict([('Spectrum', self.plot_spect(**kwspect)),
@@ -646,22 +657,86 @@ class ARM(_Base_):
 
 
 
-    def format_mode(self, imode=None, fmt='{imode:0{ndigit}d}'):
-        if imode is None:
-            imode = self.ndof-1
-        ndigit = int(math.log10(self.ndof)) + 1
+    def format_mode(self, mode=None, fmt='{mode:0{ndigit}d}', ndigit=None):
+        """Get a string from a mode
+
+        Parameters
+        ----------
+        modes: int
+            1-based mode number
+        fmt: string
+            String format with ``mode`` pattern
+
+        Return
+        ------
+        string
+        """
+        if mode is None:
+            mode = self.ndof
+        if ndigit is None:
+            ndigit = int(math.log10(self.ndof)) + 1
         return fmt.format(**locals())
 
+    def parse_modes(self, modes=None, nmax=10):
+        """Get a valid list of modes
 
-    def extract_mode(self, data, imode):
+        Parameters
+        ----------
+        modes: int, list ints, slice
+            Selection of mode with **1 as the first mode**.
+            When negative, the first ``abs(modes)`` are retained.
+        nmax: int
+            Max number of modes when ``modes`` is not specified.
+
+        Return
+        ------
+        list of ints
+            Mode indices with **1 as the first mode**
+
+        Example
+        -------
+        >>> print arm.parse_modes([1, 3])
+        [1, 3]
+        >>> print arm.parse_modes(-2)
+        [1, 2]
+        >>> print arm.get_imodes() # with arm.ndof == 5
+        [1, 2, 3, 4, 5]
+        """
+        # As a list
+        if isinstance(modes, int):
+            if modes < 0:
+                return range(1, -modes+1)
+            modes = [modes]
+        elif modes is None:
+            modes = range(1, min(self.ndof, nmax)+1)
+
+        # Unique and sorted
+        modes = list(set(map(abs, modes)))
+        modes.sort()
+
+        # Check
+        for m in modes:
+            if m < 1 or m > self.ndof:
+                self.error('Invalid mode: {}. It must be > 0 and <= {}.'.format(m, self.ndof))
+
+        return modes
+
+    def extract_mode(self, data, mode):
         """Extract a single mode from recursive lists of arrays
 
         The mode axis is supposed to be the first one.
+
+        Parameters
+        ----------
+        data: array or list of arrays
+        mode
+            Selected mode with **1 as the the first one**
         """
+        imode = mode - 1
         if not isinstance(data, list):
             dat = data[imode]
             return dat
-        return [self.extract_mode(dat, imode) for dat in data]
+        return [self.extract_mode(dat, mode) for dat in data]
 
     def analyse_sensitivity(self, sa_name, htmlfile=None, ncfile=None, **kwargs):
         """Perform a sensitivity analysis
@@ -691,6 +766,7 @@ class ARM(_Base_):
         # Netcdf
         if ncfile:
             sa.export_netcdf(ncfile, **kwargs)
+
 
 #: Sensitivy analyser
 class ARMSA(_Base_):

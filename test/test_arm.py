@@ -106,7 +106,7 @@ def test_arm_arm_plot_arm():
     arm = get_arm()
 
     # Raw array modes
-    arm.plot_arm(imodes=[0, 1])
+    arm.plot_arm(modes=-2)
 
 def test_arm_arm_plot_rep():
 
@@ -114,7 +114,7 @@ def test_arm_arm_plot_rep():
     arm = get_arm()
 
     # Raw array modes
-    arm.plot_rep(imodes=[0, 1], surf=True, obs_legend_loc='upper right')
+    arm.plot_rep(modes=-2, surf=True, obs_legend_loc='upper right')
 
 def test_arm_register_arm_score_function():
 
@@ -155,7 +155,7 @@ def test_arm_arm_export_html():
 
     # Raw array modes
     arm.export_html(func_name()+'.html', obs_legend_loc='upper right',
-                    imodes=0, varnames=['temp'],
+                    modes=1, varnames=['temp'],
                     arm_full2d=False)
 
 def test_arm_xylocarmsa():
