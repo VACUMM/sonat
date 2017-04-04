@@ -6,5 +6,12 @@ The :mod:`sonat` library
     misc
     pack
     stack
+    plot
+    render
+    ens
+    obs
+    arm
     config
+    cui
+    
 

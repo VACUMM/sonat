@@ -208,7 +208,7 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False, asslices=False):
     """Get time indices corresponding to each dates for each files
 
     .. warning:: The time axis is read only for the first two files.
-        All files must be obey the following rules:
+        All files must obey the following rules:
 
         - Be in chronological order.
         - Have the same time step.
@@ -619,8 +619,8 @@ def validate_varnames(varnames):
 
     Suffixes in the ``_<suffix>`` are removed before searching.
 
-    Raise
-    -----
+    Raises
+    ------
     :class:`sonat.SONATError` if var name is invalid.
     """
     if isinstance(varnames, basestring):

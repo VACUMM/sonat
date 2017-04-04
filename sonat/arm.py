@@ -165,8 +165,8 @@ class ARM(_Base_):
     def set_named_norms(self, norms):
         """Set normalisation coefficient with one per named variable.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         norms: dict
         """
         if not isinstance(norms, dict):
@@ -468,7 +468,7 @@ class ARM(_Base_):
         Return
         ------
         dict: figs
-            ``{'Mode00':{'Temp':{'Map':'mode00.temp.map.png'...}}}
+            ``{'Mode00':{'Temp':{'Map':'mode00.temp.map.png'...}}}``
         """
         self.verbose('Plotting array modes')
 
@@ -511,8 +511,8 @@ class ARM(_Base_):
                  **kwargs):
         """Plot the representers of array modes
 
-        Parametes
-        ---------
+        Parameters
+        ----------
         varnames: string, strings
             Selection of generic variable names such as "temp"
         modes: int, ints
@@ -568,8 +568,8 @@ class ARM(_Base_):
 
         It calls :meth:`plot_spect`, :meth:`plot_arm` and :meth:`plot_rep`.
 
-        Parametes
-        ---------
+        Parameters
+        ----------
         varnames: string, strings
             Selection of generic variable names such as "temp"
         modes: int, ints
@@ -622,7 +622,7 @@ class ARM(_Base_):
                       ncfile_rep='arm.rep.nc'):
         """Export results to netcf files
 
-        Paramaters
+        Parameters
         ----------
         ncfile_spect: string
             Netcdf file name for the spectrum variable

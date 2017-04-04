@@ -195,42 +195,52 @@ class Packer(_Base_):
 
     @property
     def ns(self):
+        """Sise of the spatial/channel dimension"""
         return self.good.sum()
 
     @property
     def compress(self):
+        """Does input data need compression?"""
         return self.ns != self.good.size
 
     @property
     def masked(self):
+        """Is input data fully masked?"""
         return not self.good.any()
 
     @property
     def psize(self):
+        """Packed size, hence after compression"""
         return self.packed_data.size
 
     @property
     def withrdim(self):
+        """Has input data a record dimension?"""
         return not self.nordim
 
     @property
     def nrdim(self):
+        """Size the time/record dimension"""
         return int(not self.nordim)
 
     @property
     def ismv2(self):
+        """Is input of :class:`MV2.array` type?"""
         return self.array_type=='MV2'
 
     @property
     def isma(self):
+        """Is input a pure :class:`numpy.ma.array` type?"""
         return  self.array_type=='numpy.ma'
 
     @property
     def isnumpy(self):
+        """Is input a pure :class:`numpy.array` type?"""
         return  self.array_type=='numpy'
 
     @property
     def id(self):
+        """``id`` attribute of input or None"""
         if self.ismv2:
             return self.input.id
 
@@ -238,6 +248,7 @@ class Packer(_Base_):
 
     @property
     def atts(self):
+        """Dictionary of attributes or None"""
         if not self.ismv2:
             return
         atts = {}
@@ -248,12 +259,14 @@ class Packer(_Base_):
 
     @property
     def units(self):
+        """``units`` attribute of input or None"""
         if not self.ismv2:
             return
         return self.atts.get('units', None)
 
     @property
     def long_name(self):
+        """``long_name`` attribute of input or None"""
         if not self.ismv2:
             return
         return self.atts.get('long_name', None)
@@ -562,8 +575,8 @@ class Packer(_Base_):
 
         Input is sub_space:other, output is other:split_space.
 
-        Params
-        ------
+        Parameters
+        ----------
         pdata: 2D array
             Packed data with space dim as first.
         rescale: boolean, string
@@ -630,7 +643,7 @@ class Packer(_Base_):
         return axis
 
 class Simple1DPacker(object):
-    """Packer pure numpy fortran arrays along the first axis"""
+    """Packer for pure numpy fortran arrays working on the first axis"""
 
     def __init__(self, data, missing_value, valid=None, **kwargs):
 

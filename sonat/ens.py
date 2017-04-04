@@ -747,7 +747,7 @@ class Ensemble(Stacker, _NamedVariables_):
         >>> diags = ens.get_diags(mean=False, skew=True)
         >>> assert diags['skew'].shape == diags['skewtest'].shape
 
-        Sea also
+        See also
         --------
         :func:`scipy.stats.kurtosis` :func:`scipy.stats.kurtosistest`
         :func:`scipy.stats.skew` :func:`scipy.stats.skewtest`
