@@ -5,7 +5,7 @@ SONAT is an open-source python framework intended to help designing a multivaria
 ocean observation network using ocean model ensembles.
 
 With SONAT, a given network is evaluated using the so-called ArM (Array Modes)
-method :cite:`bene85,bene90,lehe09,lamoal16`.
+method :cite:`bene85,bene90,leheal09,lamoal16`.
 The ArM method is a light-weight approach to network design,
 based on the ability of a configuration to capture most
 of the model error covariances.

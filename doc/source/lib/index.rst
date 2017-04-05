@@ -13,5 +13,6 @@ The :mod:`sonat` library
     arm
     config
     cui
+    test
     
 
