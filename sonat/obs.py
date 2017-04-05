@@ -71,9 +71,9 @@ def register_obs_platform(cls, warn=True, replace=True):
     """Register a new observation platform type"""
 
     # Check class
-    if not issubclass(cls, ObsPlatformBase):
+    if not issubclass(cls, NcObsPlatform):
         raise SONATError('Platform cannot be registered: '
-            'it must be a subclass of ObsPlatformBase')
+            'it must be a subclass of NcObsPlatform')
 
     # Check platform_type existence and type
     if (not hasattr(cls, 'platform_type') or
@@ -229,21 +229,8 @@ class _ObsBase_(_XYT_):
         return level
 
 
-class ObsPlatformBase(Stacker, _ObsBase_, _NamedVariables_, ):
 
-    name = None
-
-    @property
-    def platform_type(self):
-        raise SONATError('"platform_type" must declared as a string attribute')
-
-    def __init__(self, *args, **kwargs):
-        raise SONATError('This method must be overwritten')
-
-    def project_model(self, *args, **kwargs):
-        raise SONATError('This method must be overwritten')
-
-class NcObsPlatform(ObsPlatformBase):
+class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
     """Generic observation platform class
 
 
@@ -290,7 +277,7 @@ class NcObsPlatform(ObsPlatformBase):
 
 
     def load(self, singlevar=False, **kwargs):
-        """Read mobility, errors, depth and time in open netcdf file"""
+        """Read mobility, errors, depth and time in a netcdf file"""
         # Open
         f = cdms2.open(self.ncfile)
 
@@ -478,7 +465,6 @@ class NcObsPlatform(ObsPlatformBase):
             self.mobility = mobility
         self.mobility.id = 'mobility'
         self.mobility = MV2.masked_where(xymask, self.mobility, copy=0)
-        self.mobile = (self.mobility==1).any()
 
         # Compression to remove masked points
         if self.pshape != 'gridded' and xymask.any():
@@ -509,6 +495,10 @@ class NcObsPlatform(ObsPlatformBase):
             self.name,
             hex(id(self))
         )
+
+    @property
+    def mobile(self):
+        return (self.mobility==1).any()
 
     @property
     def platform_name(self):
@@ -712,9 +702,11 @@ class NcObsPlatform(ObsPlatformBase):
         """
         dnorms = dict(*anorms, **knorms)
         notnormed = []
-        restacked = False
+        restack = False
         for packer in self:
             for varname, norm in dnorms.items():
+                if not norm:
+                    continue
                 if packer.id and packer.id.split('_')[0] == varname:
                     packer.norm = norm
                     restack = True

@@ -43,7 +43,7 @@ import inspect
 from vcmq import Dataset, register_dataset #, register_cf_variable
 
 from .__init__ import SONATError, sonat_warn
-from .obs import register_obs_platform, ObsPlatformBase
+from .obs import register_obs_platform, NcObsPlatform
 from .arm import (register_arm_score_function, ARM_SCORE_FUNCTION_PREFIX,
                   ARMSA, register_arm_sensitivity_analyser)
 
@@ -57,7 +57,7 @@ def load_user_code_file(myfile=None):
 
     Observation platforms
         It registers as new observation platform all subclasses of
-        :class:`sonat.obs.ObsPlatformBase` with a valid :
+        :class:`sonat.obs.NcObsPlatform` with a valid :
         :attr:`platform_type` attribute, using function
         :func:`~sonat.obs.register_platform`.
     ARM score functions
@@ -100,7 +100,7 @@ def load_user_code_file(myfile=None):
         name, obj = member
 
         # User defined platforms
-        if issubclass(obj, ObsPlatformBase):
+        if issubclass(obj, NcObsPlatform):
 
             register_obs_platform(obj)
 
