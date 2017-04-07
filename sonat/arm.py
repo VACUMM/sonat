@@ -129,7 +129,7 @@ class ARM(_Base_):
 
         # Norms
         if norms:
-            selfet_named_norms(norms)
+            self.set_named_norms(norms)
 
         # Inits
         self._inputs = {} # indirect input matrices
@@ -1013,6 +1013,7 @@ class XYLocARMSA(ARMSA):
     def plot(self, platforms=None, pert=0.01, score_type='fnev', direct=False,
              figpat='arm.sa.{saname}.{score_type}.png',
              title='{sa_long_name}',
+             lon=None, lat=None,
              alpha_static=.3, quiver_scale=None,
              max_quiver_length=40, params_loc=(0.01, 0.01),
              show=False, close=True, **kwargs):
@@ -1032,6 +1033,7 @@ class XYLocARMSA(ARMSA):
         # Plots
         kwobs.update(savefig=False, full2d=True, full3d=False,
                       title=None, legend=False, close=False)
+        dict_check_defaults(kwobs, lon=lon, lat=lat)
         self.obs.plot('locations', **kwobs)
         plotter = self.obs.get_cached_plot('locations', 'map', '2d')
 
