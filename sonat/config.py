@@ -224,6 +224,24 @@ def get_cfg_path(cfg, secname, pathname, format=False, *args, **kwargs):
     return al.put(opaths)
 
 
+def get_cfg_obs_plot_specs(cfg, prefix=None):
+    cfgo = cfg['obs']
+    cfgop = cfgo['plots']
+    cfgp = cfg['plots']
+
+    kw = {'color': cfgop['colorcycle'],
+          'marker': cfgop['markercycle'],
+          'size': cfgop['size'],
+          'legend_loc': cfgop['legendloc'],
+          'map_elev': cfgp['3d']['elev'],
+          'map_azim': cfgp['3d']['azim'],
+          'add_bathy': cfgp['add_bathy'],
+         }
+
+    if prefix:
+        for key in kw.keys():
+            kw[prefix+key] = kw.pop(key)
+    return kw
 
 def is_level(value, default=None):
     """Validate a string that can be evaluated"""
