@@ -164,8 +164,9 @@ def test_obs_ncobsplatform_profiles_plot():
     bathy = get_bathy()
 
     # Plots
-    figs = obs.plot(variables=['locations', 'temp'], full3d=True, full2d=True,
-                    size=30, bathy=bathy, map_margin=0.05)
+    figs = obs.plot(variables=['locations', 'temp'], surf=False, full3d=False, full2d=False, #full3d=True, full2d=True,
+                    size=30, bathy=bathy, map_margin=0.05,
+                    zonal_sections=[47.4], lat_interval_width=0.35)
 
     return figs
 
@@ -208,14 +209,14 @@ def test_obs_obsmanager_plot():
 
 
 if __name__=='__main__':
-    res = test_obs_ncobsplatform_surf()
-    res = test_obs_ncobsplatform_surf_gridded()
-    res = test_obs_obsmanager_init_surf()
-    res = test_obs_load_obs()
-    res = test_obs_obsmanager_project_model()
-    res = test_obs_register_obs_platform()
-    res = test_obs_get_obs_platform()
-    res = test_obs_load_obs_platform()
+#    res = test_obs_ncobsplatform_surf()
+#    res = test_obs_ncobsplatform_surf_gridded()
+#    res = test_obs_obsmanager_init_surf()
+#    res = test_obs_load_obs()
+#    res = test_obs_obsmanager_project_model()
+#    res = test_obs_register_obs_platform()
+#    res = test_obs_get_obs_platform()
+#    res = test_obs_load_obs_platform()
     res = test_obs_ncobsplatform_profiles_plot()
-    res = test_obs_ncobsplatform_hfradars_plot()
-    res = test_obs_obsmanager_plot()
+#    res = test_obs_ncobsplatform_hfradars_plot()
+#    res = test_obs_obsmanager_plot()

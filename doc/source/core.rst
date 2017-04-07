@@ -122,6 +122,8 @@ in observation positions in all directions.
 This may tell you whether you must change your configuration or not,
 and how to do it.
 
+SONAT implement a few of these score types, and more can
+be added by the user.
 
 Interface to SANGOMA
 ====================

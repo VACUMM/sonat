@@ -49,7 +49,8 @@ from matplotlib.markers import MarkerStyle
 from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     ncget_time, ncget_level, ArgList, ncfind_obj, itv_intersect, intersect,
     MV2_axisConcatenate, transect, create_axis, regrid1d, isaxis, checkdir,
-    dicttree_get, dict_check_defaults, meshgrid, P, kwfilter, m2deg)
+    dicttree_get, dict_check_defaults, meshgrid, P, kwfilter, m2deg,
+    lonlab, latlab, deplab)
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES, get_logger
 from .misc import (xycompress, _Base_, _XYT_, check_variables, _NamedVariables_,
@@ -789,9 +790,9 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
              vmin=None, vmax=None, cmap=None,
              figpat='sonat.obs.{platform_type}_{platform_name}_{var_name}_{slice_type}_{slice_loc}.png',
              reset_cache=True, label=None, legend=True, colorbar=True,
-             title='Observations: {var_long_name}',
+             title='Observations: {var_long_name} - {slice_type} - {slice_loc_label}',
              zorder=2.5, sync_vminmax=True, subst={},
-             fmtlonlat=u'{:.2f}°{}', fmtdep='{:04.0f}m',
+             fmtlonlat=u'{:.2f}', fmtdep='{:04.0f}m',
              **kwargs):
         """Plot observations locations or data
 
@@ -882,24 +883,33 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
                 depth = -abs(depth)
                 interval = (depth - dep_interval_width*.5,
                             depth + dep_interval_width*.5)
-                slice_specs.append(dict(slice_type='map', slice_loc='horiz',
-                                       interval=interval))
+                slice_specs.append(dict(slice_type='map',
+                                        slice_loc=fmtdep.format(depth),
+                                        slice_loc_label=deplab(depth),
+                                        slice_plot='horiz',
+                                        interval=interval))
         if merid_sections is not None and merid_sections is not False:
             if N.isscalar(merid_sections):
                 merid_sections = [merid_sections]
-            for lon in merid_sections:
-                interval = (lon - lon_interval_width*.5,
-                            lon + lon_interval_width*.5)
-                slice_specs.append(dict(slice_type='merid', slice_loc='merid',
-                                       interval=interval))
+            for _lon in merid_sections:
+                interval = (_lon - lon_interval_width*.5,
+                            _lon + lon_interval_width*.5)
+                slice_specs.append(dict(slice_type='merid',
+                                        slice_loc=fmtlonlat.format(_lon),
+                                        slice_loc_label=lonlab(_lon),
+                                        slice_plot='merid',
+                                        interval=interval))
         if zonal_sections is not None and zonal_sections is not False:
             if N.isscalar(zonal_sections):
                 zonal_sections = [zonal_sections]
-            for lat in zonal_sections:
-                interval = (lat - lat_interval_width*.5,
-                            lat + lat_interval_width*.5)
-                slice_specs.append(dict(slice_type='zonal', slice_loc='zonal',
-                                       interval=interval))
+            for _lat in zonal_sections:
+                interval = (_lat - lat_interval_width*.5,
+                            _lat + lat_interval_width*.5)
+                slice_specs.append(dict(slice_type='zonal',
+                                        slice_loc=fmtlonlat.format(_lat),
+                                        slice_loc_label=latlab(_lat),
+                                        slice_plot='zonal',
+                                        interval=interval))
 
         # Loop on slice specs
         for sspecs in slice_specs:
@@ -911,6 +921,8 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
             self.debug(msgfmt.format(**sspecs))
             slice_loc = sspecs.pop('slice_loc')
             slice_type = sspecs.pop('slice_type')
+            slice_plot = sspecs.pop('slice_plot', slice_loc)
+            slice_loc_label = sspecs.pop('slice_loc_label', slice_loc)
             interval = sspecs.get('interval', None)
 
             # Loop on variables
@@ -935,7 +947,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
                 this_subst = locals().copy()
                 this_subst.update(subst)
                 if this_title :
-                    this_title = this_title.format(**this_subst)
+                    this_title = unicode(this_title).format(**this_subst)
 
                 kw = kwargs.copy()
                 if slice_loc=="3d":
@@ -947,7 +959,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
                 # Generic scatter plot
                 this_plotter = plot_scattered_locs(
                                     self.lons1d, self.lats1d, self.depths,
-                                    slice_type=slice_loc, interval=interval,
+                                    slice_type=slice_plot, interval=interval,
                                     data=self.xy_ravel_var(var),
                                     plotter=this_plotter, fig=this_fig,
                                     warn=False, bathy=bathy, label=label,

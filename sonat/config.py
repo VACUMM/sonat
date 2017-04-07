@@ -160,16 +160,21 @@ def get_cfg_plot_slice_specs(cfg, exclude=None):
     dict
         With at most the following keys:
         full2d, full3d, surf, bottom,
-        zonal_sections, merid_section and horiz_section.
+        zonal_sections, merid_section, horiz_section,
+        lon_interval_width, lat_interval_width, dep_interval_width.
 
 
     """
     cfgp = cfg['plots']
+    cfgps = cfgp['sections']
     kwargs = dict(full3d=cfgp['full3d'], full2d=cfgp['full2d'],
         surf=cfgp['surf'], bottom=cfgp['bottom'],
-        zonal_sections=cfgp['sections']['zonal'],
-        merid_sections=cfgp['sections']['merid'],
-        horiz_sections=cfgp['sections']['horiz'],
+        zonal_sections=cfgps['zonal'],
+        merid_sections=cfgps['merid'],
+        horiz_sections=cfgps['horiz'],
+        lon_interval_width = cfgps['lonintervalwidth'],
+        lat_interval_width = cfgps['latintervalwidth'],
+        dep_interval_width = cfgps['depintervalwidth'],
     )
     if isinstance(exclude, str):
         exclude = [exclude]
@@ -225,6 +230,7 @@ def get_cfg_path(cfg, secname, pathname, format=False, *args, **kwargs):
 
 
 def get_cfg_obs_plot_specs(cfg, prefix=None):
+    """Get kwargs specifics to obs plots"""
     cfgo = cfg['obs']
     cfgop = cfgo['plots']
     cfgp = cfg['plots']
@@ -232,16 +238,43 @@ def get_cfg_obs_plot_specs(cfg, prefix=None):
     kw = {'color': cfgop['colorcycle'],
           'marker': cfgop['markercycle'],
           'size': cfgop['size'],
+          'linewidth': cfgop['linewidth'],
+          'edgecolor': cfgop['edgecolor'],
           'legend_loc': cfgop['legendloc'],
+          'map_margin': cfgop['mapmargin'],
+          'map_dlon_min':cfgop['mapdlonmin'],
+          'map_dlat_min':cfgop['mapdlatmin'],
+          'add_minimap':cfgop['addminimap'],
           'map_elev': cfgp['3d']['elev'],
           'map_azim': cfgp['3d']['azim'],
-          'add_bathy': cfgp['add_bathy'],
+          'map_res': cfgp['mapres'],
+          'add_bathy': cfgp['addbathy'],
          }
+    for key, val in cfgop['minimapextra'].items():
+        kx['minimap_'+key] = val
+    for key, val in cfgp['plotextra'].items():
+        kx['plotter_'+key] = val
+    for key, val in cfgp['mapextra'].items():
+        kx['map_'+key] = val
 
     if prefix:
         for key in kw.keys():
             kw[prefix+key] = kw.pop(key)
     return kw
+
+def get_cfg_ens_plot_specs(cfg, prefix=None):
+    """Get kwargs specifics to ensemble plots"""
+    cfgp = cfg['plots']
+    kw = {
+          'res': cfgp['mapres'],
+    }
+    for key, val in cfgp['plotextra'].items():
+        kx[key] = val
+    if prefix:
+        for key in kw.keys():
+            kw[prefix+key] = kw.pop(key)
+    return kw
+
 
 def is_level(value, default=None):
     """Validate a string that can be evaluated"""

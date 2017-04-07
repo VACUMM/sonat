@@ -52,6 +52,8 @@ import _fcore
 
 filterwarnings("ignore", "The get_axis_bgcolor function was deprecated")
 filterwarnings("ignore", "setting an item on a masked array which has a shared mask")
+filterwarnings("ignore", "axes.hold is deprecated")
+filterwarnings("ignore", "The ishold function was deprecated in version 2.0")
 
 SONAT_LIB_DIR = os.path.dirname(__file__)
 

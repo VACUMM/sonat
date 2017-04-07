@@ -846,7 +846,7 @@ def mask_scattered_locs(lons, lats, depths, slice_type, interval, data=None):
     if cdms2.isVariable(data):
         data = data.asma()
     if data is not None:
-        masked_value = False if data.dtype.char=='?' else N.ma.masked
+        masked_value = True if data.dtype.char=='?' else N.ma.masked
 
     # Valid locs
     if slice_type is 'horiz':
@@ -865,7 +865,7 @@ def mask_scattered_locs(lons, lats, depths, slice_type, interval, data=None):
         valid = against >= interval[0]
         valid &= against <= interval[1] # (np)
         if profiles:
-            valid = N.resize(depths.shape + valid.shape) # (nz,np)
+            valid = N.resize(valid, depths.shape + valid.shape) # (nz,np)
     mask = ~valid
 
     # Checks

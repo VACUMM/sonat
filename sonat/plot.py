@@ -44,11 +44,11 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from matplotlib import rc_params_from_file, rcParams
 from matplotlib.ticker import FuncFormatter
 from matplotlib.colors import Normalize
-import cdms2
+import cdms2, MV2
 from vcmq import (map, hov, stick, curve, section, dict_check_defaults, plot2d,
                   kwfilter, curv2rect, deplab, isaxis, meshbounds,
                   grid2xy, scalebox, Plot, land_color, add_shadow,
-                  broadcast)
+                  broadcast, minbox, add_map_box, add_map_point, transect)
 
 from .__init__ import SONATError, sonat_warn
 from .misc import (slice_gridded_var, vminmax, mask_scattered_locs,
@@ -215,7 +215,8 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
 
 
 def create_map(lon, lat, level=None, axes=None, bathy=None,
-               elev=20, azim=-100, add_bathy=True, margin=0, **kwargs):
+               elev=20, azim=-100, add_bathy=True, margin=0,
+               dlon_min=0.13, dlat_min=0.1, **kwargs):
     """Create a 2D or 3D map with bathy
 
     Parameters
@@ -258,6 +259,11 @@ def create_map(lon, lat, level=None, axes=None, bathy=None,
         box = scalebox(dict(lon=lon, lat=lat), 1+margin)
         lon = box['lon']
         lat = box['lat']
+    else:
+        box = dict(lon=lon, lat=lat)
+    box = minbox(box, dxmin=dlon_min, dymin=dlat_min)
+    lon = box['lon']
+    lat = box['lat']
 
     # Create the map
     m = map(lon=lon, lat=lat, axes=axes, **kwargs)
@@ -369,9 +375,11 @@ class FixedZorderPoly3DCollection(Poly3DCollection):
 def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plotter=None,
                         lon=None, lat=None, level=None, label='',
                         lon_bounds_margin=.1, lat_bounds_margin=.1,
-                        data=None, warn=True, bathy=None, xybathy=None,
+                        data=None, warn=True,
+                        bathy=None, xybathy=None, secbathy=None,
                         size=40, color='#2ca02c', linewidth=0.4, edgecolor='k',
                         add_profile_line=None, add_bathy=True,
+                        add_minimap=True, add_section_bathy=True,
                         fig=None, title="{long_name}", register_sm=True,
                         legend=False, colorbar=True, **kwargs):
     """Plot scattered localisations
@@ -390,6 +398,10 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         Required if slice_type is not "3d"/None/"2d".
     map_<param>:
         <param> is passed to :func:`create_map`
+    section_<param>:
+        <param> is passed to :func:`vacumm.misc.plot.section2`
+    minimap_<param>:
+        <param> is passed to :func:`vacumm.misc.plot.add_map_box`
 
     Todo
     ----
@@ -399,8 +411,12 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
     if cdms2.isVariable(data):
         data = data.asma()
     kwmap = kwfilter(kwargs, 'map_')
+    kwminimap = kwfilter(kwargs, 'minimap_')
+    kwsecbat = kwfilter(kwargs, 'section_bathy_')
+    kwsection = kwfilter(kwargs, 'section_')
     kwplt = kwfilter(kwargs, 'plotter_')
     dict_check_defaults(kwmap, **kwplt)
+    dict_check_defaults(kwsection, **kwplt)
     kwpf = kwfilter(kwargs, 'add_profile_line')
     kwleg = kwfilter(kwargs, 'legend')
     kwcb = kwfilter(kwargs, 'colorbar')
@@ -561,7 +577,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         if strdepths or zz.min()==0:
             level_min = -200 # Fall back to this min depth
         else:
-            level_min = 1.1 * level.min()
+            level_min = 1.1 * zz.min()
         level = (level_min, 0)
     if (lon is None and
         slice_type in ['3d', "2d", "horiz", 'surf', 'bottom', 'zonal']):
@@ -587,18 +603,56 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
 
         if plotter is None:
 
-            kwplt.update(fig=fig, axes=ax, show=False, close=False)
+            # Base plot
+
+            kwsection.update(fig=fig, axes=ax, show=False, close=False)
+            if add_minimap:
+                dict_check_defaults(kwsection, top=.9, right=.9)
 
             if slice_type == 'merid':
 
-                plotter = section(data=None, xaxis=MV2.array(lon, id='lon'),
-                                  yaxis=MV2.array(level, id='dep'))
+                plotter = section(data=None, xaxis=MV2.array(lat, id='lat'),
+                                  yaxis=MV2.array(level, id='dep'),
+                                  **kwsection)
+                xlim = interval
+                ylim = plotter.axes.get_xlim()
             else:
 
-                plotter = section(data=None, xaxis=MV2.array(lon, id='lat'),
-                                  yaxis=MV2.array(level, id='dep'))
+                plotter = section(data=None, xaxis=MV2.array(lon, id='lon'),
+                                  yaxis=MV2.array(level, id='dep'),
+                                  **kwsection)
+                xlim = plotter.axes.get_xlim()
+                ylim = interval
+
+        # Add minimap
+        if add_minimap:
+            extents = dict(x=xlim, y=ylim)
+            dict_check_defaults(kwminimap, map_square=True, map_zoom=.5,
+                                map_res=None, map_arcgisimage="ocean",
+                                map_epsg=3395, linewidth=.6)
+            add_map_box((xx, yy), extents, **kwminimap)
 
         ax = plotter.axes
+
+        # Bathy profile
+        if add_section_bathy and bathy is not None or secbathy is not None:
+            if secbathy is None: # interpolate
+                if slice_type == 'merid':
+                    secbathy = transect(bathy, [0.5*(interval[0]+interval[1])]*2,
+                        ylim, outaxis='lat')
+                else:
+                    secbathy = transect(bathy, xlim, [0.5*(interval[0]+interval[1])]*2,
+                        outaxis='lon')
+            tx = secbathy.getAxis(0)[:]
+            tb = secbathy.asma()
+            axis_bounds = ax.axis()
+            dict_check_defaults(kwsecbat, facecolor="0.7")
+            ax.fill_between(tx, ax.get_ylim()[0], tb, **kwsecbat)
+            ax.axis(axis_bounds)
+
+
+
+
     axis_bounds = ax.axis()
 
     # Plot params for scatter
@@ -637,8 +691,6 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
 
             for ip, (x, y) in enumerate(zip(xx, yy)):
 
-                isfirst = ip==0
-
                 # Skip fully masked
                 if mask[:, ip].all():
 #                    if warn:
@@ -656,7 +708,8 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                 else:
                     kwargs['c'] = color
                 pp.append(ax.scatter([x]*len(z), [y]*len(z), z,
-                               label=label if isfirst else '', **kwargs))
+                               label=label, **kwargs))
+                label = '_' + str(label)
 
                 # Profile line
                 if add_profile_line:
@@ -702,9 +755,8 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
 
         else: # profiles
 
-            for ip, x in enumerate(xdata):
 
-                isfirst = ip==0
+            for ip, x in enumerate(xdata):
 
                 # Skip fully masked
                 if mask[:, ip].all():
@@ -724,7 +776,8 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                     kwargs['c'] = color
 
                 pp.append(ax.scatter([x]*len(z), z,
-                               label=label if isfirst else '', **kwargs))
+                               label=label, **kwargs))
+                label = '_' + str(label)
 
                 # Profile line
                 if add_profile_line:

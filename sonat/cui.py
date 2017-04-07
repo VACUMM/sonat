@@ -45,7 +45,7 @@ from vcmq import dict_merge, itv_intersect
 from .__init__ import sonat_help, get_logger, SONATError
 from .config import (parse_args_cfg, get_cfg_xminmax, get_cfg_yminmax,
     get_cfg_tminmax, get_cfg_path, get_cfg_plot_slice_specs,
-    get_cfg_cmap, get_cfg_norms)
+    get_cfg_cmap, get_cfg_norms, get_cfg_obs_plot_specs)
 from .misc import interpret_level
 from .obs import load_obs_platform, ObsManager
 from .ens import generate_pseudo_ensemble, Ensemble
@@ -254,6 +254,8 @@ def ens_plot_diags_from_args(parser, args, cfg):
 def ens_plot_diags_from_cfg(cfg, add_obs=None):
 
     # Config
+    lon = get_cfg_xminmax(cfg)
+    lat = get_cfg_yminmax(cfg)
     cfgd = cfg['domain']
     cfgc = cfg['cmaps']
     cfge = cfg['ens']
@@ -285,6 +287,7 @@ def ens_plot_diags_from_cfg(cfg, add_obs=None):
     for param, pspecs in cfgedp.items(): # default colormaps
         pspecs.setdefault('cmap', get_cfg_cmap(cfg, param))
     norms = get_cfg_norms(cfg)
+    kwobsplotspecs = get_cfg_obs_plot_specs(cfg, prefix='obs_')
 
     # Setup ensemble from file
     ens = Ensemble.from_file(ncensfile, varnames=varnames, logger=logger,
@@ -292,17 +295,14 @@ def ens_plot_diags_from_cfg(cfg, add_obs=None):
 
     # Observations
     if add_obs:
-        kwargs.update(obs=load_obs_from_cfg(cfg),
-                      obs_color=cfgop['colorcycle'],
-                      obs_marker=cfgop['markercycle'],
-                      obs_size=cfgop['size'],
-                      )
+        kwargs.update(obs=load_obs_from_cfg(cfg), **kwobsplotspecs)
 
 
 
     # Plot diags
     htmlfile = ens.export_html_diags(htmlfile, figpat_slice=figpatslice,
         figpat_generic=figpatgeneric, props=props,
+        lon=lon, lat=lat,
         **kwargs)
 
     return htmlfile
@@ -360,17 +360,17 @@ def obs_plot_from_args(parser, args, cfg):
 def obs_plot_from_cfg(cfg, platforms=None):
 
     # Config
-    cfgo = cfg['obs']
     lon = get_cfg_xminmax(cfg)
     lat = get_cfg_yminmax(cfg)
-    cfgos = cfgo['platforms']
+    cfgo = cfg['obs']
     cfgop = cfgo['plots']
-    cfgp = cfg['plots']
-    cfps = cfgp['sections']
+    cfgos = cfgo['platforms']
     figpat = get_cfg_path(cfg, 'obs', 'figpat')
+    kwplotspecs = get_cfg_obs_plot_specs(cfg)
     kwslices = get_cfg_plot_slice_specs(cfg)
     kwargs = {}
     kwargs.update(kwslices)
+    kwargs.update(kwplotspecs)
 
     # Init
     logger = init_from_cfg(cfg)
@@ -391,10 +391,7 @@ def obs_plot_from_cfg(cfg, platforms=None):
 
     # Plot
     htmlfile = obsmanager.export_html(cfgo['htmlfile'],
-        varnames, figpat=figpat, lon=lon, lat=lat,
-                    color=cfgop['colorcycle'], marker=cfgop['markercycle'],
-                    map_elev=cfgp['3d']['elev'], map_azim=cfgp['3d']['azim'],
-                    size=cfgop['size'],
+                    varnames, figpat=figpat, lon=lon, lat=lat,
                     **kwargs)
 
     return htmlfile
@@ -410,16 +407,25 @@ def arm_analysis_from_args(parser, args, cfg):
 def arm_analysis_from_cfg(cfg):
 
     # Config
-    cfga = cfg['arm']
-    cfge = cfg['ens']
-    cfgo = cfg['obs']
-    cfgp = cfg['plots']
-    cfgps = cfgp['sections']
     lon = get_cfg_xminmax(cfg)
     lat = get_cfg_yminmax(cfg)
+    cfga = cfg['arm']
+    cfgaa = cfga['analysis']
+    cfgaap = cfgaa['plots']
+    cfge = cfg['ens']
+    lon = get_cfg_xminmax(cfg)
+    lat = get_cfg_yminmax(cfg)
+    obs_plot_specs = get_cfg_obs_plot_specs(cfg, prefix='arm_')
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
     varnames = cfge['varnames'] or None
     norms = get_cfg_norms(cfg)
+    kwslices = {'arm': get_cfg_plot_slice_specs(cfg),
+                'rep': get_cfg_plot_slice_specs(cfg, exclude=['full2d', 'full3d'])}
+    kwargs = {}
+    for prefix, kw in kwslices.items():
+        for sname, sval in kw.items():
+            kwargs[prefix + '_' + sname] = sval
+    kwargs.update(obs_plot_specs)
 
     # Init
     logger = init_from_cfg(cfg)
@@ -440,12 +446,16 @@ def arm_analysis_from_cfg(cfg):
         arm.set_bathy(bathy)
 
     # Analyse and export
-    htmlfile = arm.export_html(get_cfg_path(cfg, 'arm', 'htmlfile'),
-                    spect_figfgile=get_cfg_path(cfg, 'arm', 'figfile_spect'),
-                    arm_figpat=get_cfg_path(cfg, 'arm', 'figpat_arm'),
-                    rep_figpat=get_cfg_path(cfg, 'arm', 'figpat_rep'),
-                    score_types=cfga['score_types'],
-                    )
+    htmlfile = arm.export_html(get_cfg_path(cfg, ['arm', 'analysis'], 'htmlfile'),
+                    spect_figfgile=get_cfg_path(cfg, ['arm', 'analysis'], 'figfile_spect'),
+                    arm_figpat=get_cfg_path(cfg, ['arm', 'analysis'], 'figpat_arm'),
+                    rep_figpat=get_cfg_path(cfg, ['arm', 'analysis'], 'figpat_rep'),
+                    score_types=cfgaa['score_types'],
+                    varnames=cfgaap['varnames'],
+                    modes=cfgaap['modes'],
+                    lon=lon, lat=lat,
+                    **kwargs
+                   )
 
     return htmlfile
 
@@ -453,24 +463,25 @@ def arm_sa_from_args(parser, args, cfg):
     """arm sa subcommmand"""
 
     # List of sensitivity analysers
-    sanames = args.saname or None
-    all_sanames = list_arm_sensitivity_analysers()
-    if sanames is not None:
-        for saname in sanames:
-            if saname not in all_sanames:
-                parser.error('Invalid sensitivity analyser name: '+ saname +
-                             '\nPlease choose one of: '+' '.join(all_sanames))
+    sa_names = args.saname or None
+    all_sa_names = list_arm_sensitivity_analysers()
+    if sa_names is not None:
+        for sa_name in sa_names:
+            if sa_name not in all_sa_names:
+                parser.error('Invalid sensitivity analyser name: '+ sa_name +
+                             '\nPlease choose one of: '+' '.join(all_sa_names))
 
     # Execute using config only
-    return arm_sa_from_cfg(cfg, sanames=sanames)
+    return arm_sa_from_cfg(cfg, sa_names=sa_names)
 
-def arm_sa_from_cfg(cfg, sanames=None):
+def arm_sa_from_cfg(cfg, sa_names=None):
 
     # Config
     cfga = cfg['arm']
     cfgas = cfga['sa']
     cfge = cfg['ens']
     cfgo = cfg['obs']
+    cfgop = cfgo['plots']
     cfgp = cfg['plots']
     cfgps = cfgp['sections']
     lon = get_cfg_xminmax(cfg)
@@ -498,24 +509,28 @@ def arm_sa_from_cfg(cfg, sanames=None):
         arm.set_bathy(bathy)
 
     # SA names
-    if sanames is None:
-        sanames = list_arm_sensitivity_analysers()
+    if sa_names is None:
+        sa_names = list_arm_sensitivity_analysers()
 
     # Loop
     htmlfiles = []
-    for sa_name in sanames:
+    for sa_name in sa_names:
 
         # Config
-        kwargs = cfgas[saname].dict()
+        kwargs = cfgas[sa_name].dict()
         activate = kwargs.pop('activate')
         if not activate:
             continue
 
         # Setup analyser
-        sa = get_arm_sensitivity_analyser(saname, arm)
+        sa = get_arm_sensitivity_analyser(sa_name, arm)
 
         # Run and export
-        htmlfile = sa.export_html(htmlfile=cfgsa['htmlfile'], **kwargs)
+        htmlfile = sa.export_html(htmlfile=cfgas['htmlfile'],
+                                  lon=lon, lat=lat,
+                                  obs_color=cfgop['colorcycle'],
+                                  obs_marker=cfgop['markercycle'],
+                                **kwargs)
         htmlfiles.append(htmlfile)
 
     return htmlfile
@@ -601,7 +616,7 @@ def read_bathy_from_cfg(cfg, logger):
         f.close()
 
         if cfgb['samp']>1:
-            bathy = bathy[::samp, ::samp]
+            bathy = bathy[::cfgb['samp'], ::cfgb['samp']]
 
         if cfgb['positive']:
             bathy *= -1

@@ -618,6 +618,7 @@ class Ensemble(Stacker, _NamedVariables_):
             data = data[0]
         ens = cls(data, **kwargs)
         ens.debug('From file: '+ncfile)
+        ens.ncfile = ncfile
         return ens
 
     @property
@@ -818,7 +819,10 @@ class Ensemble(Stacker, _NamedVariables_):
                             evar.units = '%'
                         else:
                             evar = lvar.copy()
-                        evar[:] /= var
+                        try:
+                            evar[:] /= var
+                        except:
+                            pass
                         evar[:] *= 100
                         evar.sonat_ens_diag = 'explained_variance'
                         evars.append(evar)
@@ -1006,7 +1010,20 @@ class Ensemble(Stacker, _NamedVariables_):
                 elif (variable.getLevel() is not None and
                       horiz_sections is not False and horiz_sections is not None): # 3D
 
-                    # 3D depths
+
+                    # Surf and bottom
+                    for ok, slice_loc in [(surf, 'surf'), (bottom, 'bottom')]:
+                        if ok is True:
+                            toplot.append(dict(
+                                slice_loc=slice_loc,
+                                slice_type='map',
+                                keys=(var_name, 'map', slice_loc),
+                                kw=dict_merge(dict(depth=slice_loc), kw),
+                                obs_plot={slice_loc:True},
+                                ))
+
+
+                    # Loop on 3D depths specs
                     if horiz_sections is True:
                         depths =  variable.getLevel()
                     else:
@@ -1014,15 +1031,6 @@ class Ensemble(Stacker, _NamedVariables_):
                         if N.isscalar(depths):
                             depths = [depths]
                     depths = list(depths)
-
-                    # Surf and bottom
-                    if surf is True:
-                        depths.insert(0, 'surf')
-                    if bottom is True:
-                        depths.append('bottom')
-
-
-                    # Loop on 3D depths specs
                     for depth in depths:
                         if isinstance(depth, str):
                             slice_loc = depth
@@ -1119,6 +1127,7 @@ class Ensemble(Stacker, _NamedVariables_):
                     figfile = figpat.format(**dfmt)
                     checkdir(figfile)
                     p.savefig(figfile)
+                    close = True
                     self.created(figfile)
                     kw = {keys[-1]:figfile, '__class__':OrderedDict}
                     dicttree_set(figs, *keys[:-1], **kw)
