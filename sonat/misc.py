@@ -338,7 +338,9 @@ class NcReader(object):
             args = tuple(filter(lambda x: isinstance(x, slice), args))
 
             return self.f[vname][args]
+
         else:
+
             return self.f(vname, *args, **kwargs)
 
     def __getitem__(self, vname):

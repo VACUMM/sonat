@@ -183,6 +183,7 @@ class _ObsBase_(_XYT_):
         subst.update(**locals())
         figfile = figpat.format(**subst)
         plotter.savefig(figfile)
+        plotter.close()
         self.created(figfile)
         return {var_name.title():{slice_type.title(): {slice_loc.title():figfile}}}
 
@@ -778,8 +779,9 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
         return al.put(out)
 
     def plot(self, variables=None,
-             full3d=True, full2d=True, surf=None, bottom=None, horiz_sections=None,
-             zonal_sections=None, merid_sections=None,
+             full3d=True, full2d=True,
+             surf=True, bottom=None,
+             zonal_sections=None, merid_sections=None, horiz_sections=None,
              lon=None, lat=None, level=None,
              lon_interval_width=0.1, lat_interval_width=0.1, dep_interval_width=2,
              bathy=None, plotter=None, fig=None, close=True,
@@ -818,6 +820,11 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
         if label is None:
             label = self.platform_name
         kwleg = kwfilter(kwargs, 'legend')
+        if isinstance(self.depths, str):
+            if self.depths=='surf' and surf is None:
+                surf = True
+            if self.depths=='bottom' and bottom is None:
+                bottom = True
 
         # Data
         if variables is None:
@@ -849,7 +856,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
             xybathy = self.bathy
 
         # Bounds
-        if (level is None and (self.depths!='bottom' or bathy is not None) and
+        if (level is None and (self.depths is not 'bottom' or bathy is not None) and
             (full3d or zonal_sections or merid_sections)):
             level = self.get_level(bathy)[0], 0
 
@@ -946,7 +953,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
                                     warn=False, bathy=bathy, label=label,
                                     vmin=this_vmin, vmax=this_vmax, cmap=this_cmap,
                                     lon=lon, lat=lat,
-                                    colorbar=colorbar, legend=legend,
+                                    colorbar=colorbar, legend=legend is True,
                                     title=this_title,
                                     add_bathy=this_add_bathy, zorder=zorder,
                                     **kw)
@@ -960,6 +967,10 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
 
                 # Cache
                 self.set_cached_plot(var_name, slice_type, slice_loc, this_plotter)
+
+                # Legend
+                if legend=='cache':
+                    self.mark_cached_plot_legend(this_plotter)
 
 
 #                # Colorbar
@@ -1476,11 +1487,12 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
 
     def plot(self, variables=None, input_mode='names',
              full3d=True, full2d=True,
-             lon_bounds_margin=.1, lat_bounds_margin=.1,
+             surf=True, bottom=None,
              zonal_sections=None, merid_sections=None, horiz_sections=None,
+             lon_bounds_margin=.1, lat_bounds_margin=.1,
              level=None, lon=None, lat=None,
              sync_vminmax=True,
-             color=None, marker=['o', '^', 's', '<', '>', '*'],
+             color=None, marker=['o', '8', 's', 'p', '*'],
              legend=True, colorbar=True,
              reset_cache=True, fig=None, savefig=True, close=True,
              title='Observations: {var_long_name}',
@@ -1533,12 +1545,14 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         cm_cyc = get_color_marker_cycler(color, marker)
 
         # Bounds
-        if lon is None and (full2d or full3d or zonal_sections or horiz_sections):
+        if lon is None: # and (full2d or full3d or zonal_sections or
+#                            horiz_sections or surf or bottom):
             lon = self.get_lon(margin=lon_bounds_margin)
-        if lat is None and (full2d or full3d or merid_sections or horiz_sections):
+        if lat is None: # and (full2d or full3d or merid_sections or
+#                            horiz_sections or surf or bottom):
             lat = self.get_lat(margin=lat_bounds_margin)
         if (level is None and (not self.has_bottom or bathy is not None) and
-            (full3d or zonal_sections or merid_sections)):
+            (full3d or zonal_sections or merid_sections or bottom)):
             level = (self.get_level()[0], 0)
 
         # Loop on platforms
@@ -1568,6 +1582,9 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
             obs.plot(variables=myvariables, reset_cache=False,
                      full2d=full2d, full3d=full3d,
                      lon=lon, lat=lat, level=level,
+                     zonal_sections=zonal_sections,
+                     merid_sections=zonal_sections,
+                     horiz_sections=horiz_sections,
                      fig=fig, figpat=figpat,
                      savefig=False, close=False,
                      legend='cache' if legend else False,
