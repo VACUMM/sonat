@@ -32,7 +32,8 @@ NCFILE_BATHY_POSITIVE_UP = True
 CFGFILE = os.path.abspath(os.path.join(THIS_DIR, 'sonat.cfg'))
 
 
-LOGGER = get_logger(level="error")
+LOGGER_LEVEL_TESTS = os.environ.get("SONAT_LOGGER_LEVEL_TESTS", "error")
+LOGGER = get_logger(level=LOGGER_LEVEL_TESTS)
 
 CACHE = {}
 
