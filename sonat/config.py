@@ -251,11 +251,11 @@ def get_cfg_obs_plot_specs(cfg, prefix=None):
           'add_bathy': cfgp['addbathy'],
          }
     for key, val in cfgop['minimapextra'].items():
-        kx['minimap_'+key] = val
+        kw['minimap_'+key] = val
     for key, val in cfgp['plotextra'].items():
-        kx['plotter_'+key] = val
+        kw['plotter_'+key] = val
     for key, val in cfgp['mapextra'].items():
-        kx['map_'+key] = val
+        kw['map_'+key] = val
 
     if prefix:
         for key in kw.keys():
@@ -269,7 +269,7 @@ def get_cfg_ens_plot_specs(cfg, prefix=None):
           'res': cfgp['mapres'],
     }
     for key, val in cfgp['plotextra'].items():
-        kx[key] = val
+        kw[key] = val
     if prefix:
         for key in kw.keys():
             kw[prefix+key] = kw.pop(key)
