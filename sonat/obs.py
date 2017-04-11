@@ -238,17 +238,31 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
 
     Attributes
     ----------
-    pshape: string
-        Plateform shape
     varnames: strings
         Variable names WITHOUT the error prefix
+    time: tuple
+        Time selector
+    lat: tuple
+        Latitude selector
+    lon: tupel
+        Longitude selector
+    level:
+        Vertical level selector
+    errors: dict
+        Error variables
+    name: string
+        Platform name
+    platform_name:
+        Alias for :attr:`name`
+    platform_type:
+        Platform type, which defaults to "generic"
     """
 
     nc_error_suffix = '_error'
     nc_mobility_name = 'mobility'
     platform_type = 'generic'
 
-    def __init__(self, ncfile, varnames=None, logger=None, norms=None,
+    def __init__(self, obsfile, varnames=None, logger=None, norms=None,
             time=None, lon=None, lat=None, level=None, name=None,
             singlevar=False, **kwargs):
 
@@ -256,7 +270,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
         _Base_.__init__(self, logger=logger, **kwargs)
 
         # Init parameters
-        self.ncfile = ncfile
+        self.obsfile = obsfile
         self.varnames = ArgList(varnames).get() if varnames else varnames
         self.time = time
         self.lon = lon
@@ -279,9 +293,33 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
 
 
     def load(self, singlevar=False, **kwargs):
-        """Read mobility, errors, depth and time in a netcdf file"""
+        """Read mobility, errors, depth and time in a netcdf file
+
+        To override the method, you must declare the following attributes.
+
+        Attributes
+        ----------
+        platform_shape: string
+            Plateform shape: "gridded" or like "xy"
+        lons: array
+            Longitudes
+        lats: array
+            Latitudes
+        depths: array or "surf" or "bottom"
+            Depths
+        times: datetime array
+            Times
+        sample: MV2.array
+            Sample error variable
+        xysample: MV2
+            Sample error variable with only the horizontal dimenion(s)
+        mobility: int or array of ints
+            Is a location mobile?
+        axes: list of cdms2 axes
+            Must contain only t or z axes
+        """
         # Open
-        f = cdms2.open(self.ncfile)
+        f = cdms2.open(self.obsfile)
 
         # List of error variables
         if self.varnames is None:
@@ -302,7 +340,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
 
         if not self.varnames:
             raise SONATError(('No valid error variable with suffix "{0.nc_error_suffix}"'
-                ' in file: {0.ncfile}').format(self))
+                ' in file: {0.obsfile}').format(self))
         if singlevar:
             self.varnames = self.varnames[:1]
 
@@ -315,7 +353,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
         kwread = {}
         if grid and len(grid.shape)==2: # Structured grid
 
-            self.pshape = 'gridded'
+            self.platform_shape = 'gridded'
             kwread = dict(time=self.time, lat=self.lat, lon=self.lon, level=self.level)
             if '-' in order:
                 raise SONATError("There are unkown dimensions in your gridded variable. "
@@ -327,7 +365,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
         else: # Unstructured grid
 
             xymask = N.ma.nomask #zeros(fs.shape[-1], '?')
-            self.pshape = 'xy'
+            self.platform_shape = 'xy'
             paxis = fs.getAxis(-1)
             kwread = {}
             xyshape = paxis.shape
@@ -372,7 +410,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
                     if (self.depths[:].ndim==1 and
                             self.depths.getAxis(0).id is paxis.id):
                         raise SONATError("Scattered Z dimension not yet supported")
-                        self.pshape = self.pshape + 'z'
+                        self.platform_shape = self.platform_shape + 'z'
                     depths = self.depths.asma()
                     if self.level:
                         xymask |= depths < self.level[0]
@@ -388,7 +426,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
                         times = create_time(times[:], times.units)[:]
                         xymask |= times < reltime(self.time[0], times.units)
                         xymask |= times > reltime(self.time[1], times.units)
-                    self.pshape = self.pshape + 't'
+                    self.platform_shape = self.platform_shape + 't'
 
             # Check mask
             if N.ma.isMA(xymask):
@@ -439,7 +477,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
             self.depths = sample.getLevel()
             self.axes.append(self.depths)
         elif (hasattr(self, 'depths') and self.depths is not None
-              and 'z' not in self.pshape): # depths that vary with position
+              and 'z' not in self.platform_shape): # depths that vary with position
             self.axes.append(self.depths)
         elif hasattr(f, 'depth'): # depth from file attribute
             self.depths = f.depth
@@ -455,7 +493,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
             self.mobility = f(self.nc_mobility_name, **kwread)
         elif hasattr(f, self.nc_mobility_name): # as a scalar attribute
             self.mobility = int(getattr(f, self.nc_mobility_name))
-        elif self.pshape=='gridded': # don't move grid for the moment
+        elif self.platform_shape=='gridded': # don't move grid for the moment
             self.mobility = 0
         else:
             sonat_warn('No mobility variable found in obs file. '
@@ -469,7 +507,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
         self.mobility = MV2.masked_where(xymask, self.mobility, copy=0)
 
         # Compression to remove masked points
-        if self.pshape != 'gridded' and xymask.any():
+        if self.platform_shape != 'gridded' and xymask.any():
             valid = ~xymask
             self.lons = xycompress(valid, self.lons)
             self.lats = xycompress(valid, self.lats)
@@ -487,7 +525,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
             if hasattr(f, 'platform_name'): # name from attribute
                 self.name = f.platform_name
             else: # name from file name
-                self.name = os.path.splitext(os.path.basename(self.ncfile))[0]
+                self.name = os.path.splitext(os.path.basename(self.obsfile))[0]
         f.close()
 
     def __repr__(self):
@@ -524,7 +562,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
 
     @property
     def nsdim(self):
-        return 1 + int(self.pshape=='gridded')
+        return 1 + int(self.platform_shape=='gridded')
 
     @property
     def shape(self):
@@ -544,15 +582,15 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
 
     @property
     def is_zscattered(self):
-        return 'z' in self.pshape
+        return 'z' in self.platform_shape
 
     @property
     def is_tscattered(self):
-        return 't' in self.pshape
+        return 't' in self.platform_shape
 
     @property
     def is_gridded(self):
-        return self.pshape is 'gridded'
+        return self.platform_shape is 'gridded'
 
     @property
     def mask(self):
@@ -747,15 +785,15 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
             order = var.getOrder()
 
             # Gridded and scattered
-            if self.pshape=='gridded':
+            if self.platform_shape=='gridded':
                 var = regrid2d(var, self.grid, method='bilinear')
             else:
                 kw = {}
-                if 't' in self.pshape:
+                if 't' in self.platform_shape:
                     if 't' not in order:
                         raise SONATError("Model variables must have a time axis")
                     kw['times'] = self.times
-                if 'z' in self.pshape:
+                if 'z' in self.platform_shape:
                     if 'z' not in order:
                         raise SONATError("Model variables must have a depth axis")
                     kw['depths'] = self.depths
@@ -1651,18 +1689,19 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         if htmlfile:
             self.export_html(htmlfile, *args, **kwargs)
 
-def load_obs(ncfiles, varnames=None, lon=None, lat=None,
-        logger=None):
+def load_obs(obsfiles, varnames=None, lon=None, lat=None,
+        logger=None, cls=None):
     """Quickly load all observations with one file per platform"""
     # Logger
     if logger is None:
         logger = get_logger()
 
     # Load platforms
-    if isinstance(ncfiles, basestring):
-        ncfiles = [ncfiles]
-    obsplats = [NcObsPlatform(ncfile, varnames=varnames, lon=lon, lat=lat,
-        logger=logger) for ncfile in ncfiles]
+    if isinstance(obsfiles, basestring):
+        obsfiles = [obsfiles]
+    obsplats = [(cls or {}).get(obsfile, NcObsPlatform)(
+        obsfile, varnames=varnames, lon=lon, lat=lat,
+            logger=logger) for obsfile in obsfiles]
 
     # Init ObsManager
     return ObsManager(obsplats, logger=logger)
