@@ -35,22 +35,24 @@
 
 
 import os
+from collections import OrderedDict
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 import matplotlib
 from pylab import register_cmap, get_cmap
 import cdms2
-from vcmq import dict_merge, itv_intersect
+from vcmq import dict_merge, itv_intersect, checkdir
 
 from .__init__ import sonat_help, get_logger, SONATError
 from .config import (parse_args_cfg, get_cfg_xminmax, get_cfg_yminmax,
     get_cfg_tminmax, get_cfg_path, get_cfg_plot_slice_specs,
     get_cfg_cmap, get_cfg_norms, get_cfg_obs_plot_specs)
-from .misc import interpret_level
+from .misc import interpret_level, dicttree_relpath
 from .obs import load_obs_platform, ObsManager
 from .ens import generate_pseudo_ensemble, Ensemble
 from .arm import (ARM, XYLocARMSA, list_arm_sensitivity_analysers,
                   get_arm_sensitivity_analyser)
+from .render import render_and_export_html_template
 from .my import load_user_code_file, SONAT_USER_CODE_FILE
 
 
@@ -151,7 +153,17 @@ def ens_gen_pseudo_from_args(parser, args, cfg):
     return ens_gen_pseudo_from_cfg(cfg)
 
 def ens_gen_pseudo_from_cfg(cfg):
-    """Take model output netcdf files and create an ensemble netcdf file"""
+    """Generate a pseudo-ensemble from model outputs
+
+    Parameters
+    ----------
+    cfg: configobj/dict
+
+    Return
+    ------
+    string
+        Path to netcdf file
+    """
     # Config
     cfgd = cfg['domain']
     cfge = cfg['ens']
@@ -252,6 +264,19 @@ def ens_plot_diags_from_args(parser, args, cfg):
 
 
 def ens_plot_diags_from_cfg(cfg, add_obs=None):
+    """Plot ensemble diangostics
+
+    Parameters
+    ----------
+    cfg: configobj/dict
+    add_obs: bool
+        Add observations to the plots?
+
+    Return
+    ------
+    string:
+        Path to HTML file
+    """
 
     # Config
     lon = get_cfg_xminmax(cfg)
@@ -358,6 +383,19 @@ def obs_plot_from_args(parser, args, cfg):
     return obs_plot_from_cfg(cfg)#, platforms=platforms)
 
 def obs_plot_from_cfg(cfg, platforms=None):
+    """Plot observations
+
+    Parameters
+    ----------
+    cfg: configobj/dict
+    platforms: strings, None
+        Select observation platforms by their name
+
+    Return
+    ------
+    string
+        Path to HTML file
+    """
 
     # Config
     lon = get_cfg_xminmax(cfg)
@@ -405,6 +443,17 @@ def arm_analysis_from_args(parser, args, cfg):
     return arm_analysis_from_cfg(cfg)
 
 def arm_analysis_from_cfg(cfg):
+    """Perform an ARM analysis
+
+    Parameters
+    ----------
+    cfg: configobj/dict
+
+    Return
+    ------
+    string
+        Path to HTML file
+    """
 
     # Config
     lon = get_cfg_xminmax(cfg)
@@ -475,6 +524,19 @@ def arm_sa_from_args(parser, args, cfg):
     return arm_sa_from_cfg(cfg, sa_names=sa_names)
 
 def arm_sa_from_cfg(cfg, sa_names=None):
+    """Perform ARM sensitivity analyses
+
+    Parameters
+    ----------
+    cfg: configobj/dict
+    sa_names: strings, None
+        Force the list of registered sensitivity analyserrs
+
+    Return
+    ------
+    string
+        Path to HTML file
+    """
 
     # Config
     cfga = cfg['arm']
@@ -489,6 +551,7 @@ def arm_sa_from_cfg(cfg, sa_names=None):
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
     varnames = cfge['varnames'] or None
     norms = get_cfg_norms(cfg)
+    htmlfile = cfgas['htmlfile']
 
     # Init
     logger = init_from_cfg(cfg)
@@ -501,7 +564,7 @@ def arm_sa_from_cfg(cfg, sa_names=None):
     obs = load_obs_from_cfg(cfg)
 
     # Init ARM
-    arm = ARM(ens, obs, norms=norms)
+    arm = ARM(ens, obs, norms=norms, logger=logger)
 
     # Bathy
     bathy = read_bathy_from_cfg(cfg, logger)
@@ -512,8 +575,8 @@ def arm_sa_from_cfg(cfg, sa_names=None):
     if sa_names is None:
         sa_names = list_arm_sensitivity_analysers()
 
-    # Loop
-    htmlfiles = []
+    # Loop on analysers
+    res = OrderedDict()
     for sa_name in sa_names:
 
         # Config
@@ -523,16 +586,23 @@ def arm_sa_from_cfg(cfg, sa_names=None):
             continue
 
         # Setup analyser
-        sa = get_arm_sensitivity_analyser(sa_name, arm)
+        sa = get_arm_sensitivity_analyser(sa_name, arm, logger=logger)
 
         # Run and export
-        htmlfile = sa.export_html(htmlfile=cfgas['htmlfile'],
-                                  lon=lon, lat=lat,
+        res.update(sa.plot(lon=lon, lat=lat,
                                   obs_color=cfgop['colorcycle'],
                                   obs_marker=cfgop['markercycle'],
-                                **kwargs)
-        htmlfiles.append(htmlfile)
+                                **kwargs))
 
+    # Paths
+    checkdir(htmlfile)
+    res = dicttree_relpath(res, os.path.dirname(htmlfile))
+    res = {"ARM sensitivity analyses": res}
+
+    # Render with template
+    render_and_export_html_template('dict2tree.html', htmlfile,
+        title="ARM sensitivity analyses", content=res)
+    arm.created(htmlfile)
     return htmlfile
 
 
