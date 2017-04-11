@@ -759,13 +759,41 @@ class ARM(_Base_):
 
         # Plot
         if htmlfile:
-            sa.export_html(**kwargs)
+            exp = sa.export_html(**kwargs)
         else:
-            sa.plot(**kwargs)
+            exp = sa.plot(**kwargs)
 
         # Netcdf
         if ncfile:
             sa.export_netcdf(ncfile, **kwargs)
+
+        return exp
+
+    def analyse_sensitivities(self, sa_names, htmlfile="arm.sa.html",
+                              title='Sensitivity analyses', **kwargs):
+        """Perform several sensitivity analyse and export results to html
+
+
+        Parameters
+        ----------
+        sa_names: strings
+            A registered sensitivity analysers
+        htmlfile: string
+            Exportation html file name
+        """
+
+        # Get results
+        res = OrderedDict()
+        for sa_name in sa_names:
+            res[sa_name] = self.analyse_sensitivity(sa_name, **kwargs)
+
+        # Render with template
+        checkdir(htmlfile)
+        render_and_export_html_template('dict2tree.html', htmlfile,
+            title=title, content=res)
+        self.created(htmlfile)
+        return htmlfile
+
 
 
 #: Sensitivy analyser
@@ -857,7 +885,7 @@ class ARMSA(_Base_):
 
 class XYLocARMSA(ARMSA):
 
-    long_name = "Sensitivity to observation X/Y locations"
+    long_name = "Sensitivity to X/Y locations of observations"
 
     def __init__(self, arm, **kwargs):
 
@@ -1109,7 +1137,8 @@ class XYLocARMSA(ARMSA):
             plotter.axes.set_title(title.format(**locals()))
 
         # Save
-        saname = self.name
+        sa_name = saname = self.name
+        sa_long_name = self.get_long_name()
         figfile = figpat.format(**locals())
         plotter.savefig(figfile)
         self.created(figfile)
@@ -1118,15 +1147,26 @@ class XYLocARMSA(ARMSA):
         elif close:
             plotter.close()
 
-        return {self.get_long_name():figfile}
+        return {"{sa_long_name} [{sa_name}]".format(**locals()):figfile}
 
-    def export_html(self, htmlfile, *args, **kwargs):
-        """Export results to an htmlfile with figures"""
-
-        # Get results
-        figs = self.plot(*args, **kwargs)
-
-
+#    def export_html(self, htmlfile, *args, **kwargs):
+#        """Export results to an htmlfile with figures"""
+#
+#        # Get results
+#        figs = self.plot(*args, **kwargs)
+#
+#        # Substitution dict
+#        subst = kwargs.get('subst', {})
+#        dict_check_defaults(subst,
+#
+#
+#        # Render with template
+#        checkdir(htmlfile)
+#        render_and_export_html_template('dict2tree.html', htmlfile,
+#            title=title.format(**subst), content=figs)
+#        self.created(htmlfile)
+#        return htmlfile
+#
 
 
     def export_netcdf(self, ncpat, *args, **kwargs):
@@ -1187,7 +1227,7 @@ def register_arm_sensitivity_analyser(cls, name=None, warn=True, replace=False):
 
 register_arm_sensitivity_analyser(XYLocARMSA)
 
-def get_arm_sensitivity_analyser(name, arm=None):
+def get_arm_sensitivity_analyser(name, arm=None, **kwargs):
     """Get an ARM sensitivity analyser class or instance"""
     if name not in ARM_SENSITIVITY_ANALYSERS:
         raise SONATerror(('Invalid ARM sensitivity analyser: {}. '
@@ -1200,7 +1240,7 @@ def get_arm_sensitivity_analyser(name, arm=None):
         return cls
 
     # Instance
-    return cls(arm)
+    return cls(arm, **kwargs)
 
 def list_arm_sensitivity_analysers():
     """Get the list of registered sensitivity analysers"""
