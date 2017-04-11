@@ -1,6 +1,6 @@
-{% set sonat_version = environ.get('CONDA_SONAT',"0.0.1") %}
-{% set vacumm_version = environ.get('CONDA_VACUMM',"3.3.0")|replace(".", "") %}
-{% set pkg_buildnum = environ.get('CONDA_BUILDNUM',"0") %}
+{% set sonat_version = environ.get('CONDA_SONAT_VERSION',"0.0.1") %}
+{% set pkg_buildnum = environ.get('CONDA_SONAT_BUILDNUM',"1") %}
+{% set vacumm_version = environ.get('CONDA_VACUMM_VERSION',"3.3.0")|replace(".", "") %}
 
 
 package:
