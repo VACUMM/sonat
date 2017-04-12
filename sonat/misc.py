@@ -846,6 +846,7 @@ def mask_scattered_locs(lons, lats, depths, slice_type, interval, data=None):
     if cdms2.isVariable(data):
         data = data.asma()
     if data is not None:
+        data = data.copy()
         masked_value = True if data.dtype.char=='?' else N.ma.masked
 
     # Valid locs
