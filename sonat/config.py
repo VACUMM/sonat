@@ -55,7 +55,10 @@ SONAT_DEFAULT_CFGFILE = 'sonat.cfg'
 
 def load_cfg(cfgfile):
     """Load a configuration file"""
-    return ConfigManager(SONAT_INIFILE, interpolation=False).load(cfgfile)
+    return get_cfgm().load(cfgfile)
+
+def get_cfgm():
+    return ConfigManager(SONAT_INIFILE, interpolation=False)
 
 def parse_args_cfg(parser, cfgfilter=None):
     """Generate parse arguments,
@@ -142,7 +145,7 @@ def _get_domain_minmax_(cfg, key, defmin, defmax, bounds, none=True):
          itv += bounds,
     return itv
 
-def get_cfg_plot_slice_specs(cfg, exclude=None):
+def get_cfg_plot_slice_specs(cfg, exclude=None, prefix=None):
     """Get kwargs that specify slices for plot functions
 
     Parameters
@@ -182,10 +185,13 @@ def get_cfg_plot_slice_specs(cfg, exclude=None):
         for exc in exclude:
             if exc in kwargs:
                 del kwargs[exc]
+    if prefix:
+        for key in kwargs.keys():
+            kwargs[prefix+key] = kwargs.pop(key)
     return kwargs
 
 def get_cfg_path(cfg, secname, pathname, format=False, *args, **kwargs):
-    """Format a relative path from the config with optional subtitutions
+    """Rebase a relative path from the config with optional subtitutions
 
     This path is either absolute or relative to the "wordir" entry of the
     "session" config section.
@@ -286,4 +292,27 @@ def is_level(value, default=None):
 
 register_config_validator(level=is_level)
 
+def rebase_cfg_paths(cfg, secname, path_types=['file', 'path', 'dir'],
+                     *args, **kwargs):
+    """Auto rebase paths of a section with :func:`get_cfg_path`"""
+
+    if isinstance(secname, str):
+        secname = [secname]
+    if isinstance(path_types, str):
+        path_types = [path_types]
+    sec = cfg
+    cfgm = get_cfgm()
+    spec = cfgm._configspec
+    validator = cfgm._validator
+    for sn in secname:
+        sec = sec[sn]
+        spec = spec[sn]
+
+    for key in sec.scalars:
+        check = spec[key]
+        check_type, _, _, _ = validator._parse_with_caching(check)
+        if check_type in path_types:
+            sec[key] = get_cfg_path(cfg, secname, key, *args, **kwargs)
+
+    return cfg
 
