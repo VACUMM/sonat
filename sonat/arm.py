@@ -39,6 +39,7 @@ import re
 from collections import OrderedDict
 
 import numpy as N
+from matplotlib.ticker import MultipleLocator
 import MV2, cdms2
 
 from vcmq import (curve, create_axis, dict_check_defaults, kwfilter, m2deg, P,
@@ -51,11 +52,16 @@ from .ens import Ensemble
 from .obs import ObsManager, NcObsPlatform
 from ._fcore import f_arm
 from .pack import Simple1DPacker, default_missing_value
-from .plot import get_registered_scatters, plot_directional_quiver
+from .plot import (get_registered_scatters, plot_directional_quiver,
+                   DEFAULT_PLOT_KWARGS)
 from .render import render_and_export_html_template
 
+#: Default score type
+DEFAULT_SCORE_TYPE = 'fnev'
+
+
 class ARM(_Base_):
-    """Interface to the ARM assessment algorithm
+    """Interface to the ARM observation network assessment algorithm
 
     Parameters
     ----------
@@ -194,24 +200,25 @@ class ARM(_Base_):
 
     @property
     def Af(self):
-        """Ensemble states on model grid"""
+        """Ensemble state anaomalies"""
         return self.ens.stacked_data
 
     @property
     def Yf(self):
-        """Ensemble states at observation locations"""
+        """Ensemble state anomalies projected onto observations"""
         return self._final_packer.packed_data
 
     @property
     def R(self):
-        """Observation errors"""
+        """Observation error covariances matrix (diagonal)"""
         if 'R' not in self._inputs:
             err = self._final_packer.pack(self.obsmanager.stacked_data)
-            self._inputs['R'] = N.asfortranarray(N.diag(err))
+            self._inputs['R'] = N.asfortranarray(N.diag(err**2))
         return self._inputs['R']
 
     @property
     def S(self):
+        """Scaled ensemble state anomalies projected onto observations"""
         if 'S' not in self._inputs:
             err = self._final_packer.pack(self.obsmanager.stacked_data)
             Rinv = N.diag(1/err)
@@ -220,6 +227,7 @@ class ARM(_Base_):
 
     @property
     def ndof(self):
+        """Number of degrees of freedom"""
         if 'raw_spect' in self._results:
             return len(self._results['raw_spect'])
         return min(self.Yf.shape)
@@ -382,7 +390,7 @@ class ARM(_Base_):
         recursive_transform_att(self._results['rep'], 'long_name', set_long_name)
         return self._results['rep']
 
-    def get_score(self, score_type='nev'):
+    def get_score(self, score_type=DEFAULT_SCORE_TYPE):
         """Get the score for the current analysis
 
         Parameters
@@ -407,9 +415,9 @@ class ARM(_Base_):
             scores[score_type] = self.get_score(score_type)
         return scores
 
-    def plot_spect(self, figfile='arm.spect.png', savefig=True, close=True,
-                   title='ARM Sepctrum', hline=1., score='nev',
-                   shade=True, **kwargs):
+    def plot_spect(self, figfile='sonat.arm.spect.png', savefig=True,
+                   title='ARM Sepctrum', hline=1., score=DEFAULT_SCORE_TYPE,
+                   ymin=0.01, shade=True, **kwargs):
         """Plot the ARM spectrum"""
         kwhline = kwfilter(kwargs, 'hline')
         kwscore = kwfilter(kwargs, 'score')
@@ -417,18 +425,24 @@ class ARM(_Base_):
 
         # Main plot
         dict_check_defaults(kwargs, xmin=.5, xmax=self.ndof+.5, parg='o',
-                            log=True, show=False, ymin=.01, fig='new')
+                            log=True, ymin=ymin, fig='new',
+                            xlocator=MultipleLocator(1),
+                            ymax=10**(N.log10(self.spect.max())*1.1),
+                            xlabel='Array mode', xminor_locator=False,
+                            **DEFAULT_PLOT_KWARGS)
+        kwargs.update(close=False)
         p = curve(self.spect, title=title,
               **kwargs)
         zorder = p['curve'][0].zorder
+
 
         # Horizontal line at 1
         if hline:
 
             # Shading
             if shade:
-                dict_check_defaults(kwshade, linewidth=0, color='.8',
-                                    zorder=zorder-0.01)
+                dict_check_defaults(kwshade, linewidth=0, color='.95',
+                                    zorder=0)#zorder-0.01)
                 axis = p.axes.axis()
                 p.axes.axhspan(axis[2], hline, **kwshade)
                 p.axes.axis(axis)
@@ -440,21 +454,24 @@ class ARM(_Base_):
 
         # Score
         if score:
+            score_type = score
             score = self.get_score(score)
             dict_check_defaults(kwscore, family='monospace', ha='right', va='top',
                                 bbox=dict(linewidth=0, facecolor='w', alpha=.2))
-            p.text(.95, .95, 'Score: {:.01f}'.format(score), transform='axes',
-                   **kwscore)
+            p.text(.95, .95, 'Score [{score_type}]: {score:.01f}'.format(
+                **locals()), transform='axes', **kwscore)
 
         # Save
         if savefig:
             p.savefig(figfile)
             self.created(figfile)
+            p.close()
             return figfile
 
 
     def plot_arm(self, varnames=None, modes=None,
-                 figpat='arm.arm.mode{mode}_{var_name}_{slice_type}_{slice_loc}.png',
+                 titlepat='Array mode {mode} - {var_name} - {slice_loc}',
+                 figpat='sonat.arm.mode{mode}_{var_name}_{slice_type}_{slice_loc}.png',
                  **kwargs):
         """Plot the array modes
 
@@ -481,6 +498,7 @@ class ARM(_Base_):
         dict_check_defaults(kwargs, sync_vminmax='symetric', cmap='cmocean_balance')
         modes = self.parse_modes(modes)
         mode_max = self.format_mode(modes[-1])
+        self.obsmanager.reset_cache()
         for mode in modes:
 
             imode = mode
@@ -493,7 +511,7 @@ class ARM(_Base_):
 
             # Make plots
             mfigs = self.obsmanager.plot(mvars, input_mode='arrays',
-                                         title='Array mode {mode}/{modemax} - {var_name} - {slice_loc}',
+                                         title=titlepat,
                                          figpat=figpat,
                                          **kwargs)
 
@@ -505,8 +523,8 @@ class ARM(_Base_):
 
     def plot_rep(self, varnames=None, modes=None,
                  add_obs=True,
-                 titlepat='Representer {mode}/{mode_max} - {var_name} - {slice_loc}',
-                 figpat='arm.rep.mode{mode}_{var_name}_{slice_type}_{slice_loc}.png',
+                 titlepat='Modal representer {mode} - {var_name} - {slice_loc}',
+                 figpat='sonat.arm.rep.mode{mode}_{var_name}_{slice_type}_{slice_loc}.png',
                  sync_vminmax=True,
                  **kwargs):
         """Plot the representers of array modes
@@ -522,7 +540,7 @@ class ARM(_Base_):
         figpat: string
             Output figure file pattern
         sync_vminmax: bool
-            Sync min and max for all plots
+            Synchronise min and max of values across plots
         """
         self.verbose('Plotting representers of array modes')
 
@@ -540,6 +558,10 @@ class ARM(_Base_):
         kwargs['levels_mode'] = 'symetric'
         modes = self.parse_modes(modes)
         mode_max = self.format_mode(modes[-1])
+        if add_obs:
+            obs = (self.obsmanager
+                       if isinstance(add_obs, bool) else self.obsmanager[add_obs])
+            obs.reset_cache()
         for mode in modes:
 
             imode = mode
@@ -552,8 +574,7 @@ class ARM(_Base_):
             # Sliced plot
             kwargs['subst'] = {'mode':mode, 'mode_max':mode_max}
             if add_obs:
-                kwargs['obs'] = (self.obsmanager
-                       if isinstance(add_obs, bool) else self.obsmanager[add_obs])
+                kwargs['obs'] = obs
             ff = self.ens.plot_fields(mvars, figpat=figpat, titlepat=titlepat,
                                       fig='new', **kwargs)
 
@@ -919,7 +940,7 @@ class XYLocARMSA(ARMSA):
             self.restore_platform(obs)
 
 
-    def analyse(self, platforms=None, pert=0.001, score_type='fnev',
+    def analyse(self, platforms=None, pert=0.001, score_type=DEFAULT_SCORE_TYPE,
                 direct=False, force=False):
         """Perform the senisitivty analysis
 
@@ -1038,8 +1059,8 @@ class XYLocARMSA(ARMSA):
 
         return results
 
-    def plot(self, platforms=None, pert=0.01, score_type='fnev', direct=False,
-             figpat='arm.sa.{saname}.{score_type}.png',
+    def plot(self, platforms=None, pert=0.01, score_type=DEFAULT_SCORE_TYPE, direct=False,
+             figpat='sonat.armsa.{saname}.{score_type}.png',
              title='{sa_long_name}',
              lon=None, lat=None,
              alpha_static=.3, quiver_scale=None,
