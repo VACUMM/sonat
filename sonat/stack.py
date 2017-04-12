@@ -100,7 +100,7 @@ class Stacker(_Base_, _StackerMapIO_):
     """
 
     def __init__(self, input, norms=None, means=None, nordim=None, logger=None,
-            missing_value=default_missing_value, **kwargs):
+            missing_value=default_missing_value, norm_mode='std', **kwargs):
 
         # Logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -125,7 +125,8 @@ class Stacker(_Base_, _StackerMapIO_):
 
             # Create the Packer instance and pack array
             packer = Packer(data, norm=norms[idata], mean=means[idata],
-                nordim=nordim, missing_value=missing_value)
+                nordim=nordim, missing_value=missing_value,
+                norm_mode=norm_mode)
             self.packers.append(packer)
             self.masked |= packer.masked
             self.datas.append(packer.data)

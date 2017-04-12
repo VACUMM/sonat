@@ -67,7 +67,7 @@ class Packer(_Base_):
         Integer mask where valid data = 1
     """
     def __init__(self, data, norm=None, mean=None, nordim=None, logger=None,
-            missing_value=None, **kwargs):
+            missing_value=None, norm_mode='std', **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -163,6 +163,7 @@ class Packer(_Base_):
             self.good = self.good.all(axis=0)
 
         # Scale unpacked data
+        self.norm_mode = norm_mode
         if self.masked:
             self.logger.warning('all your data are masked')
             self._norm = 1.
@@ -176,11 +177,12 @@ class Packer(_Base_):
             else:
                 self.mean = data.mean(axis=0)
             # - normalisation factor
+            norm_func = getattr(N.ma, self.norm_mode, 'std')
             if norm is True or norm is None:
-                norm = (data-self.mean).std() # Standard norm
+                norm = norm_func(data-self.mean) # Standard norm
             elif norm is not False:
                 if norm <0: # Relative norm, else strict norm
-                    norm = abs(norm)*(data-self.mean).std()
+                    norm = abs(norm)*norm_func(data-self.mean)
             else:
                 norm = 1.
             self._norm = norm
