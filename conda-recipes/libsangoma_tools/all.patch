@@ -1,13 +1,117 @@
-Index: Makefile
+Index: Fortran/perturbations/sangoma_EOFCovar.F90
 ===================================================================
---- Makefile	(revision 812)
-+++ Makefile	(working copy)
+--- Fortran/perturbations/sangoma_EOFCovar.F90	(révision 813)
++++ Fortran/perturbations/sangoma_EOFCovar.F90	(copie de travail)
+@@ -82,11 +82,11 @@
+ 
+ 
+ 
+-  WRITE (*,'(10x,a)') '*******************************************'
+-  WRITE (*,'(10x,a)') '*            sangoma_EOFCovar             *'
+-  WRITE (*,'(10x,a)') '*                                         *'
+-  WRITE (*,'(10x,a)') '*  Compute EOF decomposition of a matrix  *'
+-  WRITE (*,'(10x,a)') '*******************************************'
++  !WRITE (*,'(10x,a)') '*******************************************'
++  !WRITE (*,'(10x,a)') '*            sangoma_EOFCovar             *'
++  !WRITE (*,'(10x,a)') '*                                         *'
++  !WRITE (*,'(10x,a)') '*  Compute EOF decomposition of a matrix  *'
++  !WRITE (*,'(10x,a)') '*******************************************'
+ 
+ ! *************************
+ ! *** Remove mean state ***
+@@ -94,7 +94,7 @@
+ 
+   removemean: IF (remove_mstate == 1) THEN
+ 
+-     WRITE (*,'(/1x,a)') 'EOFCOVAR: Compute and subtract mean state ---------------------------'
++     !WRITE (*,'(/1x,a)') 'EOFCOVAR: Compute and subtract mean state ---------------------------'
+ 
+      ! *** compute mean state ***
+      meanstate = 0.0
+@@ -118,13 +118,13 @@
+ 
+   multivar: IF (do_mv == 1) THEN
+ 
+-     WRITE (*,'(/1x,a)') 'EOFCOVAR: Perform multivariate normalization ------------------------'
++     !WRITE (*,'(/1x,a)') 'EOFCOVAR: Perform multivariate normalization ------------------------'
+ 
+      DO i = 1, nfields
+         CALL sangoma_MVNormalize(1, dim_state, dim_fields(i), offsets(i), nstates, &
+              states, stddev(i), status)
+ 
+-        WRITE (*,'(5x,a,i5,a,es12.4)') 'Field', i, ': standard deviation ', stddev(i)
++        !WRITE (*,'(5x,a,i5,a,es12.4)') 'Field', i, ': standard deviation ', stddev(i)
+ 
+         stat = stat + status
+      END DO
+@@ -152,7 +152,7 @@
+ 
+   IF (stat==0) THEN
+ 
+-     WRITE (*,'(/1x,a)') 'EOFCOVAR: Compute SVD -----------------------------------------------'
++     !WRITE (*,'(/1x,a)') 'EOFCOVAR: Compute SVD -----------------------------------------------'
+ 
+      ! Allocate work array and work space size
+      ALLOCATE(work(MAX(3 * MIN(dim_state, nstates) + &
+@@ -179,7 +179,7 @@
+ 
+   do_rescale: IF (do_mv == 1 .AND. stat == 0) THEN
+ 
+-     WRITE (*,'(/1x,a)') 'EOFCOVAR: Re-scale singular vectors according to stddev -------------'
++     !WRITE (*,'(/1x,a)') 'EOFCOVAR: Re-scale singular vectors according to stddev -------------'
+ 
+      DO i = 1, nfields
+         CALL sangoma_MVNormalize(2, dim_state, dim_fields(i), offsets(i), nstates-1, &
+@@ -197,7 +197,7 @@
+ 
+   addmean: IF (remove_mstate == 1) THEN
+ 
+-     WRITE (*,'(/1x,a)') 'EOFCOVAR: Add mean state --------------------------------------------'
++     !WRITE (*,'(/1x,a)') 'EOFCOVAR: Add mean state --------------------------------------------'
+ 
+      ! *** get residual matrix ***
+      DO i = 1, nstates
+Index: Fortran/perturbations/sangoma_SampleEns.F90
+===================================================================
+--- Fortran/perturbations/sangoma_SampleEns.F90	(révision 813)
++++ Fortran/perturbations/sangoma_SampleEns.F90	(copie de travail)
+@@ -65,17 +65,17 @@
+ ! *** INITIALIZATION ***
+ ! **********************
+   
+-  WRITE (*,'(10x,a)') '******************************************************'
+-  WRITE (*,'(10x,a)') '*                sangoma_SampleEns                   *'
+-  WRITE (*,'(10x,a)') '*                                                    *'
+-  WRITE (*,'(10x,a)') '*  Sample an ensemble with 2nd-order exact sampling  *'
+-  WRITE (*,'(10x,a)') '******************************************************'
++  !WRITE (*,'(10x,a)') '******************************************************'
++  !WRITE (*,'(10x,a)') '*                sangoma_SampleEns                   *'
++  !WRITE (*,'(10x,a)') '*                                                    *'
++  !WRITE (*,'(10x,a)') '*  Sample an ensemble with 2nd-order exact sampling  *'
++  !WRITE (*,'(10x,a)') '******************************************************'
+ 
+   ! *** Generate full ensemble on filter-PE 0 ***
+-  WRITE (*, '(/9x, a)') 'Sample state ensemble from covariance matrix'
+-  WRITE (*, '(9x, a)') 'given as EOF vectors and singular values'
+-  WRITE (*, '(9x, a, i5)') '--- Ensemble size:  ', dim_ens
+-  WRITE (*, '(9x, a, i5)') '--- number of EOFs: ', dim_ens-1
++  !WRITE (*, '(/9x, a)') 'Sample state ensemble from covariance matrix'
++  !WRITE (*, '(9x, a)') 'given as EOF vectors and singular values'
++  !WRITE (*, '(9x, a, i5)') '--- Ensemble size:  ', dim_ens
++  !WRITE (*, '(9x, a, i5)') '--- number of EOFs: ', dim_ens-1
+ 
+   ! allocate memory for temporary fields
+   ALLOCATE(omega(dim_ens, dim_ens-1))
+Index: Fortran/Makefile
+===================================================================
+--- Fortran/Makefile	(révision 813)
++++ Fortran/Makefile	(copie de travail)
 @@ -14,13 +14,13 @@
  
  # Optimization specs for compiler
  # and include directory
 -FFLAGS = -O3 -fdefault-real-8 -Wall #-std=f2008
-+FFLAGS = -O3 -fdefault-real-8 -Wall -fexternal-blas -fPIC 
++FFLAGS = -O3 -fdefault-real-8 -Wall -fexternal-blas -fPIC
  # Compile settings for cdflib.f90. This is a Fortran77 library with explicit
  # specification of the kind (double precision)
  FFLAGS_CDFLIB = -O3 -std=legacy
