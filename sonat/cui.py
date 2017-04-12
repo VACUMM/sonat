@@ -46,7 +46,7 @@ from vcmq import dict_merge, itv_intersect, checkdir
 from .__init__ import sonat_help, get_logger, SONATError
 from .config import (parse_args_cfg, get_cfg_xminmax, get_cfg_yminmax,
     get_cfg_tminmax, get_cfg_path, get_cfg_plot_slice_specs,
-    get_cfg_cmap, get_cfg_norms, get_cfg_obs_plot_specs)
+    get_cfg_cmap, get_cfg_norms, get_cfg_obs_plot_specs, rebase_cfg_paths)
 from .misc import interpret_level, dicttree_relpath
 from .obs import load_obs_platform, ObsManager
 from .ens import generate_pseudo_ensemble, Ensemble
@@ -55,6 +55,7 @@ from .arm import (ARM, XYLocARMSA, list_arm_sensitivity_analysers,
 from .render import render_and_export_html_template
 from .my import load_user_code_file, SONAT_USER_CODE_FILE
 
+THIS_DIR = os.path.dirname(__file__)
 
 def main():
 
@@ -122,6 +123,12 @@ def main():
         help='sensitivity analyser name')
     asparser.set_defaults(func=arm_sa_from_args)
 
+
+    # Test
+    tparser = subparsers.add_parser('test', help='Launch the test suite')
+    tparser.add_argument('name', nargs='*',
+        help='name of modules to test')
+    tparser.set_defaults(func=test_from_args)
 
 
     # Read/check config and parse commandline arguments
@@ -409,6 +416,7 @@ def obs_plot_from_cfg(cfg, platforms=None):
     kwargs = {}
     kwargs.update(kwslices)
     kwargs.update(kwplotspecs)
+    htmlfile = get_cfg_path(cfg, 'obs', 'htmlfile')
 
     # Init
     logger = init_from_cfg(cfg)
@@ -428,7 +436,7 @@ def obs_plot_from_cfg(cfg, platforms=None):
     varnames.extend(cfgop['varnames'])
 
     # Plot
-    htmlfile = obsmanager.export_html(cfgo['htmlfile'],
+    htmlfile = obsmanager.export_html(htmlfile,
                     varnames, figpat=figpat, lon=lon, lat=lat,
                     **kwargs)
 
@@ -464,17 +472,14 @@ def arm_analysis_from_cfg(cfg):
     cfge = cfg['ens']
     lon = get_cfg_xminmax(cfg)
     lat = get_cfg_yminmax(cfg)
-    obs_plot_specs = get_cfg_obs_plot_specs(cfg, prefix='arm_')
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
     varnames = cfge['varnames'] or None
     norms = get_cfg_norms(cfg)
-    kwslices = {'arm': get_cfg_plot_slice_specs(cfg),
-                'rep': get_cfg_plot_slice_specs(cfg, exclude=['full2d', 'full3d'])}
     kwargs = {}
-    for prefix, kw in kwslices.items():
-        for sname, sval in kw.items():
-            kwargs[prefix + '_' + sname] = sval
-    kwargs.update(obs_plot_specs)
+    kwargs.update(get_cfg_plot_slice_specs(cfg, prefix='arm_'))
+    kwargs.update(get_cfg_plot_slice_specs(cfg, prefix='rep_',
+                                           exclude=['full2d', 'full3d']))
+    kwargs.update(get_cfg_obs_plot_specs(cfg, prefix='rep_obs_'))
 
     # Init
     logger = init_from_cfg(cfg)
@@ -496,13 +501,15 @@ def arm_analysis_from_cfg(cfg):
 
     # Analyse and export
     htmlfile = arm.export_html(get_cfg_path(cfg, ['arm', 'analysis'], 'htmlfile'),
-                    spect_figfgile=get_cfg_path(cfg, ['arm', 'analysis'], 'figfile_spect'),
+                    spect_figfile=get_cfg_path(cfg, ['arm', 'analysis'], 'figfile_spect'),
                     arm_figpat=get_cfg_path(cfg, ['arm', 'analysis'], 'figpat_arm'),
                     rep_figpat=get_cfg_path(cfg, ['arm', 'analysis'], 'figpat_rep'),
+                    spect_score=cfgaa['score_type'],
                     score_types=cfgaa['score_types'],
                     varnames=cfgaap['varnames'],
                     modes=cfgaap['modes'],
                     lon=lon, lat=lat,
+                    rep_sync_vminmax=cfgaap['rep']['syncvminmax'],
                     **kwargs
                    )
 
@@ -551,7 +558,7 @@ def arm_sa_from_cfg(cfg, sa_names=None):
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
     varnames = cfge['varnames'] or None
     norms = get_cfg_norms(cfg)
-    htmlfile = cfgas['htmlfile']
+    htmlfile = get_cfg_path(cfg, ['arm', 'sa'], 'htmlfile')
 
     # Init
     logger = init_from_cfg(cfg)
@@ -579,6 +586,9 @@ def arm_sa_from_cfg(cfg, sa_names=None):
     res = OrderedDict()
     for sa_name in sa_names:
 
+        # Format paths
+        rebase_cfg_paths(cfg, ['arm', 'sa', sa_name])
+
         # Config
         kwargs = cfgas[sa_name].dict()
         activate = kwargs.pop('activate')
@@ -605,7 +615,42 @@ def arm_sa_from_cfg(cfg, sa_names=None):
     arm.created(htmlfile)
     return htmlfile
 
+### Tests
 
+def test_from_args(parser, args, cfg):
+
+    # Init
+    logger = init_from_cfg(cfg)
+
+    # Get the list of valid module names
+    try:
+        from sonat.test import ORDERED_MODULES
+        format = "sonat.test.test_{}"
+    except:
+        test_dir = os.path.join(THIS_DIR, '..')
+        sys.path.insert(0, )
+        from test import ORDERED_MODULES
+        format = "test.test_{}"
+    if args.name:
+        for name in args.name:
+            if name not in ORDERED_MODULES:
+                parser.error('Invalid test name: "'+name +
+                             '". Please use one of: ' + ' '.join(ORDERED_MODULES))
+        names = args.name
+    else:
+        names = ORDERED_MODULES
+
+    # Run nose
+    logger.verbose('Performing tests')
+    from nose import runmodule
+    successes = 0
+    for i, name in enumerate(names):
+        logger.debug('Testing: '+name)
+        test_name = format.format(name)
+        successes += nose.run(test_name)
+    failures = (i+1) - successes
+    logger.info('Tested modules with {} success(es) and {} failure(s)'.format(
+                successes, failures))
 
 
 ## MISC
