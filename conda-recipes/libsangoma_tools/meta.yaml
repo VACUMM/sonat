@@ -1,11 +1,12 @@
-{% set sangoma_version = "2.0.1" %}
+{% set sangoma_version = environ.get('CONDA_SANGOMA_VERSION',"2.0.1") %}
+{% set pkg_buildnum = environ.get('CONDA_SANGOMA_BUILDNUM',"0") %}
 
 package:
   name: libsangoma_tools
   version: "{{ sangoma_version }}"
 
 build:
-  number: 1
+  number: {{ pkg_buildnum }}
 
 source:
   svn_url: http://svn.code.sf.net/p/sangoma/code/tools/tags/V{{ sangoma_version }}/Fortran

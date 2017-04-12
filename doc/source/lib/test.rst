@@ -16,5 +16,4 @@ for scripting.
     test.ens
     test.obs
     test.arm
-    test.config
     test.cui

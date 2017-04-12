@@ -41,6 +41,8 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
     'sphinxcontrib.bibtex',
+    'sphinxfortran.fortran_domain',
+    'sphinxfortran.fortran_autodoc',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -304,8 +306,43 @@ texinfo_documents = [
 #texinfo_no_detailmenu = False
 
 
-# Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/': None}
+# Intersphinx
+intersphinx_mapping = {
+    'python':('https://docs.python.org/2', None),
+    'matplotlib':('http://matplotlib.org',None),
+    'basemap':('http://matplotlib.org/basemap',None),
+    'numpy':('https://docs.scipy.org/doc/numpy', None),
+    'scipy':('https://docs.scipy.org/doc/scipy/reference', None),
+    'vacumm':('http://www.ifremer.fr/vacumm', None),
+    'http://docs.python.org/dev': None,
+    }
+
+# Extlinks
+extlinks = {
+    'vacumm': ('http://www.ifremer.fr/vacumm/%s', None),
+    'basemap': ('http://matplotlib.github.com/basemap/%s', None),
+    'sphinx': ('http://sphinx.pocoo.org/%s', None),
+    'rstdoc': ('http://docutils.sourceforge.net/docs/ref/rst/%s', None),
+    }
 
 # Autodoc
 autodoc_default_flags = ['members', 'undoc-members', 'inherited-members', 'show-inheritance']
+
+# Fortran autodoc
+fortran_src = [os.path.abspath('../../sonat/fcore.f90')]
+
+
+# Numfig
+numfig = True
+
+def setup(app):
+
+    
+    # References to config
+    app.add_object_type('confopt', 'confopt',
+        objname='configuration option',
+        indextemplate='pair: %s; configuration option')
+    app.add_object_type('confsec', 'confsec',
+        objname='configuration section',
+        indextemplate='pair: %s; configuration section')
+

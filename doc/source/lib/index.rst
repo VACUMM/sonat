@@ -13,6 +13,7 @@ The :mod:`sonat` library
     arm
     config
     cui
+    fcore
     test
     
 
