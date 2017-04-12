@@ -196,6 +196,9 @@ class _ObsBase_(_XYT_):
             figs.update(self.save_cached_plot(plotter, figpat, **subst))
         return figs
 
+    def reset_cache(self):
+        del self.plot_cache
+
 
     def mark_cached_plot_legend(self, plotter):
         """Mark a plot to indicate it has a pending legend to plot
@@ -285,7 +288,8 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
 
         # Init stacker
         Stacker.__init__(self, self.errors.values(), logger=False, means=False,
-            norms=None if isinstance(norms, dict) else norms)
+            norms=None if isinstance(norms, dict) else norms,
+            norm_mode='mean')
 
         # Named norms
         if norms and isinstance(norms, dict):
@@ -847,6 +851,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
         dep_interval_width: float in meters
             Depth interval width to collect obs points
         """
+        # TODO: Add support from point extractions (profiles) to obs.plot
         # Inits
         self.verbose('Plotting observations for '+self.name)
         figs = OrderedDict()
@@ -1630,10 +1635,11 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
 
             # Plot
             obs.plot(variables=myvariables, reset_cache=False,
-                     full2d=full2d, full3d=full3d,
                      lon=lon, lat=lat, level=level,
+                     full2d=full2d, full3d=full3d,
+                     surf=surf, bottom=bottom,
                      zonal_sections=zonal_sections,
-                     merid_sections=zonal_sections,
+                     merid_sections=merid_sections,
                      horiz_sections=horiz_sections,
                      fig=fig, figpat=figpat,
                      savefig=False, close=False,
