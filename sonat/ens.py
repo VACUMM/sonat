@@ -44,7 +44,7 @@ from matplotlib.ticker import MultipleLocator
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
     MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var,
     CaseChecker, curve, bar, dict_check_defaults, dict_merge, checkdir,
-    dicttree_get, dicttree_set, latlab, lonlab, P, regrid2d)
+    dicttree_get, dicttree_set, latlab, lonlab, P, regrid2d, Plot2D)
 
 from .__init__ import get_logger, sonat_warn, SONATError
 from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
@@ -117,9 +117,9 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
 
         Variables sliced with "surf" and "bottom" are returned with
         an id suffixed with "_surf" or "_bottom".
-        You can speficy different slicing  using a tuple
-        of depths specifications.
-        You can specilise slicings a variable using a dictionary with
+        You can speficy different slicings  using a tuple
+        of depth specifications.
+        You can specialise slicings of a variable using a dictionary with
         the key as the variable name.
 
 
@@ -750,8 +750,10 @@ class Ensemble(Stacker, _NamedVariables_):
 
         See also
         --------
-        :func:`scipy.stats.kurtosis` :func:`scipy.stats.kurtosistest`
-        :func:`scipy.stats.skew` :func:`scipy.stats.skewtest`
+        :func:`scipy.stats.skew`
+        :func:`scipy.stats.skewtest`
+        :func:`scipy.stats.kurtosis`
+        :func:`scipy.stats.kurtosistest`
         :func:`scipy.stats.normaltest`
         """
         if (not mean and not variance and not kurtosis and not skewness and
@@ -978,11 +980,15 @@ class Ensemble(Stacker, _NamedVariables_):
         kwprops.update(fig='new') # TODO: must be more flexible like for obs
         figs = OrderedDict()
         kwobs = kwfilter(kwargs, 'obs')
+        kwobs.update(surf=False, bottom=False, zonal_sections=None,
+                     merid_sections=None, horiz_sections=None)
 
         # Loop on variables
         for variable in ArgList(variables).get():
-            var_name, vdepth, diag_name = split_varname(variable)
+            var_short_name, var_depth, diag_name = split_varname(variable)
             diag_name = getattr(variable, 'sonat_ens_diag', diag_name)
+            var_name = (var_short_name if var_depth is None else
+                        (var_short_name + '_' + var_depth))
             varname = var_name
             id = variable.id
             self.debug(' Variable: '+id)
@@ -998,12 +1004,12 @@ class Ensemble(Stacker, _NamedVariables_):
                 bottom is not False):
 
                 # Surf/bottom/3D
-                if ((vdepth=='surf' and surf is not False) or
-                        (vdepth=='bottom' and bottom is not False)): # 2D
-                    slice_loc = vdepth
+                if ((var_depth=='surf' and surf is not False) or
+                        (var_depth=='bottom' and bottom is not False)): # 2D
+                    slice_loc = var_depth
                     toplot.append(dict(slice_loc=slice_loc, kw=kw,
-                                       keys=(var_name, 'map', slice_loc),
-                                       obs_plot={vdepth:True},
+                                       keys=(var_short_name, 'map', slice_loc),
+                                       obs_plot={var_depth:True},
                                        slice_type = 'map'
                                        ))
 
@@ -1017,7 +1023,7 @@ class Ensemble(Stacker, _NamedVariables_):
                             toplot.append(dict(
                                 slice_loc=slice_loc,
                                 slice_type='map',
-                                keys=(var_name, 'map', slice_loc),
+                                keys=(var_short_name, 'map', slice_loc),
                                 kw=dict_merge(dict(depth=slice_loc), kw),
                                 obs_plot={slice_loc:True},
                                 ))
@@ -1047,8 +1053,8 @@ class Ensemble(Stacker, _NamedVariables_):
             # Zonal sections
             if zonal_sections is not None and zonal_sections is not False:
                 slice_type = 'zonal'
-                if N.isscalar(horiz_sections):
-                    horiz_sections = [horiz_sections]
+                if N.isscalar(zonal_sections):
+                    zonal_sections = [zonal_sections]
                 for lat in zonal_sections:
                     slice_loc = latlab(lat, no_symbol=True)
                     toplot.append(dict(
@@ -1074,24 +1080,24 @@ class Ensemble(Stacker, _NamedVariables_):
                         obs_plot={'merid_sections':lon},
                         ))
 
-            # Points
-            if points:
-                slice_type = 'point'
-                if isinstance(points, tuple):
-                    points = [points]
-                for lon, lat in points:
-                    slice_loc = (lonlab(lon, no_symbol=True) + '-' +
-                                 latlab(lat, no_symbol=True))
-                    toplot.append(dict(
-                        slice_loc=slice_loc,
-                        slice_type=slice_type,
-                        keys=(var_name, slice_type, slice_loc),
-                        kw=dict_merge(dict(lon=lon, lat=lat), kw),
-                        obs_plot={'merid_sections':lon},
-                        ))
+#            # Points
+#            if points:
+#                slice_type = 'point'
+#                if isinstance(points, tuple):
+#                    points = [points]
+#                for lon, lat in points:
+#                    slice_loc = (lonlab(lon, no_symbol=True) + '-' +
+#                                 latlab(lat, no_symbol=True))
+#                    toplot.append(dict(
+#                        slice_loc=slice_loc,
+#                        slice_type=slice_type,
+#                        keys=(var_name, slice_type, slice_loc),
+#                        kw=dict_merge(dict(lon=lon, lat=lat), kw),
+#                        obs_plot={'points':(lon, lat)},
+#                        ))
 
 
-            # Make all pending plots
+            # Make all pending plots for this variable
             for spec in toplot:
 
                 # Get specs
@@ -1114,12 +1120,14 @@ class Ensemble(Stacker, _NamedVariables_):
                 # Plot
                 p = plot_gridded_var(variable, **kw) # Action !
 
-                # Plot obs locations
-                if obs:
+                # Plot obs locations on 2D plots only
+                if obs and isinstance(p, Plot2D):
+                    #FIXME: should we pass lon/lat/level from variable?
                     kwo = kwobs.copy()
                     kwo.update(obs_plot, full3d=False, full2d=False, plotter=p,
                                savefig=False, close=False, title=False,
                                colorbar=False)
+#                    obs.set_cached_plot('locations', slice_type, slice_loc, p)
                     obs.plot('locations', **kwo)
 
                 # Finalise
