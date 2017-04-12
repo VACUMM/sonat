@@ -106,7 +106,7 @@ def test_arm_arm_plot_arm():
     arm = get_arm()
 
     # Raw array modes
-    arm.plot_arm(modes=-2)
+    arm.plot_arm(modes=1)
 
 def test_arm_arm_plot_rep():
 
@@ -114,7 +114,9 @@ def test_arm_arm_plot_rep():
     arm = get_arm()
 
     # Raw array modes
-    arm.plot_rep(modes=-2, surf=True, obs_legend_loc='upper right')
+    arm.plot_rep(modes=1, surf=True, zonal_sections=47.5,
+                 sync_vminmax=False, nmax=25,
+                 obs_lat_interval_width=.3, obs_legend_loc='upper right')
 
 def test_arm_register_arm_score_function():
 
