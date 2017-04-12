@@ -138,6 +138,7 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
     plot_func: vacumm plot function
         If not provided, it guess depending on the data
     """
+    # TODO: add sync_vminmax support to plot_gridded_var
     # Tuple
     vv = var[:2] if isinstance(var, tuple) else (var, )
     quiver = len(vv) == 2
@@ -377,7 +378,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                         lon_bounds_margin=.1, lat_bounds_margin=.1,
                         data=None, warn=True,
                         bathy=None, xybathy=None, secbathy=None,
-                        size=40, color='#2ca02c', linewidth=0.4, edgecolor='k',
+                        size=20, color='#2ca02c', linewidth=0.4, edgecolor='k',
                         add_profile_line=None, add_bathy=True,
                         add_minimap=True, add_section_bathy=True,
                         fig=None, title="{long_name}", register_sm=True,
@@ -610,29 +611,35 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                 dict_check_defaults(kwsection, top=.9, right=.9)
 
             if slice_type == 'merid':
-
                 plotter = section(data=None, xaxis=MV2.array(lat, id='lat'),
                                   yaxis=MV2.array(level, id='dep'),
                                   **kwsection)
-                xlim = interval
-                ylim = plotter.axes.get_xlim()
             else:
 
                 plotter = section(data=None, xaxis=MV2.array(lon, id='lon'),
                                   yaxis=MV2.array(level, id='dep'),
                                   **kwsection)
-                xlim = plotter.axes.get_xlim()
-                ylim = interval
+
+
+        ax = plotter.axes
 
         # Add minimap
         if add_minimap:
+
+            if slice_type == 'merid':
+                xlim = interval
+                ylim = plotter.axes.get_xlim()
+            else:
+                xlim = plotter.axes.get_xlim()
+                ylim = interval
+
             extents = dict(x=xlim, y=ylim)
             dict_check_defaults(kwminimap, map_square=True, map_zoom=.5,
                                 map_res=None, map_arcgisimage="ocean",
                                 map_epsg=3395, linewidth=.6)
+            kwminimap['map_fig'] = ax.figure
             add_map_box((xx, yy), extents, **kwminimap)
 
-        ax = plotter.axes
 
         # Bathy profile
         if add_section_bathy and bathy is not None or secbathy is not None:
@@ -868,7 +875,7 @@ def add_colorbar(ax, sm, units=None, **kwargs):
     return P.colorbar(sm, ax=ax, **kwargs)
 
 def sync_scalar_mappable_plots_vminmax(ax, symetric=False):
-    """Sync min ax max of all the scalar mappable plots for given axes"""
+    """Sync min and max of all the scalar mappable plots for given axes"""
     # Get the axes
     if isinstance(ax, Plot):
         ax = ax.axes
