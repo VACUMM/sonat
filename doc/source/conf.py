@@ -20,7 +20,7 @@ from matplotlib import use ; use('Agg')
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-for p in ['../..']:
+for p in ['../..', 'ext']:
     sys.path.insert(0, os.path.abspath(p))
 
 # -- General configuration ------------------------------------------------
@@ -35,6 +35,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
+    'sphinx.ext.extlinks',
     'sphinx.ext.coverage',
     'sphinx.ext.pngmath',
     'sphinx.ext.ifconfig',
@@ -43,6 +44,7 @@ extensions = [
     'sphinxcontrib.bibtex',
     'sphinxfortran.fortran_domain',
     'sphinxfortran.fortran_autodoc',
+    'sonatconfig',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -305,6 +307,9 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
 
+vacumm_site = "http://www.ifremer.fr/vacumm"
+vacumm_site = "http://relay.actimar.fr/~raynaud/vacumm"
+
 
 # Intersphinx
 intersphinx_mapping = {
@@ -313,13 +318,13 @@ intersphinx_mapping = {
     'basemap':('http://matplotlib.org/basemap',None),
     'numpy':('https://docs.scipy.org/doc/numpy', None),
     'scipy':('https://docs.scipy.org/doc/scipy/reference', None),
-    'vacumm':('http://www.ifremer.fr/vacumm', None),
+    'vacumm':(vacumm_site, None),
     'http://docs.python.org/dev': None,
     }
 
 # Extlinks
 extlinks = {
-    'vacumm': ('http://www.ifremer.fr/vacumm/%s', None),
+    'vacumm': (vacumm_site + '/%s', None),
     'basemap': ('http://matplotlib.github.com/basemap/%s', None),
     'sphinx': ('http://sphinx.pocoo.org/%s', None),
     'rstdoc': ('http://docutils.sourceforge.net/docs/ref/rst/%s', None),
@@ -335,9 +340,39 @@ fortran_src = [os.path.abspath('../../sonat/fcore.f90')]
 # Numfig
 numfig = True
 
+
+# Ncdump -h
+if not os.path.exists('sources/samples'):
+    os.makedirs('sources/samples')
+os.system('ncdump -h ../../test/test_ens_generate_pseudo_ensemble.nc > samples/ens.txt')
+os.system('ncdump -h ../../data/obs.hfradars.nc > samples/obs.hfradars.txt')
+os.system('ncdump -h ../../data/obs.profiles.nc > samples/obs.profiles.txt')
+os.system('ncdump -h ../../data/obs.satsst.nc > samples/obs.satsst.txt')
+
+# Sonat help
+from sonat.cui import main as sonat_main
+import sys
+import contextlib
+@contextlib.contextmanager
+def capture():
+    import sys
+    from cStringIO import StringIO
+    oldout,olderr = sys.stdout, sys.stderr
+    try:
+        out=[StringIO(), StringIO()]
+        sys.stdout,sys.stderr = out
+        yield out
+    finally:
+        sys.stdout,sys.stderr = oldout, olderr
+        out[0] = out[0].getvalue()
+        out[1] = out[1].getvalue()
+with capture() as out:
+    sonat_main(['-h'])
+print out
+
 def setup(app):
 
-    
+
     # References to config
     app.add_object_type('confopt', 'confopt',
         objname='configuration option',

@@ -51,7 +51,7 @@ class Packer(_Base_):
     """Class to handle a single variable
 
     This class packs a variable in 2D space by removing
-    all masked points and storing a space-time array.
+    all masked points and storing a space/channel-time/record array.
     It performs this operation also on the weights.
     It is used for removing unnecessary points and
     simplifying the input format for analysis functions.
@@ -61,10 +61,19 @@ class Packer(_Base_):
     data: numpy or masked array
         An array whose first dimension is not compressible, like time
         or member.
-    norm:
+    norm: float
         Normalisation coefficients
-    mask:
-        Integer mask where valid data = 1
+    mean: array, float, False, None
+        Mean to substract.
+        If not provided, it is computed.
+    missing_value: float
+        Missing value for massing and filling data.
+        Note that only channels without any missing values
+        along the record dimension are kept in the compression.
+    norm_mode: string, callable
+        It is either the name of a :mod:`numpy.ma` function,
+        or a function.
+
     """
     def __init__(self, data, norm=None, mean=None, nordim=None, logger=None,
             missing_value=None, norm_mode='std', **kwargs):
@@ -170,14 +179,17 @@ class Packer(_Base_):
             self.mean = 0
         else:
             # - mean
-            if not self.withrdim:
+            if not self.withrdim or mean is False:
                 self.mean = 0
             elif mean is not None:
                 self.mean = mean
             else:
                 self.mean = data.mean(axis=0)
             # - normalisation factor
-            norm_func = getattr(N.ma, self.norm_mode, 'std')
+            if callable(norm_mode):
+                norm_func = norm_mode
+            else:
+                norm_func = getattr(N.ma, self.norm_mode, 'std')
             if norm is True or norm is None:
                 norm = norm_func(data-self.mean) # Standard norm
             elif norm is not False:

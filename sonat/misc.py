@@ -979,3 +979,13 @@ def recursive_transform_att(data, att, func, *args, **kwargs):
         return data
     return [recursive_transform_att(dat, att, func, *args, **kwargs) for dat in data]
 
+def sqrt_errors_norm(errors):
+    """Compute the norm of square root error (co-)variances
+
+    The output error norm :math:`\sigma` is computed as the square root
+    of the mean quadratic errors:
+
+    .. math:: \\sigma = \\sqrt{ \\frac{1}{N} \\sum r^{2}_{i}}
+
+    """
+    return N.ma.sqrt((errors**2).mean())

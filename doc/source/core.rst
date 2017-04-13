@@ -1,7 +1,7 @@
 .. _core:
 
-The SONAT core
-##############
+The core
+########
 
 
 Pseudo-ensemble generation
@@ -13,8 +13,8 @@ same model, that differ for instance by their initial
 or boundary conditions, by their forcing, or by the value
 of their internal parameters.
 Such ensemble simulate the model errors and is used
-by stochastic assimilation schemes such as the Enkf
-(Ensemble Kalman Filter) :cite:`even94`.
+by stochastic assimilation schemes such as the Enkf [#enkf]_ 
+:cite:`even94`.
 
 A pseudo-ensemble is static and generated from
 different model states :cite:`even03`.
@@ -52,16 +52,29 @@ to capture the variability and
 where the primes refer the anomaly.
 
 The pseudo-ensemble is generated with :func:`sonat.ens.generate_pseudo_ensemble`,
-to which your typically a netcdf file pattern, the size of your requested ensemble
+to which you provide at least a netcdf file pattern, the size of your requested ensemble
 and an enrichment factor which defaults to 1.
+The core part of sample creation is performed is two main steps by fortran
+subroutines which are direct wrapper to the SANGOMA library's equivalent subroutines:
+
+- the EOF decomposition of the covariance matrix is made by :f:func:`f_eofcovar`,
+  wich also provide a spectrum (see :numref:`fig_core_pseudo_spect`);
+- the sample generation is made by :f:func:`f_sampleens`.
+
+Note that the generated sample as lower variance than is original field
+variance since a reduced number of EOFs is kept (:numref:`fig_core_pseudo_expl`).
+
+.. _fig_core_pseudo_spect:
 
 .. figure:: ../../test/TEST_CUI/ENS/sonat.ens.spectrum.png
 
-    Relative spectrum of retained mode for ensemble reduction.
+    Example of relative spectrum of retained mode for ensemble reduction.
+
+.. _fig_core_pseudo_expl:
 
 .. figure:: ../../test/TEST_CUI/ENS/sonat.ens.explained_variance_temp_map_surf.png
 
-    Explained variance of temperature after ensemble reduction.
+    Example of explained variance of temperature after ensemble reduction.
 
 
 
@@ -77,13 +90,23 @@ the :func:`~scipy.stats.kurtosistest` and the :func:`~scipy.stats.normaltest`.
 Some other stats are related to the generation of the pseudo-ensemble:
 the relative spectrum and the local variance.
 
-.. figure:: ../../test/TEST_CUI/ENS/sonat.ens.variance_v_map_surf.png
+.. figure:: ../../test/TEST_CUI/ENS/sonat.ens.variance_u_map_surf.png
 
     Ensemble variance of meridional velocity.
     
-.. figure:: ../../test/TEST_CUI/ENS/sonat.ens.skew_v_map_surf.png
+.. figure:: ../../test/TEST_CUI/ENS/sonat.ens.variance_sal_merid_5W.png
 
-    Skewness of the ensemble of meridional velocity.
+    Ensemble variance of salinity at 5°W.
+    
+.. figure:: ../../test/TEST_CUI/ENS/sonat.ens.skew_u_map_surf.png
+
+    Skewness of the ensemble of zonal velocity.
+
+
+Observation platforms
+=====================
+
+TODO
 
 
 ARM analysis
@@ -118,17 +141,18 @@ relative to the observation errors.
 In the case of a pseudo-ensemble, it is a signal-to-noise matrix.
 
 The ARM analysis is based on an EOF decomposition of :math:`\chi`,
-which is actually achieved through an SVD analysis of the matrix :math:`S`.
+which is actually achieved through an SVD [#svd]_ analysis of the matrix :math:`S`.
 
 .. math:: \chi = \mu \sigma \mu^T
 
 The observation network is quantitatively evaluated by analysis
-the **spectrum** of the decomposition, especially the
-of eigen values :math:`\sigma` greatee than 1.
+the **spectrum** of the decomposition (Fig. :numref:`fig_core_arm_spect`), especially the
+of eigen values :math:`\sigma` greater than 1.
 The spatial properties the network are given by the EOF
-of the decompositions, also called the **array modes** :math:`\mu`.
+of the decompositions, also called the **array modes** :math:`\mu`
+(Fig. :numref:`fig_core_arm_arm_temp3d` and :numref:`fig_core_arm_arm_usurf`).
 And the signature of these modes in the model space
-are given by the **modal reprensenters**:
+are given by the **modal reprensenters** (Fig. :numref:`fig_core_arm_rep_temp`):
 
 .. math:: \rho =  \frac{1}{m-1} A S^T \mu
 
@@ -143,10 +167,32 @@ as formatted arrays.
 Raw results and other matrices are
 also available.
 
-.. figure:: ../../test/TEST_CUI/ARM/sonat.arm.spectrum.png
+.. fig_core_arm_spect:
+
+.. figure:: ../../test/TEST_CUI/ARM/sonat.arm.spect.png
 
     Example of ARM spectrum.
     The shaded area marks eigen values lower than 1.
+
+.. fig_core_arm_arm_temp3d:
+
+.. figure:: ../../test/TEST_CUI/ARM/sonat.arm.arm.mode01_temp_map_3d.png
+
+    Example of a 3D view of the first array mode for temperature.
+
+.. fig_core_arm_arm_usurf:
+
+.. figure:: ../../test/TEST_CUI/ARM/sonat.arm.arm.mode01_u_map_surf.png
+
+    Example of a surface view of the first array mode for zonal velocity.
+
+    
+.. fig_core_arm_rep_temp:
+
+.. figure:: ../../test/TEST_CUI/ARM/sonat.arm.rep.mode01_temp_map_surf.png
+
+    Example of a surface view of the first modal representer of temperature,
+    with an indication of surface observation locations.
 
 
 ARM scores
@@ -168,6 +214,8 @@ More score types can be easily implemented and registered
 with :func:`sonat.arm.register_arm_score_function`.
 
 
+.. _core.sa:
+
 Sensitivity analyses
 ====================
 
@@ -186,7 +234,7 @@ This may tell you whether you must change your configuration or not,
 and how to do it.
 The :class:`sonat.arm.XYLocARMSA` class is a sensitivity analyser
 that tests the effect of infinitesimal changes in the position
-of observations () that are mobile
+of observations that are mobile.
 
 .. figure:: ../../test/arm.sa.xyloc.fnev.png
 
@@ -200,11 +248,36 @@ The list of sensitivity analyser names is available
 with :func:`sonat.arm.list_arm_sensitivity_analysers`.
 
 
-Interface to SANGOMA
-====================
+Multivariate analyses
+=====================
 
-This python function calls the :f:func:`f_arm` fortran subroutine,
-which is wrapper to the SANGOMA
+SONAT support multivariate analyses at all levels.
+It is made possible thanks to normalisation factors
+applied to ensemble states and observation errors.
+
+When the ensemble states normalisation factor is not provided,
+is is computed with using the standard deviation.
+As for the observation errors, the normalisation
+factor :math:`\sigma`
+is approximated using function :func:`sonat.misc.sqrt_errors_norm`
+applied to :math:`r = \sqrt{R}`.
+
+.. math:: \sigma = \sqrt{\frac{1}{N}\sum r^{2}_{i}}
+
+Note that, normalisation factors can provided per variable type,
+like temperature or salinity. 
+
+
+The observation operator
+========================
+
+The observation operator is in charge of the projection of
+model outputs to observation locations.
+It is only made of interpolation tasks in the current version of SONAT
+(:meth:`sonat.obs.NcObsPlatform.project_model`).
+Latter, builtin and user-made complex operators will be possible,
+like for satellite SST [#sst]_, HF radar radial currents or
+ocean color.
 
 
 .. rubric:: Footnotes
@@ -212,4 +285,5 @@ which is wrapper to the SANGOMA
 .. [#enkf] Ensemble Kalman Filter
 .. [#eof] Empirical Orthogonal Function
 .. [#pca] Principal Component Analysis
+.. [#sst] Sea Surface Temperature
 .. [#svd] Singular Value Decomposition

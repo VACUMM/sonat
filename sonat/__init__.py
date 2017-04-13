@@ -46,9 +46,13 @@ __copyright__ = 'IFREMER'
 
 import os
 from warnings import warn, filterwarnings
-from vcmq import (Logger, )
+import cdms2
+from vcmq import (Logger, netcdf4)
 
 import _fcore
+
+cdms2.setAutoBounds('off')
+netcdf4()
 
 filterwarnings("ignore", "The get_axis_bgcolor function was deprecated")
 filterwarnings("ignore", "setting an item on a masked array which has a shared mask")

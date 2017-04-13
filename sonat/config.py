@@ -60,11 +60,11 @@ def load_cfg(cfgfile):
 def get_cfgm():
     return ConfigManager(SONAT_INIFILE, interpolation=False)
 
-def parse_args_cfg(parser, cfgfilter=None):
+def parse_args_cfg(parser, args=None, cfgfilter=None):
     """Generate parse arguments,
     then return parsed arguments and configuration"""
     return cfgargparse(SONAT_INIFILE, parser, cfgfile=SONAT_DEFAULT_CFGFILE,
-        interpolation=False, cfgfilter=cfgfilter)
+        interpolation=False, cfgfilter=cfgfilter, args=args)
 
 def check_cfg_aliases(cfg, param):
     for gen_param, aliases in cfg['aliases'].items():

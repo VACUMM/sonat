@@ -54,7 +54,8 @@ from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES, get_logger
 from .misc import (xycompress, _Base_, _XYT_, check_variables, _NamedVariables_,
-                   rescale_itv, get_long_name, split_varname, dicttree_relpath)
+                   rescale_itv, get_long_name, split_varname, dicttree_relpath,
+                   sqrt_errors_norm)
 from .pack import default_missing_value
 from .stack import Stacker, _StackerMapIO_
 from .plot import (plot_scattered_locs, sync_scalar_mappable_plots_vminmax,
@@ -289,7 +290,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
         # Init stacker
         Stacker.__init__(self, self.errors.values(), logger=False, means=False,
             norms=None if isinstance(norms, dict) else norms,
-            norm_mode='mean')
+            norm_mode=sqrt_errors_norm)
 
         # Named norms
         if norms and isinstance(norms, dict):
@@ -1173,7 +1174,8 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
     """Class to manage several observation platform instances"""
 
     def __init__(self, input, logger=None, norms=None, sync_norms=True,
-            missing_value=default_missing_value, **kwargs):
+            missing_value=default_missing_value,
+            weights=None, **kwargs):
 
         # Init logger
         _Base_.__init__(self, logger=logger, **kwargs)
@@ -1195,6 +1197,11 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         if len(obsplats) !=  len(set([obs.name for obs in obsplats])):
             raise SONATError('Platform names must be inique')
 
+        # Platform weights
+        if weights is None:
+            weights = 1.
+        self._weights = self.remap(weights, reshape=True)
+
         # Synchronise norms
         self._norm_synced = False
         if sync_norms:
@@ -1214,7 +1221,9 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
 
     def _core_stack_(self):
         self.stacked_data = npy.asfortranarray(
-            npy.concatenate([obs.stacked_data for obs in self.obsplats], axis=0))
+            npy.concatenate([(obs.stacked_data * wei)
+                             for obs, wei in zip(self.obsplats,
+                                                 self._weights)], axis=0))
 
     def __len__(self):
         return len(self.obsplats)
@@ -1714,3 +1723,4 @@ def load_obs(obsfiles, varnames=None, lon=None, lat=None,
 
 
 register_obs_platform(NcObsPlatform)
+

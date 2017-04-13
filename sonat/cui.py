@@ -57,7 +57,7 @@ from .my import load_user_code_file, SONAT_USER_CODE_FILE
 
 THIS_DIR = os.path.dirname(__file__)
 
-def main():
+def main(args=None):
 
     # Generate parser
     parser = ArgumentParser('SONAT command line interface')
@@ -132,7 +132,7 @@ def main():
 
 
     # Read/check config and parse commandline arguments
-    args, cfg = parse_args_cfg(parser)
+    args, cfg = parse_args_cfg(parser, args=args)
     args.func(parser, args, cfg)
 
 

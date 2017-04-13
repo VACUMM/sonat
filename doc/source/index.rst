@@ -12,8 +12,10 @@ Contents:
    core
    conv
    ui
+   scripting
    lib/index
    bib
+   appendix
 
 
 

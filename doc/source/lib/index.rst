@@ -2,6 +2,8 @@ The :mod:`sonat` library
 ========================
 
 .. toctree::
+    :maxdepth: 1
+
 
     misc
     pack
