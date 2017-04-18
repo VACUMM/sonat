@@ -3,4 +3,4 @@
 Examples of a netcdf file of observation profile error specifications
 =====================================================================
 
-.. literalinclude:: samples/obs.profiles.txt
+.. literalinclude:: generated/ncdump.profiles.txt

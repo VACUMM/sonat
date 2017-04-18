@@ -60,7 +60,8 @@ THIS_DIR = os.path.dirname(__file__)
 def main(args=None):
 
     # Generate parser
-    parser = ArgumentParser('SONAT command line interface')
+    parser = ArgumentParser(prog='sonat',
+                            description='SONAT command line interface')
 
     # Subparsers
     subparsers = parser.add_subparsers(title='subcommands',

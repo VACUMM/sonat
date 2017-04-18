@@ -3,5 +3,5 @@
 Examples of a netcdf file of satellite SST error specifications
 ===============================================================
 
-.. literalinclude:: samples/obs.satsst.txt
+.. literalinclude:: generated/ncdump.obs.satsst.txt
 

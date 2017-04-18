@@ -17,7 +17,9 @@ from sonat.cui import (
     obs_plot_from_cfg,
     arm_analysis_from_cfg,
     arm_sa_from_cfg,
+    main
     )
+main(['-h'])
 
 netcdf4()
 

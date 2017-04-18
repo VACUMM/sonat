@@ -3,5 +3,5 @@
 Examples of a netcdf file of HF radar error specifications
 ==========================================================
 
-.. literalinclude:: samples/obs.hfradars.txt
+.. literalinclude:: generated/ncdump.obs.hfradars.txt
 

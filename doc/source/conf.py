@@ -45,6 +45,8 @@ extensions = [
     'sphinxfortran.fortran_domain',
     'sphinxfortran.fortran_autodoc',
     'sonatconfig',
+    'sonathelps',
+    'sonatncdumph',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -342,33 +344,32 @@ numfig = True
 
 
 # Ncdump -h
-if not os.path.exists('sources/samples'):
-    os.makedirs('sources/samples')
-os.system('ncdump -h ../../test/test_ens_generate_pseudo_ensemble.nc > samples/ens.txt')
-os.system('ncdump -h ../../data/obs.hfradars.nc > samples/obs.hfradars.txt')
-os.system('ncdump -h ../../data/obs.profiles.nc > samples/obs.profiles.txt')
-os.system('ncdump -h ../../data/obs.satsst.nc > samples/obs.satsst.txt')
+sonatncdumph_filepat = 'generated/ncdump.{}.txt'
+sonatncdumph_ncfiles = {'ens': '../../test/test_ens_generate_pseudo_ensemble.nc',
+                        'obs.hfradars': '../../data/obs.hfradars.nc',
+                        'obs.profile': '../../data/obs.profiles.nc',
+                        'obs.satsst': '../../data/obs.satsst.nc',
+                        }
 
-# Sonat help
-from sonat.cui import main as sonat_main
-import sys
-import contextlib
-@contextlib.contextmanager
-def capture():
-    import sys
-    from cStringIO import StringIO
-    oldout,olderr = sys.stdout, sys.stderr
-    try:
-        out=[StringIO(), StringIO()]
-        sys.stdout,sys.stderr = out
-        yield out
-    finally:
-        sys.stdout,sys.stderr = oldout, olderr
-        out[0] = out[0].getvalue()
-        out[1] = out[1].getvalue()
-with capture() as out:
-    sonat_main(['-h'])
-print out
+
+# Sonat helps
+sonathelps_usage_pat = 'generated/usage.{}.txt'
+sonathelps_help_pat = 'generated/help.{}.txt'
+sonathelps_commands = {
+    'long': ['--long-help'],
+    'normal': ['-h'],
+    'short': ['--short-help'],
+    'open_help': ['open_help', '-h'],
+    'ens': ['ens', '-h'],
+    'ens_gen_pseudo': ['ens', 'gen_pseudo', '-h'],
+    'ens_plot_diags': ['ens', 'plot_diags', '-h'],
+    'obs': ['obs', '-h'],
+    'obs_plot': ['obs', 'plot', '-h'],
+    'arm': ['arm', '-h'],
+    'arm_analysis': ['arm', 'analysis', '-h'],
+    'arm_sa': ['arm', 'sa', '-h'],
+    }
+
 
 def setup(app):
 
