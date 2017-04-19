@@ -8,5 +8,6 @@ Appendix
     appendix.samples.obs
     appendix.samples.config
     appendix.samples.my
+    appendix.cfgspecs
     
     

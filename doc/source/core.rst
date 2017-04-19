@@ -58,7 +58,7 @@ The core part of sample creation is performed is two main steps by fortran
 subroutines which are direct wrapper to the SANGOMA library's equivalent subroutines:
 
 - the EOF decomposition of the covariance matrix is made by :f:func:`f_eofcovar`,
-  wich also provide a spectrum (see :numref:`fig_core_pseudo_spect`);
+  which also provides a spectrum (see :numref:`fig_core_pseudo_spect`);
 - the sample generation is made by :f:func:`f_sampleens`.
 
 Note that the generated sample as lower variance than is original field
@@ -67,12 +67,14 @@ variance since a reduced number of EOFs is kept (:numref:`fig_core_pseudo_expl`)
 .. _fig_core_pseudo_spect:
 
 .. figure:: ../../test/TEST_CUI/ENS/sonat.ens.spectrum.png
+    :align: center
 
     Example of relative spectrum of retained mode for ensemble reduction.
 
 .. _fig_core_pseudo_expl:
 
 .. figure:: ../../test/TEST_CUI/ENS/sonat.ens.explained_variance_temp_map_surf.png
+    :align: center
 
     Example of explained variance of temperature after ensemble reduction.
 
@@ -91,14 +93,17 @@ Some other stats are related to the generation of the pseudo-ensemble:
 the relative spectrum and the local variance.
 
 .. figure:: ../../test/TEST_CUI/ENS/sonat.ens.variance_u_map_surf.png
+    :align: center
 
     Ensemble variance of meridional velocity.
     
 .. figure:: ../../test/TEST_CUI/ENS/sonat.ens.variance_sal_merid_5W.png
+    :align: center
 
     Ensemble variance of salinity at 5°W.
     
 .. figure:: ../../test/TEST_CUI/ENS/sonat.ens.skew_u_map_surf.png
+    :align: center
 
     Skewness of the ensemble of zonal velocity.
 
@@ -167,29 +172,32 @@ as formatted arrays.
 Raw results and other matrices are
 also available.
 
-.. fig_core_arm_spect:
+.. _fig_core_arm_spect:
 
 .. figure:: ../../test/TEST_CUI/ARM/sonat.arm.spect.png
+    :align: center
 
     Example of ARM spectrum.
     The shaded area marks eigen values lower than 1.
 
-.. fig_core_arm_arm_temp3d:
+.. _fig_core_arm_arm_temp3d:
 
 .. figure:: ../../test/TEST_CUI/ARM/sonat.arm.arm.mode01_temp_map_3d.png
+    :align: center
 
     Example of a 3D view of the first array mode for temperature.
 
-.. fig_core_arm_arm_usurf:
+.. _fig_core_arm_arm_usurf:
 
 .. figure:: ../../test/TEST_CUI/ARM/sonat.arm.arm.mode01_u_map_surf.png
 
     Example of a surface view of the first array mode for zonal velocity.
 
     
-.. fig_core_arm_rep_temp:
+.. _fig_core_arm_rep_temp:
 
 .. figure:: ../../test/TEST_CUI/ARM/sonat.arm.rep.mode01_temp_map_surf.png
+    :align: center
 
     Example of a surface view of the first modal representer of temperature,
     with an indication of surface observation locations.
@@ -237,6 +245,7 @@ that tests the effect of infinitesimal changes in the position
 of observations that are mobile.
 
 .. figure:: ../../test/arm.sa.xyloc.fnev.png
+    :align: center
 
     Sensitivity analysis to observation locations as performed
     by :class:`sonat.arm.XYLocARMSA` sensitivity analyser.
