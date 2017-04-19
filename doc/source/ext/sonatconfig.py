@@ -2,17 +2,14 @@ import os
 from StringIO import StringIO
 from sphinx.util.console import bold
 from vcmq import checkdir, cfg2rst
-from sonat.config import get_cfgm
-
-CFGM = get_cfgm()
-SONAT_DEFAULT_CFG = CFGM.defaults()
+from sonat.config import SONAT_CFGM
 
 def write_content(app):
     app.info(bold('writing default config to rst... '), nonl=True)
     config_rstfile = os.path.join(app.env.srcdir, app.config.sonatconfig_content_file)
     checkdir(config_rstfile)
     s = StringIO()
-    SONAT_DEFAULT_CFG.write(s)
+    SONAT_CFGM.defaults().write(s)
     s = s.getvalue()
     s = s.replace(os.environ['USER'], '${USER}')
     f = open(config_rstfile,  'w')
@@ -25,7 +22,7 @@ def write_options(app):
     config_directives = os.path.join(app.env.srcdir, app.config.sonatconfig_options_file)
     checkdir(config_directives)
     f = open(config_directives, 'w')
-    f.write(cfg2rst(SONAT_DEFAULT_CFG))
+    f.write(SONAT_CFGM.get_rst(mode='specs'))
     f.close()
     app.info('done into '+os.path.basename(config_directives))
 
