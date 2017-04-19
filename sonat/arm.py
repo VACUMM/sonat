@@ -362,9 +362,7 @@ class ARM(_Base_):
         # Unstack/pack/format
         uarm = self._final_packer.unpack(self.raw_arm)
         self._results['arm'] = self.obsmanager.unstack(uarm, rescale=False,
-            format=1, id='arm_{id}',
-#            firstdims=[self.mode_axis],
-            )
+            format=1, id='arm_{id}', firstdims=self.mode_axis)
         def set_long_name(long_name):
             return 'Array modes of '+long_name
         recursive_transform_att(self._results['arm'], 'long_name', set_long_name)
@@ -382,9 +380,7 @@ class ARM(_Base_):
 
         # Unstack/pack/format
         self._results['rep'] = self.ens.unstack(self.raw_rep, rescale=False, format=1,
-            id='rep_{id}',
-#            firstdims=[self.mode_axis],
-            )
+            id='rep_{id}', firstdims=self.mode_axis)
         def set_long_name(long_name):
             return 'Array mode representers of '+long_name
         recursive_transform_att(self._results['rep'], 'long_name', set_long_name)

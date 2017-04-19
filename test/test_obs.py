@@ -159,13 +159,14 @@ def test_obs_ncobsplatform_profiles_plot():
 
     # Load platform
     obs = NcObsPlatform(NCFILE_OBS_PROFILES, name='profiles')
+    print obs.get_model_specs()
 
     # Bathymetry
     bathy = get_bathy()
 
     # Plots
     figs = obs.plot(variables=['locations', 'temp'], full3d=True, full2d=True,
-                    size=30, bathy=bathy, map_margin=0.05,
+                    size=40, bathy=bathy, map_margin=0.05, surf=True,
                     zonal_sections=[47.4], lat_interval_width=0.35)
 
     return figs

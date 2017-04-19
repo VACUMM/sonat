@@ -62,7 +62,7 @@ def test_ens_generate_pseudo_ensemble():
     nrens = 14
 #    nrens = 2
     enrich = 1.5
-    dtfile = (12, 'day')
+    dtfile = (15, 'day')
     ncfile = ENS_NCFILE
     level = {'temp':('3d', 'surf'), 'u':'surf', 'v':'surf'}
     depths = create_dep([-40., -30, -20, -10, 0.])
@@ -167,6 +167,7 @@ def test_ens_ensemble_get_diags():
 
     # Diags
     diags = ens.get_diags()
+    return diags
 
 def test_ens_ensemble_plot_diags():
 
@@ -179,6 +180,7 @@ def test_ens_ensemble_plot_diags():
         kurtosis=False, normaltest=False, skewtest=False,
         kurtosistest=False, skew=False, mean=False,
         )
+    return figs
 
 def test_ens_ensemble_export_html_diags():
 

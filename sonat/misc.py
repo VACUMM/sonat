@@ -134,7 +134,22 @@ class DatePat2GlobFormatter(string.Formatter):
 
 
 def list_files_from_pattern(ncpat, time=None, dtfile=None, sort=True, **subst):
-    """List files possibly with glob and date patterns"""
+    """List files possibly with glob and date patterns
+
+    Parameters
+    ----------
+    ncpat: string
+        File name with date patterns
+    time: tuple, None
+        Date interval
+    dtfile: tuple, None
+        Time step between two files like ``(10, 'days')``.
+        This time step is assumed to be constant across files.
+    sort: bool
+        Sort after listing?
+    \**subst: dict
+        Use for substitution in ``ncpat``.
+    """
 
     # List all files
     if isinstance(ncpat, list): # A list of file

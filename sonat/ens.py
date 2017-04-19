@@ -107,7 +107,7 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
     varnames: string, strings
         Generic var names. If None, all variables that are known from the
         :mod:`vacumm.data.cf` module are used.
-    depths: string, None, list of floats, array, tuple of them, dict
+    level: string, None, list of floats, array, tuple of them, dict
         Here are some possible values:
 
         - "surf" or "bottom": self explenatory
@@ -122,6 +122,9 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
         You can specialise slicings of a variable using a dictionary with
         the key as the variable name.
 
+    See also
+    --------
+    :func:`sonat.misc.list_files_from_pattern` for more options
 
 
     Examples
@@ -132,6 +135,7 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
         level={'temp':('surf', 'bottom'), 'sal':[-50, -10]})
     >>> mdict = load_model_at_regular_dates('myfile.nc', varnames=['temp', 'sal'],
         level={'temp':('surf', '3d'), 'sal':None}, depths=[-50, -10])
+
 
     """
     # Logger
@@ -857,14 +861,17 @@ class Ensemble(Stacker, _NamedVariables_):
     def plot_diags(self, mean=True, variance=True, kurtosis=True, skew=True,
             skewtest=True, kurtosistest=True, normaltest=True,
             titlepat = '{var_name} - {diag_long_name} - {slice_loc}',
-            surf=None, bottom=None, horiz_sections=None, points=None,
+            surf=None, bottom=None, horiz_sections=None, #points=None,
             zonal_sections=None, merid_sections=None,
             fmtlonlat='{:.2f}', fmtdep='{:04.0f}m',
             figpat_slice='sonat.ens.{diag_name}_{var_name}_{slice_type}_{slice_loc}.png',
             figpat_generic='sonat.ens.{diag_name}.png',
-            figfir=None, show=False, savefig=True,
+            show=False, savefig=True,
             props=None, **kwargs):
         """Create figures for diagnostics
+
+        Diagnostic arguments are passed to :meth:`get_diags`,
+        like ``variance=True``.
 
         Parameters
         ----------
@@ -879,10 +886,25 @@ class Ensemble(Stacker, _NamedVariables_):
             or equivalent when the sea level is always 0.
             In the case of floats, the
             ensemble must contain 3d variables.
+        zonal_sections: None, list, floats
+            Latitudes
+        merid_sections: None, list, floats
+            Longitudes
         props: dict, None
             Dictionary of graphic properties passed as keywords to plotting
             functions. The keys must be valid diagnostics names such as
             "mean", or one of the follow plotting function: map, curve.
+
+        Return
+        ------
+        dict
+            A tree of :class:`dict` with the following branch types,
+            with all keys capitalised:
+
+            - Diagnostic
+            - Variable
+            - Type of slice
+            - Location of slice
         """
 
         # Diags

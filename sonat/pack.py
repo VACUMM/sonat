@@ -446,7 +446,9 @@ class Packer(_Base_):
         if firstdims is not None:
 
             # Transform to pure axes and dims
-            if not isinstance(firstdims, tuple):
+            if isinstance(firstdims, list):
+                firstdims = tuple(firstdims)
+            elif not isinstance(firstdims, tuple):
                 firstdims = (firstdims, )
             firstdims_ = ()
             firstaxes = []
