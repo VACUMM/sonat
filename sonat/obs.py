@@ -234,6 +234,25 @@ class _ObsBase_(_XYT_):
             level = level[:1] + (zmax,) + level[2:]
         return level
 
+    def get_model_specs(self):
+        """Get specifications for reading model
+
+        Return
+        ------
+        dict
+            Keys:
+
+            - lon: longitude interval
+            - lat: latitude interval
+            - depths: depths as a dict for each variable within 'surf', 'bottom', '3d'
+            - varnames: variable names
+        """
+        specs = self.get_seldict()
+        specs['depths'] = self.depths
+        specs['varnames'] = self.varnames
+        return specs
+
+
 
 
 class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
@@ -1464,25 +1483,6 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         """Sync min and max of all scatter plots that are on the same axes"""
         for ax in self.get_cached_plots():
             sync_scatter_plots_vminmax(ax)
-
-
-    def get_model_specs(self):
-        """Get specifications for reading model
-
-        Return
-        ------
-        dict
-            Keys:
-
-            - lon: longitude interval
-            - lat: latitude interval
-            - depths: depths as a dict for each variable within 'surf', 'bottom', '3d'
-            - varnames: variable names
-        """
-        specs = self.get_seldict()
-        specs['depths'] = self.depths
-        specs['varnames'] = self.varnames
-        return specs
 
 
     def restack(self, input, scale='norm'):
