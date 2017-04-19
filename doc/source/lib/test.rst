@@ -1,5 +1,7 @@
-:mod:`sonat.test` -- The unit test suite
-========================================
+.. _lib.test:
+
+:mod:`sonat.test` -- The unit tests suite
+=========================================
 
 .. module:: sonat.test
 
