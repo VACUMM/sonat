@@ -53,18 +53,24 @@ SONAT_INIFILE = os.path.join(os.path.dirname(__file__), 'sonat.ini')
 #: Default user configuration file
 SONAT_DEFAULT_CFGFILE = 'sonat.cfg'
 
+#: Config manager instance
+SONAT_CFGM = ConfigManager(SONAT_INIFILE, interpolation=False)
+
 def load_cfg(cfgfile):
     """Load a configuration file"""
-    return get_cfgm().load(cfgfile)
+    return SONAT_CFGM.load(cfgfile)
 
 def get_cfgm():
-    return ConfigManager(SONAT_INIFILE, interpolation=False)
+    return SONAT_CFGM
 
-def parse_args_cfg(parser, args=None, cfgfilter=None):
+def parse_args_cfg(parser, args=None):
     """Generate parse arguments,
     then return parsed arguments and configuration"""
-    return cfgargparse(SONAT_INIFILE, parser, cfgfile=SONAT_DEFAULT_CFGFILE,
-        interpolation=False, cfgfilter=cfgfilter, args=args)
+    return SONAT_CFGM.arg_parse(parser, cfgfile=SONAT_DEFAULT_CFGFILE,
+                                getargs=True, args=args)
+#    return cfgargparse(SONAT_INIFILE, parser, cfgfile=SONAT_DEFAULT_CFGFILE,
+#        cfgfilter=cfgfilter, args=args)
+
 
 def check_cfg_aliases(cfg, param):
     for gen_param, aliases in cfg['aliases'].items():
