@@ -147,14 +147,17 @@ class ARM(_Base_):
 
     @property
     def nstate(self):
+        """Sise of the model state variables"""
         return self.ens.stacked_data.shape[0]
 
     @property
     def nens(self):
+        """Size of the ensemble (number of members)"""
         return self.ens.stacked_data.shape[1]
 
     @property
     def nobs(self):
+        """Size of the observational space"""
         return self._final_packer.packed_data.shape[0]
 
     def set_missing_value(self, missing_value):
@@ -221,7 +224,7 @@ class ARM(_Base_):
         """Scaled ensemble state anomalies projected onto observations"""
         if 'S' not in self._inputs:
             err = self._final_packer.pack(self.obsmanager.stacked_data)
-            Rinv = N.diag(1/err)
+            Rinv = N.diag(1/err**2)
             self._inputs['S'] = N.dot(N.sqrt(Rinv / (self.ndof-1)), self.Yf)
         return self._inputs['S']
 
@@ -985,7 +988,7 @@ class XYLocARMSA(ARMSA):
 
             # Check cache
             if not force:
-                ds = self._dcache_get_(obs, pert, score_type, direct)
+                ds = self._dcache_get_(obs, pert, score_type, direct, 'ds')
                 if ds is not None:
                     results[obs] = ds
                     continue
@@ -995,6 +998,7 @@ class XYLocARMSA(ARMSA):
             ds.score_type = score_type
             ds.pert = pert
             ds.direct = int(direct)
+            self._dcache_set_(obs, pert, score_type, direct, ds=ds)
 
             # Loop on mobile points
             for idx in obs.xylocsa_get_pert_indices_iter():
@@ -1044,19 +1048,20 @@ class XYLocARMSA(ARMSA):
                         except:
 
                             score1 = N.ma.masked
+                            self.warning('Indirect method failed at loc: {}'.format(idx))
 
 
                     # Fill array
                     ds[idir, idx] = (score1 - score0) / dpert
-                    if pdir.startswith('-'):
+                    if pdir.startswith('-'): # same sign with respect to direction
                         ds[idir, idx] *= -1
 
         self.restore()
 
         return results
 
-    def plot(self, platforms=None, pert=0.01, score_type=DEFAULT_SCORE_TYPE, direct=False,
-             figpat='sonat.armsa.{saname}.{score_type}.png',
+    def plot(self, platforms=None, pert=0.001, score_type=DEFAULT_SCORE_TYPE, direct=False,
+             figpat='sonat.armsa.{saname}.{score_type}.{direct_label}.png',
              title='{sa_long_name}',
              lon=None, lat=None,
              alpha_static=.3, quiver_scale=None,
@@ -1111,7 +1116,7 @@ class XYLocARMSA(ARMSA):
                       units='dots', linewidth=0, edgecolor='k')
             for iv, (values, ref_sign) in enumerate(zip(ds, [1, -1, 1j, -1j])):
                 values = values.asma()
-                tail = N.sign(values) == N.sign(ref_sign).real
+                tail = N.sign(values) == N.sign(ref_sign).real + N.sign(ref_sign).imag
                 tip = ~tail
                 tail = tail.filled(False)
                 tip = tip.filled(False)
@@ -1148,7 +1153,7 @@ class XYLocARMSA(ARMSA):
         params = dict(score_type=score_type, direct=direct)
         kwpar.update(transform=plotter.axes.transAxes, fig=plotter.axes)
         dict_check_defaults(kwpar, weight='bold')
-        add_param_label(params, loc=params_loc, **kwpar)
+        add_param_label(params, loc=params_loc, pert=pert, **kwpar)
         if title:
             sa_long_name = self.get_long_name()
             plotter.axes.set_title(title.format(**locals()))
@@ -1156,6 +1161,7 @@ class XYLocARMSA(ARMSA):
         # Save
         sa_name = saname = self.name
         sa_long_name = self.get_long_name()
+        direct_label = 'direct' if direct else 'indirect'
         figfile = figpat.format(**locals())
         plotter.savefig(figfile)
         self.created(figfile)
@@ -1166,24 +1172,6 @@ class XYLocARMSA(ARMSA):
 
         return {"{sa_long_name} [{sa_name}]".format(**locals()):figfile}
 
-#    def export_html(self, htmlfile, *args, **kwargs):
-#        """Export results to an htmlfile with figures"""
-#
-#        # Get results
-#        figs = self.plot(*args, **kwargs)
-#
-#        # Substitution dict
-#        subst = kwargs.get('subst', {})
-#        dict_check_defaults(subst,
-#
-#
-#        # Render with template
-#        checkdir(htmlfile)
-#        render_and_export_html_template('dict2tree.html', htmlfile,
-#            title=title.format(**subst), content=figs)
-#        self.created(htmlfile)
-#        return htmlfile
-#
 
 
     def export_netcdf(self, ncpat, *args, **kwargs):
