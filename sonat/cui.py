@@ -126,7 +126,7 @@ def main(args=None):
 
 
     # Test
-    tparser = subparsers.add_parser('test', help='Launch the test suite')
+    tparser = subparsers.add_parser('test', help='launch the test suite')
     tparser.add_argument('name', nargs='*',
         help='name of modules to test')
     tparser.set_defaults(func=test_from_args)
@@ -351,6 +351,7 @@ def load_obs_from_cfg(cfg):
 
     # Loop on platform types
     obsplats = []
+    weights = []
     for platform_name, platform_section in cfg['obs']['platforms'].items():
 
         logger.debug('Loading platform named: ' + platform_name)
@@ -358,6 +359,7 @@ def load_obs_from_cfg(cfg):
         pfile = platform_section['file']
         logger.debug(' File: '+pfile)
         logger.debug(' Variable names: {}'.format(platform_section['varnames']))
+        logger.debug(' Weight: {}'.format(platform_section['weight']))
 
         # Check file
         if not pfile or not os.path.exists(pfile):
@@ -367,6 +369,7 @@ def load_obs_from_cfg(cfg):
         # Arguments
         kwargs = platform_section.copy()
         kwargs['name'] = platform_name
+        weights.append(kwargs.pop('weight'))
 
         # Load
         obs = load_obs_platform(platform_section['type'], pfile, **kwargs)
@@ -378,7 +381,7 @@ def load_obs_from_cfg(cfg):
     norms = get_cfg_norms(cfg)
 
     # Init manager
-    manager = ObsManager(obsplats, norms=norms)
+    manager = ObsManager(obsplats, norms=norms, weights=weights)
 
     return manager
 
