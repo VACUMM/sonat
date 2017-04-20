@@ -38,7 +38,7 @@ of independent states to be representative of
 all the processes at work.
 In order to make the evaluation process more efficient,
 the ensemble can be **optimally reduced** while keeping
-its properties :cite:`even04`: the EOF [#eof]_ and eigenvalues
+its properties almost intact :cite:`even04`: the EOF [#eof]_ and eigenvalues
 of a PCA [#pca]_ analysis of the ensemble
 are used regenerate an ensemble of independent states
 and of reduced size.
@@ -111,7 +111,27 @@ the relative spectrum and the local variance.
 Observation platforms
 =====================
 
-TODO
+An observation platform is defined by the observations errors
+of a series of variable with the same coordinates.
+Locations may be randomly distributed like for profiles, ferryboxes or scanfishes,
+or gridded like for satellite or HF radar data.
+
+A plaform may also integrate an :ref:`observation operator <core.obsoper>`
+that is more complex than a simple interpolation, for some variables.
+
+.. figure:: ../../test/sonat.obs.locations_map_3d.png
+    :align: center
+
+    Example of 3D view of all platforms.
+
+Since pseudo-ensemble are used in the ARM analysis,
+a platform-specific weight may be set to take into account
+the time sampling of processes.
+A low weight must be defined for a plaform that have
+a measurement time step significantly greated than the processes
+the designed to observe.
+Conversely, this weight saturates (to ``1``) when the time step becomes
+lower than the process time scale.
 
 
 ARM analysis
@@ -276,6 +296,8 @@ applied to :math:`r = \sqrt{R}`.
 Note that, normalisation factors can provided per variable type,
 like temperature or salinity. 
 
+
+.. _core.obsoper:
 
 The observation operator
 ========================

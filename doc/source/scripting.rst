@@ -1,7 +1,7 @@
 .. _scripting:
 
-Scripting :mod:`sonat`
-######################
+Scripting
+#########
 
 This section provides a limited view of how the
 script with :mod:`sonat`.

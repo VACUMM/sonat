@@ -1,5 +1,5 @@
-:mod:`sonat.plot` -- Observations platforms
-===========================================
+:mod:`sonat.obs` -- Observations platforms
+==========================================
 
 .. automodule:: sonat.obs
 

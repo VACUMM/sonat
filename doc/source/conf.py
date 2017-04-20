@@ -153,7 +153,7 @@ html_theme = 'sphinx_rtd_theme'#agogo'
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-#html_logo = None
+html_logo = 'images/sonat-200-blue-shadow.png'
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -254,7 +254,7 @@ latex_documents = [
 
 # The name of an image file (relative to this directory) to place at the top of
 # the title page.
-#latex_logo = None
+latex_logo = 'images/sonat-800-shadow.png'
 
 # For "manual" documents, if this is true, then toplevel headings are parts,
 # not chapters.
@@ -324,6 +324,7 @@ intersphinx_mapping = {
     'http://docs.python.org/dev': None,
     }
 
+
 # Extlinks
 extlinks = {
     'vacumm': (vacumm_site + '/%s', None),
@@ -332,8 +333,18 @@ extlinks = {
     'rstdoc': ('http://docutils.sourceforge.net/docs/ref/rst/%s', None),
     }
 
+
 # Autodoc
 autodoc_default_flags = ['members', 'undoc-members', 'inherited-members', 'show-inheritance']
+
+
+# Napoleon
+napoleon_google_docstring = False
+napoleon_numpy_docstring = True
+napoleon_use_rtype = True
+napoleon_use_param = True
+napoleon_use_keyword = True
+
 
 # Fortran autodoc
 fortran_src = [os.path.abspath('../../sonat/fcore.f90')]

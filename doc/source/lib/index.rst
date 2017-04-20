@@ -1,5 +1,6 @@
-The :mod:`sonat` library
-========================
+The library
+===========
+
 
 .. toctree::
     :maxdepth: 1
@@ -18,4 +19,8 @@ The :mod:`sonat` library
     fcore
     test
     
+.. automodule:: sonat
+    :exclude-members: SONATLogger
 
+    .. autoclass:: SONATLogger
+        :no-inherited-members:

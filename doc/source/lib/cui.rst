@@ -1,4 +1,4 @@
-:mod:`sonat.arm` -- Commandline user interface
+:mod:`sonat.cui` -- Commandline user interface
 ==============================================
 
 .. automodule:: sonat.cui
