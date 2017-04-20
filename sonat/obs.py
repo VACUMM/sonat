@@ -132,7 +132,7 @@ class _ObsBase_(_XYT_):
 
         Return
         ------
-        Map, axes, None
+        vacumm.misc.core_plot.Plot, None
             None is returned if not cached
         """
         return self.plot_cache.get(var_name, {}).get(slice_type, {}

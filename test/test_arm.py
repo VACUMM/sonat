@@ -118,6 +118,19 @@ def test_arm_arm_plot_rep():
                  sync_vminmax=False, nmax=25,
                  obs_lat_interval_width=.3, obs_legend_loc='upper right')
 
+def test_arm_arm_indirect_spectrum():
+
+    # Load ARM
+    arm = get_arm()
+
+    # Indirect spectrum
+    pcs = N.dot(arm.S.T, arm.raw_arm)
+    spect = (pcs**2).sum(axis=0)
+
+    # Compare with direct spectrum
+    assert_allclose(spect, arm.raw_spect, atol=1e-7)
+
+
 def test_arm_register_arm_score_function():
 
     def arm_score_myfunc(ev, arm, rep):
@@ -169,8 +182,9 @@ def test_arm_xylocarmsa():
     armsa = XYLocARMSA(arm)
 
     # Sensitivity analysis
-    resd = armsa.analyse(direct=True)
-    resi = armsa.analyse(direct=False)
+    resd = armsa.analyse(direct=True, score_type='relvar')
+    resi = armsa.analyse(direct=False, score_type='relvar')
+    pass
 
 def test_arm_xylocarmsa_plot():
 
@@ -181,8 +195,10 @@ def test_arm_xylocarmsa_plot():
     armsa = XYLocARMSA(arm)
 
     # Plot
-    armsa.plot(score_type='fnev')
-    armsa.plot(score_type='relvar')
+    armsa.plot(score_type='fnev', direct=True)
+    armsa.plot(score_type='fnev', direct=False)
+    armsa.plot(score_type='relvar', direct=True)
+    armsa.plot(score_type='relvar', direct=False)
 
 def test_arm_xylocarmsa_export_html():
 
@@ -202,6 +218,7 @@ if __name__=='__main__':
     res = test_arm_arm_inputs()
     res = test_arm_arm_analyse()
     res = test_arm_arm_results()
+    res = test_arm_arm_indirect_spectrum()
     res = test_arm_register_arm_score_function()
     res = test_arm_get_arm_score_function()
     res = test_arm_scores()

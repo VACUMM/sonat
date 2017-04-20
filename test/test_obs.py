@@ -159,7 +159,6 @@ def test_obs_ncobsplatform_profiles_plot():
 
     # Load platform
     obs = NcObsPlatform(NCFILE_OBS_PROFILES, name='profiles')
-    print obs.get_model_specs()
 
     # Bathymetry
     bathy = get_bathy()

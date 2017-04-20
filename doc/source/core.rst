@@ -263,13 +263,51 @@ and how to do it.
 The :class:`sonat.arm.XYLocARMSA` class is a sensitivity analyser
 that tests the effect of infinitesimal changes in the position
 of observations that are mobile.
+A ``score_type`` must be chosen, and tests may be performed
+either with a ``direct`` or ``indirect`` method:
+in the first case, a full ARM analysis is performed
+after each perturbation, while in the latter case,
+the original state variables are interpolated to
+the new positions (:math:`H^*`) to give a new ensemble state
+anomalies matrix :math:`H^*A`
+at observation locations,
+which is converted to a perturbed :math:`S^*` matrix,
+which is then projected onto original array modes
+(EOFs) to provide perturbed expansion coefficients :math:`a^*`:
 
-.. figure:: ../../test/arm.sa.xyloc.fnev.png
+.. math:: a^* =  S^{*T} \mu
+
+from which a perturbed spectrum :math:`\sigma^*` is computed
+
+
+.. math:: \sigma^* = \frac{1}{n_{ens}} a^{*T}a^*
+
+This spectrum can now be used to compute scores.
+The advantage of this approach is its low cost since
+no SVD decomposition is needed at each perturbation.
+
+.. _fig_core_armsa_direct:
+
+.. figure:: ../../test/sonat.armsa.xyloc.fnev.indirect.png
     :align: center
 
     Sensitivity analysis to observation locations as performed
-    by :class:`sonat.arm.XYLocARMSA` sensitivity analyser.
+    by :class:`sonat.arm.XYLocARMSA` sensitivity analyser,
+    with a ``fnev`` score type and a ``indirect`` method.
 
+.. _fig_core_armsa_indirect:
+
+.. figure:: ../../test/sonat.armsa.xyloc.relvar.indirect.png
+    :align: center
+
+    Same as previous figure, but with an ``relvar`` method.
+
+In the examples of figures :numref:`fig_core_armsa_direct`
+and :numref:`fig_core_armsa_indirect`, the direct and
+indirect methods show similar results.
+They suggest to move the most eastern profile to the
+south.
+    
 New sensitivity analysers can be implemented by inheriting
 from :class:`sonat.arm.ARMSA` and registered by
 :func:`sonat.arm.register_arm_sensitivity_analyser`.

@@ -664,8 +664,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
     axis_bounds = ax.axis()
 
     # Plot params for scatter
-    kwargs.update(linewidth=linewidth, s=size, edgecolor=edgecolor,
-                  depthshade=depthshade)
+    kwargs.update(linewidth=linewidth, s=size, edgecolor=edgecolor)
 
     # Data kwargs
     if data is not None:
@@ -674,6 +673,8 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
     # 3D
     pp = []
     if slice_type == "3d":
+
+        kwargs['depthshade'] = depthshade
 
         # Depth labels
         zfmtfunc = lambda x, pos: deplab(x, nosign=True)

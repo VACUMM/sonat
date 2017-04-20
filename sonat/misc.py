@@ -49,7 +49,8 @@ from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices,
     kwfilter, numod, GENERIC_VAR_NAMES, DS, set_atts, format_var,
     match_known_var, ArgList, create_lon, regrid1d, grid2xy, create_lat,
-    create_time, create_dep, create_axis, cp_atts, isaxis)
+    create_time, create_dep, create_axis, cp_atts, isaxis,
+    dicttree_set, dicttree_get)
 
 from .__init__ import sonat_warn, SONATError, get_logger
 
@@ -459,7 +460,7 @@ class _Base_(object):
     def debug(self, msg):
         self.logger.debug(msg)
 
-    def _dache_set_(self, *args, **kwargs):
+    def _dcache_set_(self, *args, **kwargs):
         if not hasattr(self, '_dcache'):
             self._dcache = {}
         dicttree_set(self._dcache, *args, **kwargs)
