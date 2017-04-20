@@ -382,6 +382,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
                         add_profile_line=None, add_bathy=True,
                         add_minimap=True, add_section_bathy=True,
                         fig=None, title="{long_name}", register_sm=True,
+                        depthshade=False,
                         legend=False, colorbar=True, **kwargs):
     """Plot scattered localisations
 
@@ -663,7 +664,8 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
     axis_bounds = ax.axis()
 
     # Plot params for scatter
-    kwargs.update(linewidth=linewidth, s=size, edgecolor=edgecolor)
+    kwargs.update(linewidth=linewidth, s=size, edgecolor=edgecolor,
+                  depthshade=depthshade)
 
     # Data kwargs
     if data is not None:
