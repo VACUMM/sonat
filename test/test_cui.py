@@ -17,7 +17,6 @@ from sonat.cui import (
     obs_plot_from_cfg,
     arm_analysis_from_cfg,
     arm_sa_from_cfg,
-    test_from_cfg as _test_from_cfg,
     main
     )
 #main(['-h'])
@@ -75,11 +74,13 @@ def test_cui_arm_sa_from_cfg():
     arm_sa_from_cfg(cfg)
 
 def _test_cui_test_from_cfg():
+    from sonat import test_from_cfg
+
     # Load config
     cfg = get_cfg()
 
     # Run
-    _test_from_cfg(cfg)
+    test_from_cfg(cfg)
 
 if __name__=='__main__':
 

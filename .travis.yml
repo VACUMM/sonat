@@ -13,7 +13,7 @@ install:
   - conda config --add channels conda-forge
   - conda config --add channels uvcdat
   - conda config --add channels stefraynaud
-  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION vacumm libsangoma_tools
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION gcc>=4.8.5 vacumm libsangoma_tools
   - source activate test-environment
   - python setup.py install
   - python setup.py build_ext --inplace

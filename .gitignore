@@ -107,7 +107,7 @@ test/*.nc
 test/OBS/
 test/ENS/
 test/ARM/
-test/TEST_CUI
+test/CUI
 test/install/
 test/*.js
 test/*.css

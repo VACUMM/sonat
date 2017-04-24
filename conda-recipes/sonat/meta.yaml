@@ -22,10 +22,12 @@ requirements:
     - uvcdat >=2.8.0
     - vacumm >=3.3.0
     - libsangoma_tools >=2.0.1
+    - gcc >=4.8.5
   run:
     - uvcdat >=2.8.0
     - vacumm >=3.3.0
     - libsangoma_tools >=2.0.1
+    - libgcc >=4.8.5
 
 test:
     requires:
