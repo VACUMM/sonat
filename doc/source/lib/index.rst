@@ -16,6 +16,7 @@ The library
     arm
     config
     cui
+    my
     fcore
     test
     

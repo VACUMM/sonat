@@ -34,6 +34,7 @@
 #
 
 
+import sys
 import os
 from collections import OrderedDict
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -41,6 +42,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import matplotlib
 from pylab import register_cmap, get_cmap
 import cdms2
+import nose
 from vcmq import dict_merge, itv_intersect, checkdir
 
 from .__init__ import sonat_help, get_logger, SONATError
@@ -68,7 +70,7 @@ def main(args=None):
         description='use "<subcommand> --help" to have more help')
 
     # Help
-    hparser = subparsers.add_parser('open_help', help='open the sonat help url', )
+    hparser = subparsers.add_parser('help', help='open the sonat help url', )
     hparser.add_argument('text', help='text to search for', nargs='?')
     hparser.set_defaults(func=open_help)
 
@@ -119,21 +121,21 @@ def main(args=None):
 
     # - sensitivity analysis
     asparser = asubparsers.add_parser('sa',
-        help='run an ARM sensitivity analysis')
+        help='run an ARM sensitivity analysis and export results')
     asparser.add_argument('saname', nargs='?',
-        help='sensitivity analyser name')
+        help='sensitivity analyser name, like "xyloc"')
     asparser.set_defaults(func=arm_sa_from_args)
 
 
     # Test
     tparser = subparsers.add_parser('test', help='launch the test suite')
     tparser.add_argument('name', nargs='*',
-        help='name of modules to test')
+        help='name of modules to test, like "fcore"')
     tparser.set_defaults(func=test_from_args)
 
 
     # Read/check config and parse commandline arguments
-    args, cfg = parse_args_cfg(parser, args=args)
+    cfg, args = parse_args_cfg(parser, args=args)
     args.func(parser, args, cfg)
 
 
@@ -623,26 +625,35 @@ def arm_sa_from_cfg(cfg, sa_names=None):
 
 def test_from_args(parser, args, cfg):
 
+    return test_from_cfg(cfg, args.name)
+
+
+def test_from_cfg(cfg, names=None):
+
     # Init
     logger = init_from_cfg(cfg)
 
     # Get the list of valid module names
+    logger.verbose('Getting the list of tests')
     try:
         from sonat.test import ORDERED_MODULES
         format = "sonat.test.test_{}"
     except:
         test_dir = os.path.join(THIS_DIR, '..')
-        sys.path.insert(0, )
+        sys.path.insert(0, test_dir)
         from test import ORDERED_MODULES
         format = "test.test_{}"
-    if args.name:
-        for name in args.name:
+    if names: # check
+        for name in names:
             if name not in ORDERED_MODULES:
-                parser.error('Invalid test name: "'+name +
+                logger.error('Invalid test name: "'+name +
                              '". Please use one of: ' + ' '.join(ORDERED_MODULES))
-        names = args.name
-    else:
+            names = [name for name in ORDERED_MODULES if name in names] # reorder
+            noprefix = lambda x: x if not x.startswith('test_') else x[5:]
+            names = map(noprefix, names)
+    else: # default
         names = ORDERED_MODULES
+    logger.debug('Will test: '+' '.join(names))
 
     # Run nose
     logger.verbose('Performing tests')
@@ -651,7 +662,13 @@ def test_from_args(parser, args, cfg):
     for i, name in enumerate(names):
         logger.debug('Testing: '+name)
         test_name = format.format(name)
-        successes += nose.run(test_name)
+        logger.debug(name)
+        success = nose.run(argv=['nose', test_name])
+        if success:
+            logger.info('Success for '+name)
+        else:
+            logger.warning('Error/failure for '+name)
+        successes += success
     failures = (i+1) - successes
     logger.info('Tested modules with {} success(es) and {} failure(s)'.format(
                 successes, failures))

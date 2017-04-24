@@ -13,6 +13,7 @@ Contents:
    conv
    ui
    scripting
+   extending
    lib/index
    bib
    appendix

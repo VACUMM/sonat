@@ -66,14 +66,14 @@ variance since a reduced number of EOFs is kept (:numref:`fig_core_pseudo_expl`)
 
 .. _fig_core_pseudo_spect:
 
-.. figure:: ../../test/TEST_CUI/ENS/sonat.ens.spectrum.png
+.. figure:: ../../test/CUI/ENS/sonat.ens.spectrum.png
     :align: center
 
     Example of relative spectrum of retained mode for ensemble reduction.
 
 .. _fig_core_pseudo_expl:
 
-.. figure:: ../../test/TEST_CUI/ENS/sonat.ens.explained_variance_temp_map_surf.png
+.. figure:: ../../test/CUI/ENS/sonat.ens.explained_variance_temp_map_surf.png
     :align: center
 
     Example of explained variance of temperature after ensemble reduction.
@@ -92,17 +92,17 @@ the :func:`~scipy.stats.kurtosistest` and the :func:`~scipy.stats.normaltest`.
 Some other stats are related to the generation of the pseudo-ensemble:
 the relative spectrum and the local variance.
 
-.. figure:: ../../test/TEST_CUI/ENS/sonat.ens.variance_u_map_surf.png
+.. figure:: ../../test/CUI/ENS/sonat.ens.variance_u_map_surf.png
     :align: center
 
     Ensemble variance of meridional velocity.
     
-.. figure:: ../../test/TEST_CUI/ENS/sonat.ens.variance_sal_merid_5W.png
+.. figure:: ../../test/CUI/ENS/sonat.ens.variance_sal_merid_5W.png
     :align: center
 
     Ensemble variance of salinity at 5°W.
     
-.. figure:: ../../test/TEST_CUI/ENS/sonat.ens.skew_u_map_surf.png
+.. figure:: ../../test/CUI/ENS/sonat.ens.skew_u_map_surf.png
     :align: center
 
     Skewness of the ensemble of zonal velocity.
@@ -194,7 +194,7 @@ also available.
 
 .. _fig_core_arm_spect:
 
-.. figure:: ../../test/TEST_CUI/ARM/sonat.arm.spect.png
+.. figure:: ../../test/CUI/ARM/sonat.arm.spect.png
     :align: center
 
     Example of ARM spectrum.
@@ -202,21 +202,21 @@ also available.
 
 .. _fig_core_arm_arm_temp3d:
 
-.. figure:: ../../test/TEST_CUI/ARM/sonat.arm.arm.mode01_temp_map_3d.png
+.. figure:: ../../test/CUI/ARM/sonat.arm.arm.mode01_temp_map_3d.png
     :align: center
 
     Example of a 3D view of the first array mode for temperature.
 
 .. _fig_core_arm_arm_usurf:
 
-.. figure:: ../../test/TEST_CUI/ARM/sonat.arm.arm.mode01_u_map_surf.png
+.. figure:: ../../test/CUI/ARM/sonat.arm.arm.mode01_u_map_surf.png
 
     Example of a surface view of the first array mode for zonal velocity.
 
     
 .. _fig_core_arm_rep_temp:
 
-.. figure:: ../../test/TEST_CUI/ARM/sonat.arm.rep.mode01_temp_map_surf.png
+.. figure:: ../../test/CUI/ARM/sonat.arm.rep.mode01_temp_map_surf.png
     :align: center
 
     Example of a surface view of the first modal representer of temperature,

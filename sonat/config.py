@@ -53,9 +53,6 @@ SONAT_INIFILE = os.path.join(os.path.dirname(__file__), 'sonat.ini')
 #: Default user configuration file
 SONAT_DEFAULT_CFGFILE = 'sonat.cfg'
 
-#: Config manager instance
-SONAT_CFGM = ConfigManager(SONAT_INIFILE, interpolation=False)
-
 def load_cfg(cfgfile):
     """Load a configuration file"""
     return SONAT_CFGM.load(cfgfile)
@@ -65,9 +62,15 @@ def get_cfgm():
 
 def parse_args_cfg(parser, args=None):
     """Generate parse arguments,
-    then return parsed arguments and configuration"""
+    then return parsed arguments and configuration
+
+    Return
+    ------
+    tuple:
+        ``cfg, parser, args``
+    """
     return SONAT_CFGM.arg_parse(parser, cfgfile=SONAT_DEFAULT_CFGFILE,
-                                getargs=True, args=args)
+                                getargs=True, args=args, getparser=False)
 #    return cfgargparse(SONAT_INIFILE, parser, cfgfile=SONAT_DEFAULT_CFGFILE,
 #        cfgfilter=cfgfilter, args=args)
 
@@ -296,8 +299,6 @@ def is_level(value, default=None):
     except:
         raise VdtTypeError(value)
 
-register_config_validator(level=is_level)
-
 def rebase_cfg_paths(cfg, secname, path_types=['file', 'path', 'dir'],
                      *args, **kwargs):
     """Auto rebase paths of a section with :func:`get_cfg_path`"""
@@ -321,4 +322,11 @@ def rebase_cfg_paths(cfg, secname, path_types=['file', 'path', 'dir'],
             sec[key] = get_cfg_path(cfg, secname, key, *args, **kwargs)
 
     return cfg
+
+
+# Register the level validator type in VACUMM
+register_config_validator(level=is_level)
+
+#: Config manager instance
+SONAT_CFGM = ConfigManager(SONAT_INIFILE, interpolation=False)
 

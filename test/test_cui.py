@@ -17,9 +17,11 @@ from sonat.cui import (
     obs_plot_from_cfg,
     arm_analysis_from_cfg,
     arm_sa_from_cfg,
+    test_from_cfg as _test_from_cfg,
     main
     )
-main(['-h'])
+#main(['-h'])
+#main(['-h'])
 
 netcdf4()
 
@@ -72,6 +74,13 @@ def test_cui_arm_sa_from_cfg():
     # Run
     arm_sa_from_cfg(cfg)
 
+def _test_cui_test_from_cfg():
+    # Load config
+    cfg = get_cfg()
+
+    # Run
+    _test_from_cfg(cfg)
+
 if __name__=='__main__':
 
     test_cui_ens_gen_pseudo_from_cfg()
@@ -79,6 +88,7 @@ if __name__=='__main__':
     test_cui_obs_plot_from_cfg()
     test_cui_arm_analysis_from_cfg()
     test_cui_arm_sa_from_cfg()
+    _test_cui_test_from_cfg()
 
 
 

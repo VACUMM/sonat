@@ -85,3 +85,32 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# Eric4
+.eric4project/
+SONAT.e4p
+
+# Misc
+*~
+*.bak
+*.bak2
+my/
+
+# Sphinx
+doc/source/generated
+doc/source/images
+doc/source/samples
+
+# Tests
+test/*.png
+test/*.nc
+test/OBS/
+test/ENS/
+test/ARM/
+test/TEST_CUI
+test/install/
+test/*.js
+test/*.css
+test/*.html
+test/*.html
+test/*.txt

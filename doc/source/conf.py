@@ -23,6 +23,15 @@ from matplotlib import use ; use('Agg')
 for p in ['../..', 'ext']:
     sys.path.insert(0, os.path.abspath(p))
 
+# Compile sonat extension and run unit tests for RTD
+if os.environ.get('READTHEDOCS', ''):
+    oldpwd = os.getcwd()
+    os.chdir('../..')
+    os.system('make lib')
+    os.system('make test-unittests')
+    os.chdir(oldpwd)
+
+
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.

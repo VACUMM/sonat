@@ -1150,10 +1150,10 @@ class XYLocARMSA(ARMSA):
 
         # Finalise
         plotter.legend(**kwleg)
-        params = dict(score_type=score_type, direct=direct)
+        params = dict(score_type=score_type, direct=direct, pert=pert)
         kwpar.update(transform=plotter.axes.transAxes, fig=plotter.axes)
         dict_check_defaults(kwpar, weight='bold')
-        add_param_label(params, loc=params_loc, pert=pert, **kwpar)
+        add_param_label(params, loc=params_loc, **kwpar)
         if title:
             sa_long_name = self.get_long_name()
             plotter.axes.set_title(title.format(**locals()))

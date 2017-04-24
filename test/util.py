@@ -7,10 +7,16 @@ from vcmq import (lindates, create_time, create_lon, create_lat, create_dep,
     create_time, N, rotate_grid, set_grid, create_axis)
 
 THIS_DIR = os.path.dirname(__file__)
+
+# Try local import first
 LIB_DIR = os.path.abspath(os.path.join(THIS_DIR, '..', 'sonat'))
 if os.path.exists(os.path.join(LIB_DIR, '__init__.py')):
     sys.path.insert(0, os.path.dirname(LIB_DIR))
-from sonat import get_logger, get_data_dir
+    try:
+        import sonat
+    except:
+        del sys.path[0]
+from sonat import get_logger, get_data_dir, LOGGER
 
 assert_allclose = N.testing.assert_allclose
 assert_raises = N.testing.assert_raises
@@ -32,8 +38,9 @@ NCFILE_BATHY_POSITIVE_UP = True
 CFGFILE = os.path.abspath(os.path.join(THIS_DIR, 'sonat.cfg'))
 
 
-LOGGER_LEVEL_TESTS = os.environ.get("SONAT_LOGGER_LEVEL_TESTS", "error")
-LOGGER = get_logger(level=LOGGER_LEVEL_TESTS)
+if LOGGER is None:
+    LOGGER_LEVEL_TESTS = os.environ.get("SONAT_LOGGER_LEVEL_TESTS", "error")
+    LOGGER = get_logger(level=LOGGER_LEVEL_TESTS)
 
 CACHE = {}
 

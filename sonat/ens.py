@@ -951,7 +951,7 @@ class Ensemble(Stacker, _NamedVariables_):
                                       horiz_sections=horiz_sections,
                                       zonal_sections=zonal_sections,
                                       merid_sections=merid_sections,
-                                      points=points,
+#                                      points=points,
                                       figpat=figpat_slice, savefig=savefig,
                                       titlepat=titlepat,
                                       fmtlonlat=fmtlonlat, fmtdep=fmtdep,

@@ -8,12 +8,14 @@ package:
   version: "{{ sonat_version }}"
 
 build:
-    script: python setup.py install --single-version-externally-managed --record record.txt
+    script: python setup.py install # --single-version-externally-managed --record record.txt
     string: vc{{ vacumm_version }}_{{ pkg_buildnum }}
 
 source:
   git_url: https://github.com/VACUMM/sonat.git
+  git_rev: HEAD
 #  git_rev: {{ sonat_version }}
+  #path: /home/raynaud/dev/forge/sonat
 
 requirements:
   build:
@@ -28,8 +30,8 @@ requirements:
 test:
     requires:
     - nose
-    commands:
-    - nosetests $(python -c "import sonat.test;sonat.test.print_test_order()")
+    #commands:
+    #- nosetests $(python -c "import sonat.test;sonat.test.print_test_order()")
     imports:
     - sonat
     - sonat._fcore
