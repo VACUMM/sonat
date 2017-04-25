@@ -4,7 +4,7 @@ import os
 from vcmq import adatetime, comptime
 
 from util import (THIS_DIR, NCPAT_MANGA, NCFILE_MANGA0, NCFILE_MANGA1,
-    NCGLOB_MANGA, NCPATGLOB_MANGA,
+    NCGLOB_MANGA, NCPATGLOB_MANGA, NC_ENS,
     assert_allclose, assert_raises, N, cdms2, cdtime)
 
 from sonat.misc import (scan_format_string, list_files_from_pattern,
@@ -74,9 +74,8 @@ def test_slice_gridded_var():
     f = cdms2.open(NCFILE_MANGA0)
     temp = f('TEMP', time=slice(0, 3))
     f.close()
-    ncfile = os.path.join(THIS_DIR, 'test_ens_generate_pseudo_ensemble.nc')
-    f = cdms2.open(ncfile)
-    sal = f('sal', member=slice(0, 3))
+    f = cdms2.open(NC_ENS)
+    tempe = f('temp', member=slice(0, 3))
     f.close()
 
     # Slice it
@@ -92,7 +91,7 @@ def test_slice_gridded_var():
     assert t.getOrder() == 'tz'
     t = slice_gridded_var(temp, lon=[-4., -4.1])
     assert t.getOrder() == 'tzyx' and t.shape[-1] == 2
-    s = slice_gridded_var(sal, depth=-12)
+    s = slice_gridded_var(tempe, depth=-12)
     assert s.getOrder() == '-yx'
     assert not s.mask.all()
 
@@ -115,9 +114,9 @@ def test_misc_dicttree_relpath():
     print dicttree_relpath(dd, 'ENS')
 
 if __name__=='__main__':
-    test_misc_scan_format_string()
-    test_misc_list_files_from_pattern()
-    test_misc_datepat2globformatter()
-    test_misc_ncfiles_time_indices()
+#    test_misc_scan_format_string()
+#    test_misc_list_files_from_pattern()
+#    test_misc_datepat2globformatter()
+#    test_misc_ncfiles_time_indices()
     test_slice_gridded_var()
-    test_misc_dicttree_relpath()
+#    test_misc_dicttree_relpath()

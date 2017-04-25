@@ -155,8 +155,7 @@ def get_ens():
         return CACHE['ens']
 
      # Load from file
-    ncfile = os.path.join(THIS_DIR, 'test_ens_generate_pseudo_ensemble.nc')
-    ens = Ensemble.from_file(ncfile, logger=LOGGER)
+    ens = Ensemble.from_file(ENS_NCFILE, logger=LOGGER)
     CACHE['ens'] = ens
     return ens
 

@@ -1,4 +1,7 @@
 import os
+if not os.environ.get('DISPLAY', ''): # detect batch mode
+    from matplotlib import use
+    use('Agg')
 import sys
 import numpy as N
 import pylab as P
@@ -23,6 +26,7 @@ assert_raises = N.testing.assert_raises
 
 DATA_DIR = get_data_dir()
 
+NC_ENS = os.path.abspath(os.path.join(DATA_DIR, 'ens.nc'))
 NCPAT_MANGA = os.path.abspath(os.path.join(DATA_DIR, 'manga-{date:%Y-%m-%d}.nc'))
 NCFILE_MANGA0 = os.path.abspath(os.path.join(DATA_DIR, 'manga-2014-01-01.nc'))
 NCFILE_MANGA1 = os.path.abspath(os.path.join(DATA_DIR, 'manga-2014-01-16.nc'))

@@ -5,17 +5,15 @@ import cdms2
 #from matplotlib import rcParams
 from vcmq import adatetime, comptime, func_name, P
 
-from util import (NCFILE_MANGA0, THIS_DIR)
+from util import (NCFILE_MANGA0, THIS_DIR, NC_ENS)
 
 from sonat.plot import (plot_gridded_var, create_map)
 
 def test_plot_gridded_var():
     # Get var
-    ncfile = os.path.join(THIS_DIR, 'test_ens_generate_pseudo_ensemble.nc')
-    f = cdms2.open(ncfile)
+    f = cdms2.open(NC_ENS)
     temp = f('temp')
     temp_surf = f('temp_surf')
-    sal = f('sal')
     u = f('u_surf')
     v = f('v_surf')
     f.close()
@@ -39,7 +37,7 @@ def test_plot_gridded_var():
     kw2d = dict(kw, figsize=(6, 4))
     plot_gridded_var(temp_surf, member=slice(0, 1), levels_mode='symetric',
         savefig=figpat.format('xy.scalar'), cmap='balance', **kw2d)
-    plot_gridded_var(sal, member=slice(0, 1), depth=-20, levels_mode='symetric',
+    plot_gridded_var(temp, member=slice(0, 1), depth=-20, levels_mode='symetric',
         savefig=figpat.format('xyh.scalar'), cmap='delta', **kw2d)
     plot_gridded_var((u, v), member=slice(0, 1),
         savefig=figpat.format('xy.tuple'), colorbar=False, fill=False,

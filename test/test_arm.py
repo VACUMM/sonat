@@ -10,11 +10,13 @@ from vcmq import comptime, netcdf4, P, func_name
 from util import (THIS_DIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
     NCFILE_MANGA1, NCFILE_OBS_HFRADARS, NCFILE_OBS_PROFILES, NCFILE_OBS_SATSST,
     get_bathy)
+from test_ens import ENS_NCFILE
 
 from sonat.ens import Ensemble
 from sonat.obs import NcObsPlatform, ObsManager
 from sonat.arm import (ARM, register_arm_score_function, get_arm_score_function,
     ARM_SCORE_FUNCTIONS, XYLocARMSA)
+
 
 netcdf4()
 
@@ -28,8 +30,7 @@ def get_arm():
 def test_arm_arm_init():
 
     # Load ensemble
-    ncfile = os.path.join(THIS_DIR, 'test_ens_generate_pseudo_ensemble.nc')
-    ens = Ensemble.from_file(ncfile, checkvars=True, logger=LOGGER)
+    ens = Ensemble.from_file(ENS_NCFILE, checkvars=True, logger=LOGGER)
 
     # Load observations
     obs0 = NcObsPlatform(NCFILE_OBS_HFRADARS)
