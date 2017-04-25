@@ -390,6 +390,15 @@ sonathelps_commands = {
     'arm_sa': ['arm', 'sa', '-h'],
     }
 
+# Read the docs
+html_context = {
+    "display_github": True, # Integrate GitHub
+    "github_user": "vacumm", # Username
+    "github_repo": "sonat", # Repo name
+    "github_version": "master", # Version
+    "conf_py_path": "doc/source/", # Path in the checkout to the docs root
+}
+
 
 def setup(app):
 
