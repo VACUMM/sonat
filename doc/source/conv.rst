@@ -25,10 +25,15 @@ The special depths ``"surf"`` and ``"bottom"``
 ==============================================
 
 These two special depths are used with impact on slicing and naming.
-The ``"surf"`` depth refere to the top of a 3D volumic data,
+The ``"surf"`` depth refers to the top of a 3D volumic data,
 and ``"bottom"`` to its bottom.
 The ``"surf"`` depth may be sligthly different from an interpolation at the zero depth.
+
 Colocating variables at the bottom requires the an estimate of the bathymetry.
+The section configuration section :confsec:`[bathy]`
+and the ``bathy`` keyword to some classes (:class:`~sonat.arm.ARM`,
+:class:`~sonat.obs.ObsManager` and :class:`~sonat.obs.NcObsPlatform`), methods and functions
+are ways to provide this 2D bathymetry.
 
 Ensemble variable names may be suffixed with ``"_surf"`` or ``"_bottom"`` with
 when an extraction at this depths is required.
@@ -87,13 +92,17 @@ In this case, a longitude and a latitude variables must be found.
 
 The depths may be specified in several ways:
 
-- A depth axis: there is vertical dimension in addition the horizontal one(s) (:ref:`profiles <appendix.samples.obs.profiles>`).
-  This axis is the same to all locations, and if data are not available at given depth, they must be marked as masked.
+- A depth axis: there is vertical dimension in addition
+  the horizontal one(s) (:ref:`profiles <appendix.samples.obs.profiles>`).
+  **This vertical axis is shared** by all locations of single platform, and if data are not
+  available at given depth, they must be marked as masked.
 - A depth variable: data are scattered both horizontally and vertically (like a scanfish or Seasoar).
-- A "depth" file attribute: a scalar value in meters or special string value ``"surf"`` or ``"bottom"``.
+- A :attr:`depth` file attribute: a scalar value in meters or
+  special string value ``"surf"`` or ``"bottom"``.
 
 
-A mobility specification (see :ref:`core.sa`) may be included to tell if the XY locations are
+A mobility specification (see :ref:`core.sa`)
+may be included to tell if the XY locations are
 mobile for adjustment of the network or not.
 It can take several forms:
 
@@ -116,7 +125,7 @@ and observation variables are sliced with
 :func:`sonat.misc.mask_scattered_locs`.
 The following slice specifications are supported.
 
-``horiz_section``
+``horiz_sections``
     It is a single or a list of negative depth floats.
     Model variables are interpolated to these depths,
     and only observation variables are within a depth interval around
@@ -129,7 +138,7 @@ The following slice specifications are supported.
     directly plotted, otherwise this is equivalent to ``horiz_section=0.`` .
 
 ``bottom``
-    For model variables, the deepest unmasked data is kept (:func:`sonat.misc.sclice_bottom`).
+    For model variables, the deepest unmasked data is kept (:func:`sonat.misc.slice_bottom`).
     For observation variables, if they have a ``"bottom"`` depth, they are
     directly plotted, otherwise the bathymetry is required at observation locations,
     and only observations that are within a depth interval around this variable depth
@@ -139,7 +148,7 @@ The following slice specifications are supported.
     It is a single or a list of latitudes.
     Model variables are interpolated at this latitude, which
     may results in a 1D  or 2D plot.
-    Observation locations that are within a laitude interval around
+    Observation locations that are within a latitude interval around
     the reference latitudes are plotted.
 
 ``merid_sections``

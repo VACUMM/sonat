@@ -4,6 +4,10 @@
 import os
 import sys
 
+if not os.environ.get('DISPLAY', ''): # detect batch mode
+    from matplotlib import use
+    use('Agg')
+
 THISFILE = os.path.abspath(__file__)
 THISDIR = os.path.dirname(THISFILE)
 THISBASEDIR = os.path.basename(THISDIR)

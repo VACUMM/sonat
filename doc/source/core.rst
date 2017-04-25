@@ -1,7 +1,7 @@
 .. _core:
 
-The core
-########
+Core
+####
 
 
 Pseudo-ensemble generation

@@ -1,7 +1,7 @@
 import os
 if not os.environ.get('DISPLAY', ''): # detect batch mode
     from matplotlib import use
-    use('Agg')
+    use('Agg', warn=False)
 import sys
 import numpy as N
 import pylab as P

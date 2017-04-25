@@ -3,7 +3,8 @@
 The configuration system
 ========================
 
-The configuration system is based on file of configuration specifications :file:`sonat.ini`.
+The configuration system is based on file of configuration specifications :file:`sonat.ini`
+(:ref:`here <appendix.cfgspecs>`).
 See `configobj <http://www.voidspace.org.uk/python/configobj.html>`_ /
 `validate <http://www.voidspace.org.uk/python/validate.html>`_
 and :class:`vacumm.misc.config.ConfigManager`.
@@ -15,9 +16,10 @@ The user can provide a configuration file like
 to overwrite the default values provided by the specifications.
 If a given option is not set by the user,
 the default value is used, and when the option is set,
-it checks against its type, and possibly other criteria.
-The user file is by default :file:`sonat.cfg`,
-and can be specified from commandline with
+it is checked against its type, and possibly other criteria
+like min or max value, etc.
+The user file name is by default :file:`sonat.cfg`,
+and can be explicitly specified from commandline with
 option :option:`--cfgfile <sonat --cfgfile>`.
 
 In addition, commandline options are generated, based on

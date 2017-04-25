@@ -1,5 +1,5 @@
-The library
-===========
+Library
+=======
 
 
 .. toctree::

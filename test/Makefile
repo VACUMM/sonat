@@ -6,8 +6,10 @@ PYTHONOPTIONS=-W ignore
 
 # Default target
 all: 
+	export MPLBACKEND=agg
 	nosetests $(patsubst %,%.py,$(TESTS))
 
 # Run a test
 test_%: test_%.py
+	export MPLBACKEND=agg
 	nosetests $<
