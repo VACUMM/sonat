@@ -28,6 +28,7 @@ requirements:
     - vacumm >=3.3.0
     - libsangoma_tools >=2.0.1
     - libgcc >=4.8.5
+    - jinja2
 
 test:
     requires:
