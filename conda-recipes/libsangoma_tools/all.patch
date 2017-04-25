@@ -102,6 +102,15 @@ Index: Fortran/perturbations/sangoma_SampleEns.F90
  
    ! allocate memory for temporary fields
    ALLOCATE(omega(dim_ens, dim_ens-1))
+@@ -86,7 +86,7 @@
+ ! ********************************************************
+ 
+   ! *** Generate uniform orthogonal matrix OMEGA ***
+-  CALL PDAF_seik_omega(dim_ens-1, Omega, 1, 1)
++  CALL PDAF_seik_omega(dim_ens-1, Omega, 1, 0) ! sra: force screen at 0
+ 
+   ! ***      Generate ensemble of states                  ***
+   ! *** ens_i = state + sqrt(dim_ens-1) modes (Omega C)^T ***
 Index: Fortran/Makefile
 ===================================================================
 --- Fortran/Makefile	(révision 813)

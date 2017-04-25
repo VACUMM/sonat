@@ -15,7 +15,6 @@ source:
   git_url: https://github.com/VACUMM/sonat.git
   git_rev: HEAD
 #  git_rev: {{ sonat_version }}
-  #path: /home/raynaud/dev/forge/sonat
 
 requirements:
   build:
