@@ -74,6 +74,7 @@ if __name__=='__main__':
     # Distutils config
     def configuration(parent_package='',top_path=None):
         config = Configuration()
+        config.add_scripts('bin/sonat') # main executable
         config.add_data_dir(('sonat/data', 'data')) # all data files
         return config
 
