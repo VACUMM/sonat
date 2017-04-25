@@ -1,6 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 """SONAT
+
+The following environment variables are declared
+
+.. envvar:: SONAT_LIB_DIR
+
+    Directory path of the library
+
+.. envvar:: SONAT_TEST_DIR
+
+    Directory path of the library unit tests scripts
+
+.. envvar:: SONAT_DATA_DIR
+
+    Directory path of the library data samples
+
 """
 #
 # Copyright IFREMER (2016-2017)
