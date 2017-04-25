@@ -25,6 +25,7 @@ for p in ['../..', 'ext']:
 
 # Compile sonat extension and run unit tests for RTD
 if os.environ.get('READTHEDOCS', ''):
+    import MV2
     oldpwd = os.getcwd()
     os.chdir('../..')
     os.system('make lib')

@@ -7,9 +7,11 @@ PYTHONOPTIONS=-W ignore
 # Default target
 all: 
 	export MPLBACKEND=agg
+	export UVCDAT_ANONYMOUS_LOG=no
 	nosetests $(patsubst %,%.py,$(TESTS))
 
 # Run a test
 test_%: test_%.py
 	export MPLBACKEND=agg
+	export UVCDAT_ANONYMOUS_LOG=no
 	nosetests $<
