@@ -45,6 +45,7 @@ __url__ = 'http://www.ifremer.fr/sonat'
 __copyright__ = 'IFREMER'
 
 import os
+from collections import OrderedDict
 from warnings import warn, filterwarnings
 import cdms2
 from vcmq import (Logger, netcdf4)
@@ -181,13 +182,22 @@ def get_test_dir():
     return test_dir
 
 
-SONAT_INFO = dict(version=__version__, author=__author__, email=__email__,
+SONAT_INFO = OrderedDict(version=__version__, author=__author__, email=__email__,
                        date=__date__, url=__url__, copyright=__copyright__,
                        data_dir=get_data_dir(), test_dir=get_test_dir(),
                        lib_dir=SONAT_LIB_DIR)
 
-def info():
-    print """SONAT-{version}
+def info(key=None):
+    """Print SONAT info"""
+    print get_info(key)
+
+def get_info(key=None):
+    if key:
+        if key not in SONAT_INFO:
+            raise SONATError('Invalid info key: {}. '.format(key) +
+                             'Please choose one of: '+' '.join(SONAT_INFO.keys()))
+        return SONAT_INFO[key]
+    return """SONAT-{version}
   Date: {date}
   Author: {author}
   Email: {email}
@@ -196,3 +206,7 @@ def info():
   Library dir: {lib_dir}
   Data dir: {data_dir}
   Test dir: {test_dir}""".format(**SONAT_INFO)
+
+os.environ['SONAT_LIB_DIR'] = SONAT_LIB_DIR
+os.environ['SONAT_TEST_DIR'] = SONAT_INFO['test_dir']
+os.environ['SONAT_DATA_DIR'] = SONAT_INFO['data_dir']

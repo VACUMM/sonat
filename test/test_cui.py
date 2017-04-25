@@ -19,8 +19,6 @@ from sonat.cui import (
     arm_sa_from_cfg,
     main
     )
-#main(['-h'])
-#main(['-h'])
 
 netcdf4()
 

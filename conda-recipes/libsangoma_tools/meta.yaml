@@ -15,11 +15,11 @@ source:
 
 requirements:
   build:
-    - gcc >=4.8.5
+    - gcc >=4.7
     - fftw
   run:
     - fftw
-    - libgcc >=4.8.5
+    - libgcc >=4.7
     - lapack
 
 about:

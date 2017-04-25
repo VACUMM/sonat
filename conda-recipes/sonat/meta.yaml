@@ -21,18 +21,20 @@ requirements:
     - uvcdat >=2.8.0
     - vacumm >=3.3.0
     - libsangoma_tools >=2.0.1
-    - gcc >=4.8.5
+    - gcc >=4.7
   run:
     - uvcdat >=2.8.0
     - vacumm >=3.3.0
     - libsangoma_tools >=2.0.1
-    - libgcc >=4.8.5
+    - libgcc >=4.7
     - jinja2
 
 test:
     requires:
     - nose
-    #commands:
+    commands:
+    - sonat --short-help
+    - sonat --logger-level=debug test
     #- nosetests $(python -c "import sonat.test;sonat.test.print_test_order()")
     imports:
     - sonat

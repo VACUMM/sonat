@@ -328,5 +328,6 @@ def rebase_cfg_paths(cfg, secname, path_types=['file', 'path', 'dir'],
 register_config_validator(level=is_level)
 
 #: Config manager instance
-SONAT_CFGM = ConfigManager(SONAT_INIFILE, interpolation=False)
+SONAT_CFGM = ConfigManager(SONAT_INIFILE, interpolation=False,
+                           warn_empty_specs=True)
 

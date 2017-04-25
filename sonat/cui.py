@@ -45,7 +45,7 @@ import cdms2
 import nose
 from vcmq import dict_merge, itv_intersect, checkdir
 
-from .__init__ import sonat_help, get_logger, SONATError
+from .__init__ import sonat_help, get_logger, SONATError, get_info, SONAT_INFO
 from .config import (parse_args_cfg, get_cfg_xminmax, get_cfg_yminmax,
     get_cfg_tminmax, get_cfg_path, get_cfg_plot_slice_specs,
     get_cfg_cmap, get_cfg_norms, get_cfg_obs_plot_specs, rebase_cfg_paths)
@@ -73,6 +73,13 @@ def main(args=None):
     hparser = subparsers.add_parser('help', help='open the sonat help url', )
     hparser.add_argument('text', help='text to search for', nargs='?')
     hparser.set_defaults(func=open_help)
+
+    # Help
+    iparser = subparsers.add_parser('info', help='display info about SONAT')
+    iparser.add_argument('key', choices=SONAT_INFO.keys(),
+                         help=('a specific key info to display as one of '
+                                    + ' '.join(SONAT_INFO.keys())), nargs='?')
+    iparser.set_defaults(func=sonat_info)
 
 
     # Ensemble
@@ -759,6 +766,9 @@ def read_bathy_from_cfg(cfg, logger):
 
         return bathy
 
+def sonat_info(parser, args, cfg):
+    """sonat info subcommand"""
+    print get_info(args.key)
 
 if __name__=='__main__':
     main()
