@@ -324,7 +324,7 @@ class NcReader(object):
     >>> u = f('u', lon=(10, 12)) # netcdf var name
     >>> f.close()
 
-    >>> f = NcReader(ncfile, 'netcdf'') # python netcdf4 reader
+    >>> f = NcReader(ncfile, 'netcdf') # python netcdf4 reader
     >>> u = f('u', slice(0, 10)) # <=> f['u'][:10]
     >>> f.close()
 
@@ -682,7 +682,7 @@ def split_varname(varname):
 
 
 def check_variables(vv, searchmode='ns', format=True):
-    """Check that all variables are of MV2.array type and is well known
+    """Check that all variables are of MV2.array type and are well known
     of the :mod:`vacumm.data.cf` module
 
     Variable are first checked on the first part of their id, before a "_".

@@ -288,12 +288,12 @@ Plot results with two sort of scores
 >>> armsa.plot(score_type='fnev')
 >>> armsa.plot(score_type='relvar')
 
-.. figure:: ../../test/sonat.armsa.xyloc.fnev.png
+.. figure:: ../../test/sonat.armsa.xyloc.fnev.direct.png
     :align: center
 
     Sensitivity analysis with a ``fnev`` score type.
     
-.. figure:: ../../test/sonat.armsa.xyloc.relvar.png
+.. figure:: ../../test/sonat.armsa.xyloc.relvar.direct.png
     :align: center
 
     Sensitivity analysis with a ``relvar`` score type.

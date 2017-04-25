@@ -16,6 +16,7 @@ Contents:
    extending
    lib/index
    bib
+   license
    appendix
 
 

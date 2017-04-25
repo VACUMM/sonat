@@ -1,3 +1,5 @@
+.. _conv:
+
 Conventions
 ###########
 
