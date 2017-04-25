@@ -122,10 +122,36 @@ it is automatically registered.
 New ARM score functions
 -----------------------
 
+Builtin ARM score functions are listed by
+:mod:`sonat.arm.ARM_SCORE_FUNCTIONS`.
+They consist of short name like ``"fnev"``
+and a function that starts with a **fixed prefix**
+:mod:`sonat.arm.ARM_SCORE_FUNCTIONS_PREFIX`
+and take the raw ARM spectrum (:attr:`~sonat.arm.ARM.raw_spect`),
+array mode matrix (:attr:`~sonat.arm.ARM.raw_arm`)
+and modal representer matrix (:attr:`~sonat.arm.ARM.raw_rep`) as arguments.
+
+When scripting, you can register a new score function by calling
+:func:`~sonat.arm.register_arm_score_function`.
+When using a user code file, declared function whose name start
+with the are :mod:`~sonat.arm.ARM_SCORE_FUNCTIONS_PREFIX` prefix
+are automatically registered.
 
 
 New ARM sensitivity analysers
 -----------------------------
 
+ARM sensitivity analysers are classes derived from
+:class:`sonat.arm.ARMSA`, like :class:`sonat.arm.XYLocARMSA`.
+Such class is initialised with a :class:`sonat.arm.ARM` instance.
 
-  
+To derive a new analyser, declare such a class and
+override the :class:`sonat.arm.ARM.plot`
+which must make all plots and return a :class:`dict`
+of figure file names.
+
+Then new analysers are registered with
+:func:`~sonat.arm.register_arm_sensitivity_analyser`.
+The are automaticall registered when declared in a user code file.
+
+
