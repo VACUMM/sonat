@@ -95,7 +95,7 @@ if __name__=='__main__':
         package_dir = {"sonat.test": "test"},
         package_data = {"sonat": ["matplotlibrc", "sonat.ini",
                                   "CollapsibleLists.compressed.js",
-                                  "sonat.css",
+                                  "sonat.css", "runOnLoad.js",
                                   "button-*.png", "list-item*.png"],
             "sonat.test": ["sonat.cfg", "sangoma*", "inputs/*.txt"]},
         configuration = configuration,
