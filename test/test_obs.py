@@ -48,6 +48,8 @@ def test_obs_ncobsplatform_surf():
     temp = f('temp')
     sal = f('sal')
     f.close()
+    temp.id += '_surf'
+    sal.id += '_surf'
     otemp = obs.project_model(temp)
     osal = obs.project_model(sal)
     otem_true = [12.97311556, 12.91558515, 10.58179214]

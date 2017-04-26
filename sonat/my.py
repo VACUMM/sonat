@@ -87,7 +87,7 @@ def load_user_code_file(myfile=None):
         warn = True
     if not os.path.exists(myfile):
         if warn:
-            sonat_warn('User code file not found: ' + myfile)
+            sonat_warn('User code file not found: ' + os.path.abspath(myfile))
         return
     mysonat = imp.load_source('mysonat', myfile)
 
