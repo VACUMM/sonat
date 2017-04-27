@@ -59,6 +59,16 @@ from .my import load_user_code_file, SONAT_USER_CODE_FILE
 
 THIS_DIR = os.path.dirname(__file__)
 
+try:
+    from sonat.test import ORDERED_MODULES as TEST_ORDERED_MODULES
+    TEST_FORMAT = "sonat.test.test_{}"
+except:
+    test_dir = os.path.join(THIS_DIR, '..')
+    sys.path.insert(0, test_dir)
+    from test import ORDERED_MODULES as TEST_ORDERED_MODULES
+    TEST_FORMAT = "test.test_{}"
+
+
 def main(args=None):
 
     # Generate parser
@@ -74,7 +84,7 @@ def main(args=None):
     hparser.add_argument('text', help='text to search for', nargs='?')
     hparser.set_defaults(func=open_help)
 
-    # Help
+    # Info
     iparser = subparsers.add_parser('info', help='display info about SONAT')
     iparser.add_argument('key', choices=SONAT_INFO.keys(),
                          help=('a specific key info to display as one of '
@@ -137,7 +147,8 @@ def main(args=None):
     # Test
     tparser = subparsers.add_parser('test', help='launch the test suite')
     tparser.add_argument('name', nargs='*',
-        help='name of modules to test, like "fcore"')
+        help='name of modules to test to choose within this list: ' +
+            ' '.join(TEST_ORDERED_MODULES))
     tparser.set_defaults(func=test_from_args)
 
 
@@ -642,24 +653,16 @@ def test_from_cfg(cfg, names=None):
 
     # Get the list of valid module names
     logger.verbose('Getting the list of tests')
-    try:
-        from sonat.test import ORDERED_MODULES
-        format = "sonat.test.test_{}"
-    except:
-        test_dir = os.path.join(THIS_DIR, '..')
-        sys.path.insert(0, test_dir)
-        from test import ORDERED_MODULES
-        format = "test.test_{}"
     if names: # check
         for name in names:
-            if name not in ORDERED_MODULES:
+            if name not in TEST_ORDERED_MODULES:
                 logger.error('Invalid test name: "'+name +
-                             '". Please use one of: ' + ' '.join(ORDERED_MODULES))
-            names = [name for name in ORDERED_MODULES if name in names] # reorder
+                             '". Please use one of: ' + ' '.join(TEST_ORDERED_MODULES))
+            names = [name for name in TEST_ORDERED_MODULES if name in names] # reorder
             noprefix = lambda x: x if not x.startswith('test_') else x[5:]
             names = map(noprefix, names)
     else: # default
-        names = ORDERED_MODULES
+        names = TEST_ORDERED_MODULES
     logger.debug('Will test: '+' '.join(names))
 
     # Run nose
@@ -668,7 +671,7 @@ def test_from_cfg(cfg, names=None):
     successes = 0
     for i, name in enumerate(names):
         logger.debug('Testing: '+name)
-        test_name = format.format(name)
+        test_name = TEST_FORMAT.format(name)
         logger.debug(name)
         success = nose.run(argv=['nose', test_name])
         if success:

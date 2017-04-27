@@ -1,6 +1,5 @@
 {% set sonat_version = environ.get('CONDA_SONAT_VERSION',"0.0.1") %}
 {% set pkg_buildnum = environ.get('CONDA_SONAT_BUILDNUM',"1") %}
-{% set vacumm_version = environ.get('CONDA_VACUMM_VERSION',"3.3.0")|replace(".", "") %}
 
 
 package:
@@ -8,8 +7,8 @@ package:
   version: "{{ sonat_version }}"
 
 build:
-    script: python setup.py install # --single-version-externally-managed --record record.txt
-    string: vc{{ vacumm_version }}_{{ pkg_buildnum }}
+    script: python setup.py install
+    number: {{ pkg_buildnum }}
 
 source:
   git_url: https://github.com/VACUMM/sonat.git
@@ -31,8 +30,6 @@ requirements:
     - nose
 
 test:
-    requires:
-    - nose
     commands:
     - sonat info
     - sonat --short-help
