@@ -610,7 +610,7 @@ class ARM(_Base_):
         # Plots
         figs = OrderedDict([('Spectrum', self.plot_spect(**kwspect)),
                             ('Array modes',  self.plot_arm(**kwarm)),
-                            ('Array mode representers', self.plot_rep(**kwrep))])
+                            ('Modal representers', self.plot_rep(**kwrep))])
 
         return figs
 

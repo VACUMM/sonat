@@ -50,7 +50,7 @@ from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     ncget_time, ncget_level, ArgList, ncfind_obj, itv_intersect, intersect,
     MV2_axisConcatenate, transect, create_axis, regrid1d, isaxis, checkdir,
     dicttree_get, dict_check_defaults, meshgrid, P, kwfilter, m2deg,
-    lonlab, latlab, deplab)
+    lonlab, latlab, deplab, dict_merge)
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES, get_logger
 from .misc import (xycompress, _Base_, _XYT_, check_variables, _NamedVariables_,
@@ -187,14 +187,16 @@ class _ObsBase_(_XYT_):
         plotter.savefig(figfile)
         plotter.close()
         self.created(figfile)
-        return {var_name.title():{slice_type.title(): {slice_loc.title():figfile}}}
+        return {var_name.capitalize():{slice_type.capitalize():
+                                       {slice_loc.capitalize():figfile}}}
 
 
     def save_cached_plots(self, figpat, **subst):
         """Save all cached plots"""
         figs = {}
         for plotter in self.get_cached_plots():
-            figs.update(self.save_cached_plot(plotter, figpat, **subst))
+            figs = dict_merge(figs, self.save_cached_plot(plotter, figpat,
+                                                          **subst))
         return figs
 
     def reset_cache(self):
