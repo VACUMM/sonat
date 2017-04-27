@@ -34,7 +34,6 @@ test:
     - sonat info
     - sonat --short-help
     - mkdir MYTESTS && cd MYTESTS && sonat --logger-level=debug test
-    #- nosetests $(python -c "import sonat.test;sonat.test.print_test_order()")
     imports:
     - sonat
     - sonat._fcore

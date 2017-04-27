@@ -120,6 +120,7 @@ def test_obs_obsmanager_project_model():
     f = DS(NCFILE_MANGA0, 'mars', level='surf', logger_level='error')
     temp = f('temp')
     f.close()
+    temp.id += '_surf'
 
     # Interpolate model
     otemp = manager.project_model(temp)
@@ -211,14 +212,14 @@ def test_obs_obsmanager_plot():
 
 
 if __name__=='__main__':
-    res = test_obs_ncobsplatform_surf()
-    res = test_obs_ncobsplatform_surf_gridded()
-    res = test_obs_obsmanager_init_surf()
-    res = test_obs_load_obs()
+#    res = test_obs_ncobsplatform_surf()
+#    res = test_obs_ncobsplatform_surf_gridded()
+#    res = test_obs_obsmanager_init_surf()
+#    res = test_obs_load_obs()
     res = test_obs_obsmanager_project_model()
-    res = test_obs_register_obs_platform()
-    res = test_obs_get_obs_platform()
-    res = test_obs_load_obs_platform()
-    res = test_obs_ncobsplatform_profiles_plot()
-    res = test_obs_ncobsplatform_hfradars_plot()
-    res = test_obs_obsmanager_plot()
+#    res = test_obs_register_obs_platform()
+#    res = test_obs_get_obs_platform()
+#    res = test_obs_load_obs_platform()
+#    res = test_obs_ncobsplatform_profiles_plot()
+#    res = test_obs_ncobsplatform_hfradars_plot()
+#    res = test_obs_obsmanager_plot()
