@@ -58,8 +58,6 @@ instance/
 # Scrapy stuff:
 .scrapy
 
-# Sphinx documentation
-docs/_build/
 
 # PyBuilder
 target/
@@ -88,7 +86,7 @@ ENV/
 
 # Eric4
 .eric4project/
-SONAT.e4p
+*.e4p
 
 # Misc
 *~
@@ -97,6 +95,7 @@ SONAT.e4p
 my/
 
 # Sphinx
+doc/build/
 doc/source/generated
 doc/source/images
 doc/source/samples
