@@ -56,7 +56,7 @@ __author__ = 'Stephane Raynaud, Guillaume Charria, Pierre De Mey'
 __email__ = "raynaud@actimar.fr, charria@actimar.fr"
 __version__ = '0.0.1'
 __date__ = '2016-11-01'
-__url__ = 'http://www.ifremer.fr/sonat'
+__url__ = 'http://relay.actimar.fr/~raynaud/sonat'
 __copyright__ = 'IFREMER'
 
 import os

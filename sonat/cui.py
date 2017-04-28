@@ -102,8 +102,6 @@ def main(args=None):
         help='generate a pseudo-ensemble from model outputs')
     egparser.add_argument('ncmodfile', nargs='*',
         help='model netcdf file path or pattern')
-    egparser.add_argument('--add-obs', type=bool,
-        help='add observation locations')
     egparser.set_defaults(func=ens_gen_pseudo_from_args)
 
     # - ensemble plot_diags
@@ -111,6 +109,8 @@ def main(args=None):
         help='make and plot ensemble diagnostics')
     epparser.add_argument('ncensfile', nargs='?',
         help='ensemble netcdf file')
+    epparser.add_argument('--add-obs', type=bool,
+        help='add observation locations')
     egparser.set_defaults(func=ens_plot_diags_from_args)
 
 
@@ -159,7 +159,7 @@ def main(args=None):
 
 ## HELP
 
-def open_help(args):
+def open_help(parser, args, cfg):
     """open_help subcommand"""
     sonat_help(args.text)
 

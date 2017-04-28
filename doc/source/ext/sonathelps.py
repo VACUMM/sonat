@@ -41,8 +41,9 @@ def write_usages(app):
         if help_file:
             help_file = os.path.join(app.builder.srcdir, help_file)
             checkdir(help_file, asfile=True)
+            prog = ' '.join(['sonat'] + opts[:-1])
             f = open(help_file, 'w')
-            f.write(opt2rst(out[0]))
+            f.write(opt2rst(out[0], prog=prog))
             f.close()
 
         # Write usage

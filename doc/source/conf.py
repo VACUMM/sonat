@@ -381,6 +381,8 @@ sonathelps_commands = {
     'normal': ['-h'],
     'short': ['--short-help'],
     'open_help': ['open_help', '-h'],
+    'info': ['info', '-h'],
+    'test': ['test', '-h'],
     'ens': ['ens', '-h'],
     'ens_gen_pseudo': ['ens', 'gen_pseudo', '-h'],
     'ens_plot_diags': ['ens', 'plot_diags', '-h'],
