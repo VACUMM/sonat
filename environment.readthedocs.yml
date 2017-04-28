@@ -1,13 +1,13 @@
 name: sonat
 
 channels:
-  - stefraynaud
+  - vacumm/label/test
   - uvcdat
   - conda-forge
 
 dependencies:
-  - uvcdat >=2.8.0
-  - vacumm >=3.3.0
-  - libsangoma_tools >=2.0.1
-  - gcc =5.*
+  - uvcdat>=2.8.0
+  - vacumm>=3.3.0
+  - libsangoma_tools>=2.0.1
+  - gcc=4.8.2
   - jinja2

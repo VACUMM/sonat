@@ -12,7 +12,7 @@ Print SONAT info::
 
     $ sonat info
 
-Try to open the web help with some a argument:
+Try to open the web help with some a argument::
 
     $ sonat help NcObsPlatform
 

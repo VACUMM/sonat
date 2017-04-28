@@ -12,11 +12,12 @@
 
 .. program:: sonat ens gen_pseudo
 
-.. include:: generated/help.ens_gen_pseudo.txt
+.. literalinclude:: generated/help.ens_gen_pseudo.txt
+
 
 :program:`sonat ens plot_diags` -- Plot ensemble diagnostics
 -------------------------------------------------------------
 
 .. program:: sonat ens plot_diags
 
-.. include:: generated/help.ens_plot_diags.txt
+.. literalinclude:: generated/help.ens_plot_diags.txt

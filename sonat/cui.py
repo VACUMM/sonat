@@ -80,12 +80,14 @@ def main(args=None):
         description='use "<subcommand> --help" to have more help')
 
     # Help
-    hparser = subparsers.add_parser('help', help='open the sonat help url', )
+    shelp = 'open the sonat help url'
+    hparser = subparsers.add_parser('help', description=shelp, help=shelp)
     hparser.add_argument('text', help='text to search for', nargs='?')
     hparser.set_defaults(func=open_help)
 
     # Info
-    iparser = subparsers.add_parser('info', help='display info about SONAT')
+    shelp = 'display info about SONAT'
+    iparser = subparsers.add_parser('info', description=shelp, help=shelp)
     iparser.add_argument('key', choices=SONAT_INFO.keys(),
                          help=('a specific key info to display as one of '
                                     + ' '.join(SONAT_INFO.keys())), nargs='?')
@@ -93,59 +95,66 @@ def main(args=None):
 
 
     # Ensemble
-    eparser = subparsers.add_parser('ens', help='ensemble tools')
+    shelp = 'ensemble tools'
+    eparser = subparsers.add_parser('ens', description=shelp, help=help)
     esubparsers = eparser.add_subparsers(title='subcommands',
         description='use "<subcommand> --help" to have more help')
 
     # - ensemble gen_pseudo
+    shelp = 'generate a pseudo-ensemble from model outputs'
     egparser = esubparsers.add_parser('gen_pseudo',
-        help='generate a pseudo-ensemble from model outputs')
+                                      description=shelp, help=shelp)
     egparser.add_argument('ncmodfile', nargs='*',
         help='model netcdf file path or pattern')
     egparser.set_defaults(func=ens_gen_pseudo_from_args)
 
     # - ensemble plot_diags
+    shelp = 'make and plot ensemble diagnostics'
     epparser = esubparsers.add_parser('plot_diags',
-        help='make and plot ensemble diagnostics')
+                                      description=shelp, help=shelp)
     epparser.add_argument('ncensfile', nargs='?',
         help='ensemble netcdf file')
-    epparser.add_argument('--add-obs', type=bool,
-        help='add observation locations')
-    egparser.set_defaults(func=ens_plot_diags_from_args)
+    epparser.set_defaults(func=ens_plot_diags_from_args)
 
 
     # Obs
-    oparser = subparsers.add_parser('obs', help='observations tools')
+    shelp = 'observations tools'
+    oparser = subparsers.add_parser('obs', description=shelp, help=shelp)
     osubparsers = oparser.add_subparsers(title='subcommands',
         description='use "<subcommand> --help" to have more help')
 
     # - plot
+    shelp = 'plot observations locations or errors'
     opparser = osubparsers.add_parser('plot',
-        help='plot observations locations or errors')
+        description=shelp, help=shelp)
 #    opparser.add_argument('platform', nargs='?',
 #        help='platform name')
     opparser.set_defaults(func=obs_plot_from_args)
 
     # ARM
-    aparser = subparsers.add_parser('arm', help='ARM tools')
+    shelp = 'ARM tools'
+    aparser = subparsers.add_parser('arm', description=shelp, help=shelp)
     asubparsers = aparser.add_subparsers(title='subcommands',
         description='use "<subcommand> --help" to have more help')
 
     # - analysis
+    shelp = 'run an ARM analysis and export results'
     aaparser = asubparsers.add_parser('analysis',
-        help='run an ARM analysis and export results')
+        description=shelp, help=shelp)
     aaparser.set_defaults(func=arm_analysis_from_args)
 
     # - sensitivity analysis
+    shelp = 'run an ARM sensitivity analysis and export results'
     asparser = asubparsers.add_parser('sa',
-        help='run an ARM sensitivity analysis and export results')
+        description=shelp, help=shelp)
     asparser.add_argument('saname', nargs='?',
         help='sensitivity analyser name, like "xyloc"')
     asparser.set_defaults(func=arm_sa_from_args)
 
 
     # Test
-    tparser = subparsers.add_parser('test', help='launch the test suite')
+    shelp = 'launch the test suite'
+    tparser = subparsers.add_parser('test', description=shelp, help=shelp)
     tparser.add_argument('name', nargs='*',
         help='name of modules to test to choose within this list: ' +
             ' '.join(TEST_ORDERED_MODULES))
@@ -288,10 +297,10 @@ def ens_plot_diags_from_args(parser, args, cfg):
     'to the command line, or in the configuration file')
 
     # Execute using config only
-    return ens_plot_diags_from_cfg(cfg, add_obs=args.add_obs)
+    return ens_plot_diags_from_cfg(cfg)
 
 
-def ens_plot_diags_from_cfg(cfg, add_obs=None):
+def ens_plot_diags_from_cfg(cfg):
     """Plot ensemble diangostics
 
     Parameters
@@ -338,7 +347,8 @@ def ens_plot_diags_from_cfg(cfg, add_obs=None):
     del kwargs['plots']
     props = cfgedp.dict()
     for param, pspecs in cfgedp.items(): # default colormaps
-        pspecs.setdefault('cmap', get_cfg_cmap(cfg, param))
+        if isinstance(pspecs, dict):
+            pspecs.setdefault('cmap', get_cfg_cmap(cfg, param))
     norms = get_cfg_norms(cfg)
     kwobsplotspecs = get_cfg_obs_plot_specs(cfg, prefix='obs_')
 
@@ -347,7 +357,7 @@ def ens_plot_diags_from_cfg(cfg, add_obs=None):
         lon=lon, lat=lat, norms=norms)
 
     # Observations
-    if add_obs:
+    if cfgedp['addobs']:
         kwargs.update(obs=load_obs_from_cfg(cfg), **kwobsplotspecs)
 
 
