@@ -21,18 +21,18 @@ from matplotlib import use ; use('Agg')
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-for p in ['../..', 'ext']:
+for p in ['ext']:
     sys.path.insert(0, os.path.abspath(p))
 
-# Compile sonat extension and run unit tests for RTD
+# Run unit tests for RTD
 if os.environ.get('READTHEDOCS', ''):
     oldpwd = os.getcwd()
     os.chdir('../..')
     os.environ['UVCDAT_ANONYMOUS_LOG'] = 'no'
-    os.system('make lib')
     os.system('make test-unittests')
     os.chdir(oldpwd)
-
+else: # local path
+    sys.path.insert(0, os.path.abspath('../..'))
 
 # -- General configuration ------------------------------------------------
 

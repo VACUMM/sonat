@@ -1,4 +1,4 @@
-name: sonat
+name: sonat-rtd
 
 channels:
   - vacumm/label/test
@@ -6,8 +6,4 @@ channels:
   - conda-forge
 
 dependencies:
-  - uvcdat>=2.8.0
-  - vacumm>=3.3.0
-  - libsangoma_tools>=2.0.1
-  - gcc=4.8.2
-  - jinja2
+  - sonat
