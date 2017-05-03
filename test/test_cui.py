@@ -1,13 +1,8 @@
 """Test script for module :mod:`sonat.ens`"""
 
-import os
-import sys
-#import numpy as N
-#import cdms2
-#import cdtime
 from vcmq import netcdf4
 
-from util import (THIS_DIR, CFGFILE)
+from util import (CFGFILE)
 
 
 from sonat.config import load_cfg
@@ -17,7 +12,6 @@ from sonat.cui import (
     obs_plot_from_cfg,
     arm_analysis_from_cfg,
     arm_sa_from_cfg,
-    main
     )
 
 netcdf4()

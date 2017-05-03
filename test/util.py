@@ -3,10 +3,8 @@ if not os.environ.get('DISPLAY', ''): # detect batch mode
     from matplotlib import use
     use('Agg', warn=False)
 import sys
-import numpy as N
-import pylab as P
-import MV2, cdms2, cdtime
-from vcmq import (lindates, create_time, create_lon, create_lat, create_dep,
+import MV2, cdms2
+from vcmq import (lindates, create_lon, create_lat, create_dep,
     create_time, N, rotate_grid, set_grid, create_axis)
 
 THIS_DIR = os.path.dirname(__file__)
@@ -20,6 +18,7 @@ if os.path.exists(os.path.join(LIB_DIR, '__init__.py')):
     except:
         del sys.path[0]
 print sys.path
+xyz
 from sonat import get_logger, get_data_dir, LOGGER
 
 assert_allclose = N.testing.assert_allclose

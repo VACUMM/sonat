@@ -1,14 +1,11 @@
 """Test script for module :mod:`sonat.ens`"""
 
-import os
-import sys
 import numpy as N
 import cdms2
-import cdtime
 from vcmq import comptime, netcdf4, create_dep, func_name
 
-from util import (THIS_DIR, NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
-    NCFILE_MANGA1)
+from util import (NCPAT_MANGA, assert_allclose, LOGGER, NCFILE_MANGA0,
+    )
 
 from sonat.ens import (load_model_at_regular_dates, generate_pseudo_ensemble,
     Ensemble)
