@@ -114,9 +114,9 @@ def test_misc_dicttree_relpath():
     print dicttree_relpath(dd, 'ENS')
 
 if __name__=='__main__':
-#    test_misc_scan_format_string()
-#    test_misc_list_files_from_pattern()
-#    test_misc_datepat2globformatter()
-#    test_misc_ncfiles_time_indices()
+    test_misc_scan_format_string()
+    test_misc_list_files_from_pattern()
+    test_misc_datepat2globformatter()
+    test_misc_ncfiles_time_indices()
     test_slice_gridded_var()
-#    test_misc_dicttree_relpath()
+    test_misc_dicttree_relpath()

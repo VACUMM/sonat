@@ -16,9 +16,10 @@ LIB_DIR = os.path.abspath(os.path.join(THIS_DIR, '..', 'sonat'))
 if os.path.exists(os.path.join(LIB_DIR, '__init__.py')):
     sys.path.insert(0, os.path.dirname(LIB_DIR))
     try:
-        import sonat
+        import sonat._fcore
     except:
         del sys.path[0]
+print sys.path
 from sonat import get_logger, get_data_dir, LOGGER
 
 assert_allclose = N.testing.assert_allclose

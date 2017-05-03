@@ -4,20 +4,25 @@
 import os
 import sys
 
-if not os.environ.get('DISPLAY', ''): # detect batch mode
+# Detect batch mode
+if not os.environ.get('DISPLAY', ''):
     from matplotlib import use
     use('Agg')
 
+# Try local import
 THISFILE = os.path.abspath(__file__)
 THISDIR = os.path.dirname(THISFILE)
 THISBASEDIR = os.path.basename(THISDIR)
-
 if (THISBASEDIR=='bin' and
         os.path.exists(os.path.join(THISDIR, '..', 'sonat'))):
     sys.path.insert(0, os.path.abspath(os.path.join(THISDIR, '..')))
+    try:
+        import sonat._fcore
+    except:
+        del sys.path[0]
 
+# Call
 from sonat.cui import main
-
 main()
 
 
