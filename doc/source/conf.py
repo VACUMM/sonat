@@ -14,9 +14,9 @@
 
 import sys
 import os
-import shlex
 os.environ['MPLBACKEND'] = 'agg'
-from matplotlib import use ; use('Agg')
+from matplotlib import use
+use('Agg')
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -31,6 +31,8 @@ if os.environ.get('READTHEDOCS', ''):
     os.environ['UVCDAT_ANONYMOUS_LOG'] = 'no'
     os.system('make test-unittests')
     os.chdir(oldpwd)
+    print sys.path
+    del sys.path[:2]
 else: # local path
     sys.path.insert(0, os.path.abspath('../..'))
 

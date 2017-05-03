@@ -17,6 +17,8 @@ if os.path.exists(os.path.join(LIB_DIR, '__init__.py')):
         import sonat._fcore
     except:
         del sys.path[0]
+        if os.environ.get('READTHEDOCS', ''):
+            del sys.path[:2]
 print sys.path
 from sonat import get_logger, get_data_dir, LOGGER
 

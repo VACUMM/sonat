@@ -1,11 +1,11 @@
 """Test script for module :mod:`sonat.misc`"""
 
 import os
+import cdms2
 from vcmq import adatetime, comptime
-
-from util import (THIS_DIR, NCPAT_MANGA, NCFILE_MANGA0, NCFILE_MANGA1,
+from util import (NCPAT_MANGA, NCFILE_MANGA0, NCFILE_MANGA1,
     NCGLOB_MANGA, NCPATGLOB_MANGA, NC_ENS,
-    assert_allclose, assert_raises, N, cdms2, cdtime)
+    )
 
 from sonat.misc import (scan_format_string, list_files_from_pattern,
     DatePat2GlobFormatter, ncfiles_time_indices, slice_gridded_var,
