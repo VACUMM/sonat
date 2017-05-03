@@ -9,15 +9,13 @@ ocean observation networks using ocean model ensembles,
 and the Array Modes (ArM) method.
 
 It takes the form of a python platform that 
-has a :ref:`commandline user interface <ui>` and 
-a :ref:`library <lib>`, with configuration and
+has a commandline user interface and 
+a library, with configuration and
 extension capabilities.
 
 
 Installation
 ------------
-
-.. highlight:: bash
 
 With `conda <https://conda.io/docs>`_::
 
@@ -36,7 +34,7 @@ Here you can also post tickets for requests and issues.
 License
 -------
 
-VACUMM is under the :ref:`CeCiLL <license>` license,
+VACUMM is under the CeCiLL license,
 which is compatible with well knwon GPL license,
 and is a property of `IFREMER <http://www.ifremer.fr>`_.
 
