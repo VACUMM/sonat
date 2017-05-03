@@ -27,6 +27,12 @@ It will also install the `VACUMM <http://www.ifremer.fr/vacumm>`_
 and `SANGOMA <http://www.data-assimilation.net>`_ packages,
 and their respective dependencies.
 
+Sources and help
+-----------------
+
+Source are available on the SONAT `github page <https://github.com/VACUMM/sonat>`_.
+Here you can also post tickets for requests and issues.
+
 License
 -------
 
