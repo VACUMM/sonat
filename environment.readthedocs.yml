@@ -4,6 +4,8 @@ channels:
   - vacumm/label/test
   - uvcdat
   - conda-forge
+  - omnia
 
 dependencies:
   - sonat
+  - sphinxcontrib-bibtex

@@ -1,10 +1,9 @@
 
-Welcome to SONAT's documentation!
-=================================
+.. include:: ../../README.rst
 
-Contents:
 
 .. toctree::
+   :hidden:
    :maxdepth: 1
 
    intro
@@ -22,7 +21,7 @@ Contents:
 
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`
