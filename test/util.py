@@ -18,7 +18,6 @@ if os.path.exists(os.path.join(LIB_DIR, '__init__.py')):
     except:
         del sys.path[0]
 print sys.path
-xyz
 from sonat import get_logger, get_data_dir, LOGGER
 
 assert_allclose = N.testing.assert_allclose
