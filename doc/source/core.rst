@@ -10,7 +10,7 @@ Pseudo-ensemble generation
 A classic dynamical ensemble evolves with time
 and is created by performing different runs of the
 same model, that differ for instance by their initial
-or boundary conditions, by their forcing, or by the value
+and/or boundary conditions, by their forcing, or by the value
 of their internal parameters.
 Such ensemble simulate the model errors and is used
 by stochastic assimilation schemes such as the Enkf [#enkf]_ 
@@ -18,7 +18,7 @@ by stochastic assimilation schemes such as the Enkf [#enkf]_
 
 A pseudo-ensemble is static and generated from
 different model states :cite:`even03`.
-It is representative of the model variance and may used
+It is representative of the model variance and may be used
 as a proxy for model error thanks to a scaling factor
 between 0 an 1.
 In our case, this factor is set to 1 by default,
@@ -30,7 +30,7 @@ In the current implementation, model states
 is loaded at regular dates
 by :func:`sonat.ens.load_model_at_regular_dates`
 without any time interpolation.
-This ensures that states are independent from one
+This ensures that states are independent from
 one another, and makes the read faster.
 
 Such pseudo-ensemble needs to be large and made
@@ -40,7 +40,7 @@ In order to make the evaluation process more efficient,
 the ensemble can be **optimally reduced** while keeping
 its properties almost intact :cite:`even04`: the EOF [#eof]_ and eigenvalues
 of a PCA [#pca]_ analysis of the ensemble
-are used regenerate an ensemble of independent states
+are used to regenerate an ensemble of independent states
 and of reduced size.
 We introduce an **enrichment factor** :math:`e` (:math:`> 1.0`):
 
@@ -49,7 +49,7 @@ We introduce an **enrichment factor** :math:`e` (:math:`> 1.0`):
 where :math:`n^r_{ens}` is the target size of the reduced ensemble :math:`A'^r`,
 and :math:`n_{ens}` is the size of the ensemble :math:`A'` which is large enough
 to capture the variability and
-where the primes refer the anomaly.
+where the primes refer to the anomaly.
 
 The pseudo-ensemble is generated with :func:`sonat.ens.generate_pseudo_ensemble`,
 to which you provide at least a netcdf file pattern, the size of your requested ensemble
@@ -61,7 +61,7 @@ subroutines which are direct wrapper to the SANGOMA library's equivalent subrout
   which also provides a spectrum (see :numref:`fig_core_pseudo_spect`);
 - the sample generation is made by :f:func:`f_sampleens`.
 
-Note that the generated sample as lower variance than is original field
+Note that the generated sample has lower variance than its original field
 variance since a reduced number of EOFs is kept (:numref:`fig_core_pseudo_expl`).
 
 .. _fig_core_pseudo_spect:
@@ -125,24 +125,28 @@ that is more complex than a simple interpolation, for some variables.
     Example of 3D view of all platforms.
 
 Since pseudo-ensemble are used in the ARM analysis,
-a platform-specific weight may be set to take into account
+a **platform-specific weight** :math:`W` may be set to take into account
 the time sampling of processes.
-A low weight must be defined for a plaform that have
-a measurement time step significantly greated than the processes
-the designed to observe.
+A low weight must be defined for a platform that has
+a measurement time step :math:`\tau_{obs}` 
+significantly greater than the processes
+it is designed to observe :math:`\tau_{proc}`.
 Conversely, this weight saturates (to ``1``) when the time step becomes
 lower than the process time scale.
+
+.. math:: W = max\left( \frac{\tau_{proc}}{\tau_{obs}}, 1\right)
+
 
 
 ARM analysis
 ============
 
 The Array Modes analysis :cite:`leheal09` evaluates the capacity of an observation
-network potentially reduce mode errors with data assimilation,
+network potentially to reduce mode errors with data assimilation,
 but without acutally performing any assimilation experiment.
-It takes into account model error coviariances as simlated by the
+It takes into account model error coviariances as simulated by the
 ensemble state anomalies :math:`A` and observation error covariance matrix :math:`R`.
-Here we have removed all all :math:`r` and primes for the sake of clarity,
+Here we have removed all :math:`r` and primes for the sake of clarity,
 and we introduce
 some quantities, following the formalism of :cite:`lamoal16`.
 The ensemble covariance is expressed by:
@@ -159,7 +163,7 @@ where:
 
 is the scaled ensemble state anomalies projected onto observations,
 with :math:`H` the observation operator.
-:math:`HA` is the projection of the ensemble anomalies onto the the observations,
+:math:`HA` is the projection of the ensemble anomalies onto the observations,
 which may be in some cases more than a simple interpolation.
 The matrix :math:`\chi` can be seen as measure of the covariances
 relative to the observation errors.
@@ -177,11 +181,11 @@ The spatial properties the network are given by the EOF
 of the decompositions, also called the **array modes** :math:`\mu`
 (Fig. :numref:`fig_core_arm_arm_temp3d` and :numref:`fig_core_arm_arm_usurf`).
 And the signature of these modes in the model space
-are given by the **modal reprensenters** (Fig. :numref:`fig_core_arm_rep_temp`):
+are given by the **modal representers** (Fig. :numref:`fig_core_arm_rep_temp`):
 
 .. math:: \rho =  \frac{1}{m-1} A S^T \mu
 
-The model representer show how the observational network
+The model representer shows how the observational network
 impact the state variables, whether they are observed or not.
 
 The ARM analysis is performed by the :meth:`sonat.ARM.analysis` method,
@@ -251,7 +255,7 @@ Sensitivity analyses are useful for instance to check the stability
 of your score with respect to parameters, or to have a indication
 of how to change your network in order to optimise it.
 
-Indeed, two very different network can be clearly compared to assess which
+Indeed, two very different networks can be clearly compared to assess which
 one is the best.
 In reality, an observational network is generally already existing,
 and the goal is to setup an extension to this network with
@@ -323,7 +327,7 @@ It is made possible thanks to normalisation factors
 applied to ensemble states and observation errors.
 
 When the ensemble states normalisation factor is not provided,
-is is computed with using the standard deviation.
+it is computed with using the standard deviation.
 As for the observation errors, the normalisation
 factor :math:`\sigma`
 is approximated using function :func:`sonat.misc.sqrt_errors_norm`

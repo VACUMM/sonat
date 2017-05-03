@@ -10,14 +10,14 @@ The ArM method is a light-weight approach to network design,
 based on the hability of a network configuration to capture most
 of the model error covariances.
 These errors are simulated using ensemble methods.
-An "good" network is supposed to maximise the impact of observations
+A "good" network is supposed to maximise the impact of observations
 in an assimilation system.
 However, unlike the so-called OSSE (Observing System Simulation Experiments) approach,
-no assmilation is needed to assess a network. 
+no assimilation is needed to assess a network. 
 
 In the current implementation of SONAT, the ensemble is not representative
 of model errors, but rather of model variances.
-We speek of a 'pseudo-ensemble' that has no time dimension.
+We speak of a 'pseudo-ensemble' that has no time dimension.
 The ArM method becomes a measure of the efficiency of the network
 to sample the natural variability of the system, without any perspective
 of data assimilation.

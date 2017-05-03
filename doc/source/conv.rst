@@ -29,19 +29,21 @@ The special depths ``"surf"`` and ``"bottom"``
 These two special depths are used with impact on slicing and naming.
 The ``"surf"`` depth refers to the top of a 3D volumic data,
 and ``"bottom"`` to its bottom.
-The ``"surf"`` depth may be sligthly different from an interpolation at the zero depth.
+The ``"surf"`` depth may be sligthly different from an 
+interpolation at the zero depth.
 
 Colocating variables at the bottom requires the an estimate of the bathymetry.
 The section configuration section :confsec:`[bathy]`
 and the ``bathy`` keyword to some classes (:class:`~sonat.arm.ARM`,
-:class:`~sonat.obs.ObsManager` and :class:`~sonat.obs.NcObsPlatform`), methods and functions
+:class:`~sonat.obs.ObsManager` and :class:`~sonat.obs.NcObsPlatform`), 
+methods and functions
 are ways to provide this 2D bathymetry.
 
 Ensemble variable names may be suffixed with ``"_surf"`` or ``"_bottom"`` with
 when an extraction at this depths is required.
 Otherwise, variables are interpolated to a fixed number of vertical levels.
 These depths are also interpreted into the observations files.
-Finally, they are ones of the possibles slices used for plots.
+Finally, they are ones of the possible slices used for plots.
 
 
 .. _conv.mod:
@@ -49,7 +51,7 @@ Finally, they are ones of the possibles slices used for plots.
 Model files
 ===========
 
-All files must be by default in netcdf file format and CF compliant.
+All files must be by default in netcdf format and CF compliant.
 
 .. _conv.mode.mod:
 
@@ -57,9 +59,9 @@ Model outputs for pseudo-ensemble generation
 --------------------------------------------
 
 Model output must be CF compliant netcdf files with known variables (see :ref:`conv.vars`).
-To be recongnised, these variable must either have a known name (id) or a known standard_name attribute.
-Once read by :func:`vacumm.data.DS`, it is formatted with a the matching known id, like "temp" for temperature.
-Three dimensional variable are interpolated to a fixed vertical axis before other processing,
+To be recognised, these variable must either have a known name (id) or a known standard_name attribute.
+Once read by :func:`vacumm.data.DS`, it is formatted with the matching a known id, like "temp" for temperature.
+Three dimensional variables are interpolated to a fixed vertical axis before other processing,
 like the ensemble formation and reduction.
 
 .. _conv.mode.ens:

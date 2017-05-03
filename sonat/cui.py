@@ -96,7 +96,7 @@ def main(args=None):
 
     # Ensemble
     shelp = 'ensemble tools'
-    eparser = subparsers.add_parser('ens', description=shelp, help=help)
+    eparser = subparsers.add_parser('ens', description=shelp, help=shelp)
     esubparsers = eparser.add_subparsers(title='subcommands',
         description='use "<subcommand> --help" to have more help')
 

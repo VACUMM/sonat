@@ -3,7 +3,8 @@
 How to configure
 ================
 
-A short example is available :ref:`here <appendix.samples.config>`.
+A short example of configuration file is available 
+:ref:`here <appendix.samples.config>`.
 
 Basic setup
 -----------
@@ -35,7 +36,7 @@ the requested size of your ensemble with :confopt:`[ens][gen]nens`,
 and the enrichment factor with :confopt:`[ens][gen]enrich`.
 The list of variable is set by the :confopt:`[ens]varnames` option,
 and the output ensemble file is set by :confopt:`[ens]ncensfile` 
-Variable are interpolated to fixes depths that are set by option
+Variables are interpolated to fixed depths that are set by option
 :confopt:`[ens][gen]depths`.
 You can force the extraction of some variable at special
 levels by setting options in :confopt:`[ens][gen]levels`,
@@ -63,7 +64,7 @@ Ensemble diagnostics
 --------------------
 
 Once the file :confopt:`[ens]ncensfile` is created
-you can peform diagnostics that are configured in the :confsec:`[ens][diags]`
+you can perform diagnostics that are configured in the :confsec:`[ens][diags]`
 section.
 The diagnostics can be switch on or off by setting them like
 the skew with its option :confopt:`[ens][diags]skew`.
