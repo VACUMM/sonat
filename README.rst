@@ -4,8 +4,8 @@ SONAT - Stochastic ocean Observing Network Assessment Toolkit
 .. image:: https://travis-ci.org/VACUMM/sonat.svg?branch=master
     :target: https://travis-ci.org/VACUMM/sonat
 
-SONAT is intended to help designing a multivariate, multiplatform
-ocean observation networks using ocean model ensembles,
+SONAT is intended to help designing multivariate, multiplatform
+ocean observation networks using ocean model ensembles
 and the Array Modes (ArM) method.
 
 It takes the form of a python platform that 
