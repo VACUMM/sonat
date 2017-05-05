@@ -36,13 +36,11 @@
 # knowledge of the CeCILL license and that you accept its terms.
 #
 
-import re
 import os
 import matplotlib
-from matplotlib import rcParams, rc_params_from_file
 from validate import VdtTypeError, force_list
-from vcmq import (ConfigManager, cfgargparse, ArgList,
-    adatetime, get_cmap, kwfilter, register_config_validator)
+from vcmq import (ConfigManager, ArgList,
+    register_config_validator)
 
 from .misc import interpret_level
 
@@ -71,8 +69,6 @@ def parse_args_cfg(parser, args=None):
     """
     return SONAT_CFGM.arg_parse(parser, cfgfile=SONAT_DEFAULT_CFGFILE,
                                 getargs=True, args=args, getparser=False)
-#    return cfgargparse(SONAT_INIFILE, parser, cfgfile=SONAT_DEFAULT_CFGFILE,
-#        cfgfilter=cfgfilter, args=args)
 
 
 def check_cfg_aliases(cfg, param):

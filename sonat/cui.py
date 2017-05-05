@@ -37,12 +37,11 @@
 import sys
 import os
 from collections import OrderedDict
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser
 
 import matplotlib
-from pylab import register_cmap, get_cmap
+from pylab import register_cmap
 import cdms2
-import nose
 from vcmq import dict_merge, itv_intersect, checkdir
 
 from .__init__ import sonat_help, get_logger, SONATError, get_info, SONAT_INFO
@@ -52,7 +51,7 @@ from .config import (parse_args_cfg, get_cfg_xminmax, get_cfg_yminmax,
 from .misc import interpret_level, dicttree_relpath
 from .obs import load_obs_platform, ObsManager
 from .ens import generate_pseudo_ensemble, Ensemble
-from .arm import (ARM, XYLocARMSA, list_arm_sensitivity_analysers,
+from .arm import (ARM, list_arm_sensitivity_analysers,
                   get_arm_sensitivity_analyser)
 from .render import render_and_export_html_template
 from .my import load_user_code_file, SONAT_USER_CODE_FILE
@@ -202,7 +201,6 @@ def ens_gen_pseudo_from_cfg(cfg):
         Path to netcdf file
     """
     # Config
-    cfgd = cfg['domain']
     cfge = cfg['ens']
     cfgeg = cfge['gen']
     cfgegf = cfgeg['fromobs']
@@ -278,7 +276,7 @@ def ens_gen_pseudo_from_cfg(cfg):
 
     # Run and save
     generate_pseudo_ensemble(ncmodfiles, nrens=nens, enrich=enrich,
-        norms=None, lon=lon, lat=lat, time=time, level=level, depths=depths,
+        norms=norms, lon=lon, lat=lat, time=time, level=level, depths=depths,
         varnames=varnames,
         getmodes=getmodes, logger=logger, asdicts=False, anomaly=True,
         ncensfile=ncensfile)
@@ -318,15 +316,9 @@ def ens_plot_diags_from_cfg(cfg):
     # Config
     lon = get_cfg_xminmax(cfg)
     lat = get_cfg_yminmax(cfg)
-    cfgd = cfg['domain']
-    cfgc = cfg['cmaps']
     cfge = cfg['ens']
     cfged = cfge['diags']
     cfgedp = cfged['plots']
-    cfgp = cfg['plots']
-    cfgps = cfgp['sections']
-    cfgo = cfg['obs']
-    cfgop = cfgo['plots']
 
     # Init
     logger = init_from_cfg(cfg)
@@ -443,7 +435,6 @@ def obs_plot_from_cfg(cfg, platforms=None):
     lat = get_cfg_yminmax(cfg)
     cfgo = cfg['obs']
     cfgop = cfgo['plots']
-    cfgos = cfgo['platforms']
     figpat = get_cfg_path(cfg, 'obs', 'figpat')
     kwplotspecs = get_cfg_obs_plot_specs(cfg)
     kwslices = get_cfg_plot_slice_specs(cfg)
@@ -585,8 +576,6 @@ def arm_sa_from_cfg(cfg, sa_names=None):
     cfge = cfg['ens']
     cfgo = cfg['obs']
     cfgop = cfgo['plots']
-    cfgp = cfg['plots']
-    cfgps = cfgp['sections']
     lon = get_cfg_xminmax(cfg)
     lat = get_cfg_yminmax(cfg)
     ncensfile = get_cfg_path(cfg, 'ens', 'ncensfile')
@@ -677,7 +666,7 @@ def test_from_cfg(cfg, names=None):
 
     # Run nose
     logger.verbose('Performing tests')
-    from nose import runmodule
+    import nose
     successes = 0
     for i, name in enumerate(names):
         logger.debug('Testing: '+name)

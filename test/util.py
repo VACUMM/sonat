@@ -19,8 +19,8 @@ if os.path.exists(os.path.join(LIB_DIR, '__init__.py')):
         del sys.path[0]
         if os.environ.get('READTHEDOCS', ''):
             del sys.path[:2]
-print sys.path
 from sonat import get_logger, get_data_dir, LOGGER
+
 
 assert_allclose = N.testing.assert_allclose
 assert_raises = N.testing.assert_raises

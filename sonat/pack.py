@@ -38,7 +38,7 @@ Inspired from the spanlib library (http://www.github.com/stefraynaud/spanlib)
 import numpy
 import MV2
 import cdms2
-from vcmq import dict_filter, broadcast, get_atts, set_atts, isaxis
+from vcmq import set_atts
 
 from .__init__ import SONATError
 from .misc import _Base_

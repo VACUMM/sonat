@@ -33,24 +33,21 @@
 # knowledge of the CeCILL license and that you accept its terms.
 #
 
-import re
 import os
-import codecs
 import string
 from string import Formatter
-from six import string_types
 from glob import has_magic, glob
 from collections import OrderedDict
 import numpy as N
 import cdms2
 import MV2
 from genutil import minmax as minmax
-from vcmq import (ncget_time, itv_intersect, pat2freq, lindates, adatetime,
+from vcmq import (ncget_time, pat2freq, lindates, adatetime,
     comptime, add_time, pat2glob, are_same_units, indices2slices,
-    kwfilter, numod, GENERIC_VAR_NAMES, DS, set_atts, format_var,
+    kwfilter, GENERIC_VAR_NAMES, DS, set_atts, format_var,
     match_known_var, ArgList, create_lon, regrid1d, grid2xy, create_lat,
     create_time, create_dep, create_axis, cp_atts, isaxis,
-    dicttree_set, dicttree_get)
+    dicttree_set, dicttree_get, intersect)
 
 from .__init__ import sonat_warn, SONATError, get_logger
 
@@ -209,7 +206,7 @@ def list_files_from_pattern(ncpat, time=None, dtfile=None, sort=True, **subst):
                 files = [ncpat]
 
     # Check existence
-    files = [ncfile for ncfile in files if os.path.exists(ncfile)]
+    files = filter(os.path.exists, files)
 
     # Unique
     files = list(set(files))
@@ -251,7 +248,7 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False, asslices=False):
             taxis = ncget_time(ncfile, ro=True)
             if taxis is None:
                 SONATError("Can't read time axis in file: " + ncfile)
-            ctimes = taxis.asComponentTime()
+#            ctimes = taxis.asComponentTime()
 
             if i==0: # Reference info
 
@@ -299,7 +296,7 @@ def ncfiles_time_indices(ncfiles, dates, getinfo=False, asslices=False):
 def asma(*args):
     """Return pure numpy or numpy.ma arrays"""
     if not args: return
-    single = len(args)==1
+#    single = len(args)==1
     out = []
     for arg in args:
         if cdms2.isVariable(arg):
@@ -441,7 +438,7 @@ class _Base_(object):
 
     def error(self, msg):
         """Raise a :class:`SONARError`"""
-        raise SONARError(msg)
+        raise SONATError(msg)
 
     def warning(self, msg):
         """Issue a :class:`SONATWarning`"""
@@ -604,10 +601,11 @@ class _NamedVariables_(object):
     def set_named_norms(self, *anorms, **knorms):
         """Set norms by variable names
 
-        Note
-        ----
-        The :class:`~sonat.pack.Packer` instance of variables that were
-        not normed are returned.
+        Return
+        ------
+        list
+            The :class:`~sonat.pack.Packer` instance of variables that were
+            not normed are returned.
 
         Example
         -------
@@ -629,7 +627,43 @@ class _NamedVariables_(object):
             self._core_stack_()
         return notnormed
 
+def var_prop_dict2list(variables, *args, **kwargs):
+    """Convert a variables properties as dict to a list form
+    
+    If
+    
+    Parameters
+    ----------
+    variables: list
+        A list of MV2.array or a single array
+    \*arnorms, \**kwnorms
+        Dictionary arguments whose keys are the :attr:`id` attribute
+        prefix of a variable.
+        
+    Return
+    ------
+    list
+        Properties as a list of the same length as input
+        
 
+    Example
+    -------
+    
+    >>> var_prop_dict2list([temp, sal], dict(u=4, temp=6))
+    [6, None]
+    """
+    dargs = dict(*args, **kwargs)
+    al = ArgList(variables)
+    largs = []
+    for var in al.get():
+        if hasattr(var, 'id'):
+            id = var.id.split('_')[0]
+            val = dargs.get(id, None)
+        else:
+            val = None
+        largs.append(val)
+    return largs
+        
 
 def validate_varnames(varnames):
     """Check that all variable names are in

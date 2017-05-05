@@ -40,7 +40,7 @@ import os
 import imp
 import inspect
 
-from vcmq import Dataset, register_dataset #, register_cf_variable
+from vcmq import Dataset, register_dataset, register_cf_variable
 
 from .__init__ import SONATError, sonat_warn
 from .obs import register_obs_platform, NcObsPlatform

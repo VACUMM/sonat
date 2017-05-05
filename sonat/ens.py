@@ -42,18 +42,18 @@ from collections import OrderedDict
 import scipy.stats as SS
 from matplotlib.ticker import MultipleLocator
 from vcmq import (cdms2, MV2, DS, ncget_time, lindates, ArgList, format_var,
-    MV2_concatenate, create_axis, N, kwfilter, check_case, match_known_var,
-    CaseChecker, curve, bar, dict_check_defaults, dict_merge, checkdir,
+    MV2_concatenate, create_axis, N, kwfilter, match_known_var,
+    bar, dict_check_defaults, dict_merge, checkdir,
     dicttree_get, dicttree_set, latlab, lonlab, P, regrid2d, Plot2D)
 
-from .__init__ import get_logger, sonat_warn, SONATError
-from .misc import (list_files_from_pattern, ncfiles_time_indices, asma, NcReader,
-    validate_varnames, _NamedVariables_, check_variables, dicttree_relpath,
-    interpret_level, split_varname)
+from .__init__ import get_logger, SONATError
+from .misc import (list_files_from_pattern, ncfiles_time_indices, NcReader,
+    _NamedVariables_, check_variables, dicttree_relpath,
+    interpret_level, split_varname, var_prop_dict2list)
 from .stack import Stacker
 from ._fcore import f_eofcovar, f_sampleens
 from .plot import (plot_gridded_var, DEFAULT_PLOT_KWARGS)
-from .render import register_html_template, render_and_export_html_template
+from .render import render_and_export_html_template
 
 #: Default plotting keyword per ensemble diagnostic
 DEFAULT_PLOT_KWARGS_PER_ENS_DIAG = {
@@ -200,7 +200,6 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
 
         # List of well known variables
         if varnames is None:
-            ncvarnames = ds.get_variable_names()
             varnames = []
             for ncvarname in ds.get_variable_names():
                 varname = match_known_var(ds[0][ncvarname])
@@ -252,7 +251,7 @@ def load_model_at_regular_dates(ncpat, varnames=None, time=None, lat=None, lon=N
 
                 # Read and aggregate
                 vout = out.setdefault(vnameo, [])
-                vinterp = None
+#                vinterp = None
                 for tslice in tslices:
 
                     # Get var
@@ -339,6 +338,10 @@ def generate_pseudo_ensemble(ncpat, varnames=None, nrens=50, enrich=2., norms=No
     data = load_model_at_regular_dates(ncpat, varnames=varnames, nt=nt,
         asdict=False, **kwargs)
     single = not isinstance(data, list)
+    
+    # Norms
+    if isinstance(norms, dict):
+        norms = var_prop_dict2list(data, norms)
 
     # Enrichment
     witheofs = nrens!=nt
@@ -760,7 +763,7 @@ class Ensemble(Stacker, _NamedVariables_):
         :func:`scipy.stats.kurtosistest`
         :func:`scipy.stats.normaltest`
         """
-        if (not mean and not variance and not kurtosis and not skewness and
+        if (not mean and not variance and not kurtosis and not skew and
                 not skewtest and not kurtosistest and not normaltest):
             return {}
         diags = OrderedDict()

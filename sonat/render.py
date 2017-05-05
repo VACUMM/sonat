@@ -4,8 +4,8 @@
 import os
 import shutil
 import re
-from jinja2 import Template, Environment, DictLoader
-from jinja2.filters import FILTERS as JINJA_FILTERS
+from jinja2 import Environment, DictLoader
+#from jinja2.filters import FILTERS as JINJA_FILTERS
 from jinja2.utils import soft_unicode
 
 

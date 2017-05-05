@@ -35,18 +35,17 @@
 import os
 import inspect
 import math
-import re
 from collections import OrderedDict
 
 import numpy as N
 from matplotlib.ticker import MultipleLocator
 import MV2, cdms2
 
-from vcmq import (curve, create_axis, dict_check_defaults, kwfilter, m2deg, P,
+from vcmq import (curve, create_axis, dict_check_defaults, kwfilter, P,
                   add_shadow, add_param_label, checkdir)
 
 from .__init__ import SONATError, sonat_warn
-from .misc import (_Base_, recursive_transform_att, vminmax, xycompress,
+from .misc import (_Base_, recursive_transform_att, vminmax,
                    dicttree_relpath)
 from .ens import Ensemble
 from .obs import ObsManager, NcObsPlatform
@@ -274,7 +273,7 @@ class ARM(_Base_):
 
         # Check cache / truncate to ndof
         if (not force  and 'raw_spect' in self._results and
-            ndof >= len(self._results[raw_spect])):
+            ndof >= len(self._results['raw_spect'])):
             self.clean_analysis(raw=False)
             self._results['raw_spect'] = self._results['raw_spect'][:ndof]
             self._results['raw_arm'] = self._results['raw_arm'][:, :ndof]
@@ -659,7 +658,7 @@ class ARM(_Base_):
             self.created(ncfile_spect)
 
         # Array modes
-        if ncfile_arm:
+        if ncpat_arm:
             for arm, obs in zip(self.arm, self.obsmanager):
                 platform_name = obs.platform_name
                 ncfile_arm = ncpat_arm.format(**locals())
@@ -756,7 +755,7 @@ class ARM(_Base_):
         if not isinstance(data, list):
             dat = data[imode]
             return dat
-        return [self.extract_mode(dat, mode) for dat in data]
+        return [self.extract_mode(_, mode) for _ in data]
 
     def analyse_sensitivity(self, sa_name, htmlfile=None, ncfile=None, **kwargs):
         """Perform a sensitivity analysis
@@ -849,7 +848,7 @@ class ARMSA(_Base_):
     def get_long_name(cls):
         if hasattr(cls, 'long_name'):
             return cls.long_name
-        return self.name + " sensisitivity analysis"
+        return cls.name + " sensisitivity analysis"
 
     def analyse(self, **kwargs):
 
@@ -1235,7 +1234,7 @@ register_arm_sensitivity_analyser(XYLocARMSA)
 def get_arm_sensitivity_analyser(name, arm=None, **kwargs):
     """Get an ARM sensitivity analyser class or instance"""
     if name not in ARM_SENSITIVITY_ANALYSERS:
-        raise SONATerror(('Invalid ARM sensitivity analyser: {}. '
+        raise SONATError(('Invalid ARM sensitivity analyser: {}. '
                           'Please choose one of: {}').format(name,
                           ' '.join(ARM_SENSITIVITY_ANALYSERS.keys())))
 

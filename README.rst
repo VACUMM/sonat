@@ -25,19 +25,37 @@ It will also install the `VACUMM <http://www.ifremer.fr/vacumm>`_
 and `SANGOMA <http://www.data-assimilation.net>`_ packages,
 and their respective dependencies.
 
+
 Sources and help
 -----------------
 
 Source are available on the SONAT `github page <https://github.com/VACUMM/sonat>`_.
 Here you can also post tickets for requests and issues.
 
+
 License
 -------
 
 VACUMM is under the CeCiLL license,
-which is compatible with well knwon GPL license,
+which is compatible with well known GPL license,
 and is a property of `IFREMER <http://www.ifremer.fr>`_.
 
+
+Credits
+-------
+
+The first version of SONAT was developped by `Actimar <http://www.actimar.fr>`_,
+in collaboration with the `CNRS/LEGOS <http://www.legos.obs-mip.fr>`_,
+for `IFREMER <http://www.ifremer.fr>`_ thanks to a grant from the 
+`CPER ROEC <https://data.ifremer.fr/SISMER/Cooperations/Nationales/ROEC>`_.
+
+
+Contacts
+--------
+
+* Guillaume Charria <guillaume.charria (at) ifremer.fr> 
+* Stéphane Raynaud <stephane.raynaud (at) actimar.fr>
+* Pierre De Mey <pierre.de-mey (at) legos.obs-mip.fr>
 
 Documentation
 -------------

@@ -43,24 +43,22 @@ from six import string_types
 import cdms2
 import MV2
 import numpy as N
-from cycler import cycler, Cycler
-from matplotlib import rcParams
-from matplotlib.markers import MarkerStyle
 from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
-    ncget_time, ncget_level, ArgList, ncfind_obj, itv_intersect, intersect,
+    ncget_time, ncget_level, ArgList,
     MV2_axisConcatenate, transect, create_axis, regrid1d, isaxis, checkdir,
-    dicttree_get, dict_check_defaults, meshgrid, P, kwfilter, m2deg,
-    lonlab, latlab, deplab, dict_merge)
+    dicttree_get, dict_check_defaults, meshgrid, kwfilter,
+    lonlab, latlab, deplab, dict_merge, create_time, reltime)
 
 from .__init__ import sonat_warn, SONATError, BOTTOM_VARNAMES, get_logger
-from .misc import (xycompress, _Base_, _XYT_, check_variables, _NamedVariables_,
+from .misc import (xycompress, _Base_, _XYT_, _NamedVariables_,
                    rescale_itv, get_long_name, split_varname, dicttree_relpath,
                    sqrt_errors_norm)
 from .pack import default_missing_value
 from .stack import Stacker, _StackerMapIO_
 from .plot import (plot_scattered_locs, sync_scalar_mappable_plots_vminmax,
                    get_color_marker_cycler, sync_scalar_mappables_vminmax,
-                   add_colorbar, get_registered_scatter_mappables)
+                   add_colorbar, get_registered_scatter_mappables, 
+                   )
 from .render import render_and_export_html_template
 
 npy = N
@@ -449,7 +447,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
                 self.times = ncget_time(f)
                 if self.times is not None:
                     if self.time:
-                        times = create_time(times[:], times.units)[:]
+                        times = create_time(self.times[:], self.times.units)[:]
                         xymask |= times < reltime(self.time[0], times.units)
                         xymask |= times > reltime(self.time[1], times.units)
                     self.platform_shape = self.platform_shape + 't'
@@ -1422,7 +1420,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         """
         norms = self.remap(norms, reshape=True)
         for obs, norm in zip(self, norms):
-            obs[i].set_norms(norm)
+            obs.set_norms(norm)
         self._core_stack_()
 
     def set_named_norms(self, *anorms, **knorms):
@@ -1484,7 +1482,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
     def sync_scatter_plots_vminmax(self):
         """Sync min and max of all scatter plots that are on the same axes"""
         for ax in self.get_cached_plots():
-            sync_scatter_plots_vminmax(ax)
+            sync_scalar_mappable_plots_vminmax(ax)
 
 
     def restack(self, input, scale='norm'):
@@ -1617,7 +1615,7 @@ class ObsManager(_Base_, _StackerMapIO_, _ObsBase_):
         if lat is None: # and (full2d or full3d or merid_sections or
 #                            horiz_sections or surf or bottom):
             lat = self.get_lat(margin=lat_bounds_margin)
-        if (level is None and (not self.has_bottom or bathy is not None) and
+        if (level is None and (not self.has_bottom or self.bathy is not None) and
             (full3d or zonal_sections or merid_sections or bottom)):
             level = (self.get_level()[0], 0)
 

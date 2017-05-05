@@ -3,7 +3,6 @@
 These tests are taken from the examples of the SANGOMA library.
 """
 import os
-import sys
 import numpy as N
 from scipy.signal import convolve2d
 from scipy.interpolate import interp1d
@@ -232,6 +231,7 @@ def test_fcore_sampleens():
 
     # Check
 #    assert_allclose(ens, ens_true) # fails only with nosetests!
+    # TODO: add checks to test_fcore_sampleens
 
 def test_fcore_computeensstats():
     """Test the :func:`sonat._fcore.f_computeens` function"""

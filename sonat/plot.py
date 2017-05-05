@@ -35,7 +35,6 @@
 
 import os
 import re
-from six import string_types
 import numpy as N
 from cycler import cycler, Cycler
 import matplotlib.pyplot as P
@@ -46,12 +45,12 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib.colors import Normalize
 import cdms2, MV2
 from vcmq import (map, hov, stick, curve, section, dict_check_defaults, plot2d,
-                  kwfilter, curv2rect, deplab, isaxis, meshbounds,
+                  kwfilter, curv2rect, deplab, isaxis,
                   grid2xy, scalebox, Plot, land_color, add_shadow,
-                  broadcast, minbox, add_map_box, add_map_point, transect)
+                  broadcast, minbox, add_map_box, transect)
 
 from .__init__ import SONATError, sonat_warn
-from .misc import (slice_gridded_var, vminmax, mask_scattered_locs,
+from .misc import (slice_gridded_var, mask_scattered_locs,
                    rescale_itv, get_long_name)
 
 
@@ -151,8 +150,8 @@ def plot_gridded_var(var, member=None, time=None, depth=None, lat=None, lon=None
             'It must match [-][t][z][y][x]'.format(order))
 
     # Slice
-    vv = tuple([slice_gridded_var(var, member=member, time=time, depth=depth,
-            lat=lat, lon=lon)(squeeze=1)  for var in vv])
+    vv = tuple([slice_gridded_var(_, member=member, time=time, depth=depth,
+            lat=lat, lon=lon)(squeeze=1)  for _ in vv])
 
     # Scalar
     for var in vv:
@@ -443,6 +442,10 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
     assert slice_type in valid_slice_types, ('Invalid slice type. '
         'It must be one of: '+', '.join(valid_slice_types))
 
+    # Numeric horizontal coordinates
+    xx = lons[:].copy()
+    yy = lats[:].copy()
+    
     # Profiles?
     profiles = (not isinstance(depths, str) and (isaxis(depths) or
                 N.shape(depths)!=N.shape(xx) or
@@ -483,9 +486,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
         if interval is not None and N.isscalar(interval[0]):
             interval = (depths+interval[0], depths+interval[1])
 
-    # Numeric coordinates
-    xx = lons[:].copy()
-    yy = lats[:].copy()
+    # Numeric vertical coordinates
     strdepths = isinstance(depths, str)
     if not strdepths:
         zz = N.array(depths[:], copy=True)
@@ -694,7 +695,7 @@ def plot_scattered_locs(lons, lats, depths, slice_type=None, interval=None, plot
             if add_profile_line:
                 for ip, (x, y) in enumerate(zip(xx, yy)):
                     plot_profile_line_3d(ax, x, y, xybathy[ip],
-                                         zorder=p.get_zorder()-0.01, **kwpf)
+                                         zorder=pp[-1].get_zorder()-0.01, **kwpf)
 
 
         else: # profiles

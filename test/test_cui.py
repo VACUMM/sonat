@@ -77,11 +77,11 @@ def _test_cui_test_from_cfg():
 if __name__=='__main__':
 
     test_cui_ens_gen_pseudo_from_cfg()
-    test_cui_ens_plot_diags_from_cfg()
-    test_cui_obs_plot_from_cfg()
-    test_cui_arm_analysis_from_cfg()
-    test_cui_arm_sa_from_cfg()
-    _test_cui_test_from_cfg()
+#    test_cui_ens_plot_diags_from_cfg()
+#    test_cui_obs_plot_from_cfg()
+#    test_cui_arm_analysis_from_cfg()
+#    test_cui_arm_sa_from_cfg()
+#    _test_cui_test_from_cfg()
 
 
 
