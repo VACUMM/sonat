@@ -99,8 +99,6 @@ class SONATLogger(Logger):
 
 def get_logger(name=None, cfg=None, **kwargs):
     """Automatically setup a logger for the current script"""
-    kwargs.setdefault('redirect_warnings', True)
-    kwargs.setdefault('redirect_stdout', 'debug')
     import sonat
     if cfg is not None:
         level = cfg['logger']['level']
@@ -114,6 +112,8 @@ def get_logger(name=None, cfg=None, **kwargs):
         file = None
         redirect_warnings = True
         redirect_stdout = 'debug'
+    kwargs.setdefault('redirect_warnings', redirect_warnings)
+    kwargs.setdefault('redirect_stdout', redirect_stdout)
     kwargs.setdefault('level', level)
     kwargs.setdefault('logfile', file)
 
@@ -134,29 +134,22 @@ def get_logger(name=None, cfg=None, **kwargs):
 
     else:
 
-         if os.path.exists(name):
-             path = name
-             name = path2logname(name)
-         else:
-             path = None
+        # Existing logger
+        if sonat.LOGGER: 
 
-         if sonat.LOGGER: # Existing logger
+            if sonat.LOGGER.name != name: # Create a child
 
-             if sonat.LOGGER.name != name: # Create a child
+                name = '{}.{}'.format(sonat.LOGGER.name, name)
+                return SONATLogger(name, console=False, logfile=None)
 
-                 name = '{}.{}'.format(sonat.LOGGER.name, name)
-                 return SONATLogger(name, console=False, logfile=None)
+            # Same logger to use it
+            return sonat.LOGGER
 
-             # Same logger to use it
-             return sonat.LOGGER
-
-         # New specific logger
-         kwargs.setdefault('logfile', 'sonat.log')
-         kwargs.setdefault('level', 'info')
-         sonat.LOGGER = SONATLogger(name, **kwargs)
-         if path is not None:
-             sonat.LOGGER.debug('Running: '+path)
-         return sonat.LOGGER
+        # New specific logger
+        kwargs.setdefault('logfile', 'sonat.log')
+        kwargs.setdefault('level', 'info')
+        sonat.LOGGER = SONATLogger(name, **kwargs)
+        return sonat.LOGGER
 
 #: Current root :class:`~vacumm.misc.io.Logger` instance
 LOGGER = None
