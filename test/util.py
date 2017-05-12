@@ -121,6 +121,7 @@ def create_mv2_scattered_xyzt(np=10, nz=6, nt=5, xmin=-6., xmax=-3, ymin=46,
     if nt!=0:
         time = create_time(lindates(tmin, tmax, nt), tunits)
         shape += nt,
+        axes.append(time)
     if nz!=0:
         dep = create_dep(N.linspace(zmin, zmax, nz))
         axes.append(dep)

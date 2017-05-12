@@ -689,7 +689,6 @@ def load_my_sonat_from_cfg(cfg, logger):
 
     # My file
     myfile = cfg['session']['usercodefile']
-    myfile = myfile or SONAT_USER_CODE_FILE
 
     # Load it
     logger.debug('Load user code file: '+myfile)
