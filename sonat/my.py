@@ -130,3 +130,5 @@ def load_user_code_file(myfile=None):
         elif name.lower().startswith(ARM_SCORE_FUNCTION_PREFIX):
 
             register_arm_score_function(name, obj)
+
+    return myfile

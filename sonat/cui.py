@@ -691,9 +691,13 @@ def load_my_sonat_from_cfg(cfg, logger):
     myfile = cfg['session']['usercodefile']
 
     # Load it
-    logger.debug('Load user code file: '+myfile)
-    load_user_code_file(myfile)
-    logger.verbose('Loaded user code file: '+myfile)
+    if myfile is None:
+        logger.debug('Will try to load default user code file')
+    else:
+        logger.debug('Load user code file: '+myfile)
+    myfile = load_user_code_file(myfile)
+    if myfile is not None:
+        logger.verbose('Loaded user code file: '+myfile)
 
 
 def register_cmaps_from_cfg(cfg, logger):
