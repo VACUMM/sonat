@@ -34,7 +34,7 @@ test:
     commands:
     - sonat info
     - sonat --short-help
-    - mkdir MYTESTS && cd MYTESTS && sonat --logger-level=debug test
+    - mkdir -p MYTESTS && cd MYTESTS && sonat --logger-level=debug test
     imports:
     - sonat
     - sonat._fcore
