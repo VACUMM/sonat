@@ -54,8 +54,8 @@ The following environment variables are declared
 
 __author__ = 'Stephane Raynaud, Guillaume Charria, Pierre De Mey'
 __email__ = "raynaud@actimar.fr, charria@actimar.fr"
-__version__ = '0.0.1'
-__date__ = '2016-11-01'
+__version__ = '1.0.0'
+__date__ = '2017-05-15'
 __url__ = 'http://relay.actimar.fr/~raynaud/sonat'
 __copyright__ = 'IFREMER'
 
