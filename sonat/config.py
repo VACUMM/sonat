@@ -289,7 +289,6 @@ def get_cfg_ens_plot_specs(cfg, prefix=None):
 
 def is_level(value, default=None):
     """Validate a string that can be evaluated"""
-    interpret_level(tuple(force_list(value, 1, 3)))
     try:
         return interpret_level(tuple(force_list(value, 1, 3)))
     except:
