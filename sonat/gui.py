@@ -65,15 +65,18 @@ class SonatPlugin(Plugin):
 			('sonat_logs', dict(
 				title='Show log file',
 				func=self.show_log
-			))
+			)),
 		))
 		
 		self.tab_widgets = set()
 	
 	def enable(self):
-		self.info('Enabling %s', self.__class__.__name__)
+		Plugin.enable(self)
 		
 		self.main_window = self.application.main_controller.main_window
+		
+		self.application.sessions_controller.sessions_dialog.line_specification.setEnabled(False)
+		self.application.sessions_controller.sessions_dialog.button_specification.setEnabled(False)
 		
 		self.menu = QtGui.QMenu(self.main_window.menubar)
 		self.menu.setObjectName('menu_sonat')
@@ -83,7 +86,7 @@ class SonatPlugin(Plugin):
 		for name,tool in self.tools.items():
 		
 			action = QtGui.QAction(self.main_window)
-			action.setIcon(QtGui.QIcon.fromTheme('application-x-executable'))
+			action.setIcon(QtGui.QIcon.fromTheme(tool.get('icon', 'application-x-executable')))
 			action.setText(tool['title'])
 			
 			def connect_start_tool(tool):
@@ -94,11 +97,24 @@ class SonatPlugin(Plugin):
 			
 			self.menu.addAction(action)
 		
+		action = QtGui.QAction(self.main_window)
+		action.setIcon(QtGui.QIcon.fromTheme(tool.get('icon', 'help-contents')))
+		action.setText('User\'s guide')
+		action.triggered.connect(self.on_menu_help)
+		self.main_window.menu_help.addAction(action)
+		
 		self.main_window.tabs.tabCloseRequested.connect(self.on_tab_close_requested)
 	
 	def disable(self):
-		self.info('Disabling %s', self.__class__.__name__)
-		# TODO: cleanup
+		Plugin.disable(self)
+		# TODO
+	
+	def session_created(self, session):
+		session.specification_file = sonat.config.SONAT_INIFILE
+		self.info('Session created:\n%s', session.to_xml_str())
+	
+	def on_menu_help(self):
+		self.add_html_tab('Help', 'http://relay.actimar.fr/~raynaud/sonat')
 	
 	def on_tab_close_requested(self, index):
 		self.info('on_tab_close_requested')
@@ -108,16 +124,18 @@ class SonatPlugin(Plugin):
 			self.tab_widgets.remove(widget)
 			widget.deleteLater()
 	
-	def add_html_tab(self, title, html_file):
-		self.info('add_html_tab htmlfile: %r', html_file)
+	def add_html_tab(self, title, url):
+		self.info('add_html_tab url: %r', url)
 		tab  = QtGui.QWidget()
 		layout = QtGui.QVBoxLayout(tab)
-		tab_index = self.main_window.tabs.addTab(tab, title + ' - ' + os.path.basename(html_file))
+		tab_index = self.main_window.tabs.addTab(tab, title + ' - ' + os.path.basename(url))
 		self.tab_widgets.add(tab)
 		self.main_window.tabs.setCurrentIndex(tab_index)
 		webview = QtWebKit.QWebView(tab)
 		layout.addWidget(webview)
-		webview.load(QtCore.QUrl('file://'+html_file))
+		if not url.startswith('http://') and not url.startswith('https://'):
+			url = 'file://'+url
+		webview.load(QtCore.QUrl(url))
 	
 	def get_configuration(self):
 		

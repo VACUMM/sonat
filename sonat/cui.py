@@ -228,9 +228,9 @@ def ens_gen_pseudo_from_cfg(cfg):
     nens = cfgeg['nens']
     enrich = cfgeg['enrich']
     norms = cfg['norms']
-    level = interpret_level(cfgegl.dict())
+    level = cfgegl.dict()
     depths = cfgeg['depths']
-    varnames = cfge['varnames'] or None
+    varnames = cfgeg['varnames'] or None
     getmodes = enrich > 1
 
     # Options from obs
