@@ -215,7 +215,7 @@ class SonatPlugin(Plugin):
                     return
                 os.remove(check_file)
             
-            progress.setLabelText('Generating %r'%(check_file,))
+            progress.setLabelText('Generating %s'%(check_file,))
             
             def finished():
                 if not os.path.isfile(check_file):
@@ -238,7 +238,7 @@ class SonatPlugin(Plugin):
                     return
                 os.remove(html_file)
             
-            progress.setLabelText('Generating %r'%(html_file,))
+            progress.setLabelText('Generating %s'%(html_file,))
             
             def finished():
                 if not os.path.isfile(html_file):
@@ -356,7 +356,10 @@ class RunThread(QtObject, QtCore.QThread):
             self.finished.emit(res, None, None)
 
 
-populate_argparser = Application.populate_argparser
+def populate_argparser(parser):
+    Application.populate_argparser(parser)
+    parser.set_defaults(configuration_directory=os.path.join(os.path.expanduser('~'), '.sonat', 'gui'))
+
 
 def run_from_args(parser, args, cfg):
     Logger.apply_class_argparser_options(args)
