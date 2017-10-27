@@ -159,8 +159,8 @@ def test_arm_scores():
     rep = None
 
     # Scores
-    res = [get_arm_score_function(score_type)(spect, arm, rep)
-           for score_type in ('nev', 'fnev', 'relvar')]
+    res = [score_function(spect, arm, rep)
+           for score_type, score_function in ARM_SCORE_FUNCTIONS.items()]
 
     return res
 
@@ -214,22 +214,20 @@ def test_arm_xylocarmsa_export_html():
 
 
 if __name__=='__main__':
-    res = test_arm_arm_init()
-    res = test_arm_arm_project_ens_on_obs()
-    res = test_arm_arm_inputs()
-    res = test_arm_arm_analyse()
-    res = test_arm_arm_results()
-    res = test_arm_arm_indirect_spectrum()
-    res = test_arm_register_arm_score_function()
-    res = test_arm_get_arm_score_function()
+#    res = test_arm_arm_init()
+#    res = test_arm_arm_project_ens_on_obs()
+#    res = test_arm_arm_inputs()
+#    res = test_arm_arm_analyse()
+#    res = test_arm_arm_results()
+#    res = test_arm_arm_indirect_spectrum()
+#    res = test_arm_register_arm_score_function()
+#    res = test_arm_get_arm_score_function()
     res = test_arm_scores()
-    res = test_arm_arm_plot_spect()
-    res = test_arm_arm_plot_arm()
-    res = test_arm_arm_plot_rep()
-    res = test_arm_arm_export_html()
-    res = test_arm_xylocarmsa()
-    res = test_arm_xylocarmsa_plot()
-    res = test_arm_xylocarmsa_export_html()
-
-
+#    res = test_arm_arm_plot_spect()
+#    res = test_arm_arm_plot_arm()
+#    res = test_arm_arm_plot_rep()
+#    res = test_arm_arm_export_html()
+#    res = test_arm_xylocarmsa()
+#    res = test_arm_xylocarmsa_plot()
+#    res = test_arm_xylocarmsa_export_html()
 

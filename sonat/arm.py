@@ -1260,6 +1260,11 @@ def arm_score_nev(spect, arm, rep):
     """ARM score as the number of eigen values greater than one"""
     return (spect>=1).sum()
 
+def arm_score_rnev(spect, arm, rep):
+    """ARM score as the number of eigen values greater than one 
+    relative to the number of eigenvalues"""
+    return float(arm_score_nev(spect, arm, rep)) / spect.size
+
 def arm_score_fnev(spect, arm, rep):
     """ARM score as the fractional number of eigen values greater than one"""
     # Integer value
@@ -1271,6 +1276,10 @@ def arm_score_fnev(spect, arm, rep):
     spect = spect -1
     return float(nev) + spect[nev-1] / (spect[nev-1] - spect[nev])
 
+def arm_score_frnev(spect, arm, rep):
+    """ARM score as the fractional number of eigen values greater than one
+    relative to the number of eigenvalues"""
+    return arm_score_fnev(spect, arm, rep) / spect.size
 
 def arm_score_relvar(spect, arm, rep):
     """ARM score as the integration of the variance greater than one"""
@@ -1349,5 +1358,7 @@ def list_arm_score_types():
 
 # Register default score functions
 register_arm_score_function(arm_score_nev)
+register_arm_score_function(arm_score_rnev)
 register_arm_score_function(arm_score_fnev)
+register_arm_score_function(arm_score_frnev)
 register_arm_score_function(arm_score_relvar)
