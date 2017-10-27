@@ -150,6 +150,12 @@ def main(args=None):
         help='sensitivity analyser name, like "xyloc"')
     asparser.set_defaults(func=arm_sa_from_args)
 
+    # GUI
+    import sonat.gui
+    shelp = 'Graphical User Interface'
+    gparser = subparsers.add_parser('gui', description=shelp, help=shelp)
+    sonat.gui.populate_argparser(gparser)
+    gparser.set_defaults(func=sonat.gui.run_from_args)
 
     # Test
     shelp = 'launch the test suite'
@@ -222,7 +228,7 @@ def ens_gen_pseudo_from_cfg(cfg):
     nens = cfgeg['nens']
     enrich = cfgeg['enrich']
     norms = cfg['norms']
-    level = interpret_level(cfgegl.dict())
+    level = cfgegl.dict()
     depths = cfgeg['depths']
     varnames = cfgeg['varnames'] or None
     getmodes = enrich > 1

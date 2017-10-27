@@ -289,11 +289,13 @@ def get_cfg_ens_plot_specs(cfg, prefix=None):
 
 def is_level(value, default=None):
     """Validate a string that can be evaluated"""
-    interpret_level(tuple(force_list(value, 1, 3)))
     try:
-        return interpret_level(tuple(force_list(value, 1, 3)))
+        #res = interpret_level(tuple(force_list(value, 1, 3)))
+        res = interpret_level(value, astuple=False)
     except:
         raise VdtTypeError(value)
+    #print '*** is_level value: %r, default: %r, res: %r'%(value, default, res)
+    return res
 
 def rebase_cfg_paths(cfg, secname, path_types=['file', 'path', 'dir'],
                      *args, **kwargs):
@@ -321,7 +323,7 @@ def rebase_cfg_paths(cfg, secname, path_types=['file', 'path', 'dir'],
 
 
 # Register the level validator type in VACUMM
-register_config_validator(level=is_level)
+register_config_validator(level=dict(func=is_level, iterable=True))
 
 #: Config manager instance
 SONAT_CFGM = ConfigManager(SONAT_INIFILE, interpolation=False,
