@@ -45,7 +45,7 @@ import MV2
 import numpy as N
 from vcmq import (grid2xy, regrid2d, ncget_lon, ncget_lat,
     ncget_time, ncget_level, ArgList,
-    MV2_axisConcatenate, transect, create_axis, regrid1d, isaxis, checkdir,
+    MV2_axisConcatenate, grid2xy, create_axis, regrid1d, isaxis, checkdir,
     dicttree_get, dict_check_defaults, meshgrid, kwfilter,
     lonlab, latlab, deplab, dict_merge, create_time, reltime)
 
@@ -816,17 +816,16 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
                 if 't' in self.platform_shape:
                     if 't' not in order:
                         raise SONATError("Model variables must have a time axis")
-                    kw['times'] = self.times
+                    kw['to'] = self.times
                 if 'z' in self.platform_shape:
                     if 'z' not in order:
                         raise SONATError("Model variables must have a depth axis")
-                    kw['depths'] = self.depths
+                    kw['zo'] = self.depths
 
                 if i==0:
                     outaxis = create_axis(self.lons.shape, id='point',
                         long_name='Observation point')
-
-                var = transect(var, lons=self.lons, lats=self.lats,
+                var = grid2xy(var, xo=self.lons, yo=self.lats,
                     outaxis=outaxis, **kw)
 
 
@@ -1116,6 +1115,9 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
         """
         if not self.mobile:
             return
+            
+        if not hasattr(self, '_xylocsa_backup'):
+            self.xylocsa_backup()
 
         if direction and pert:
 
@@ -1140,7 +1142,7 @@ class NcObsPlatform(Stacker, _ObsBase_, _NamedVariables_):
             coords = getattr(self, cname) # array of coordinates
 
             # Change coordinates in place
-            coords[index] += pert *sign
+            coords[index] += pert * sign
 
             return pert
 

@@ -210,6 +210,40 @@ def test_obs_obsmanager_plot():
                            full3d=False, full2d=True, bathy=bathy, size=30,
                            level=(-200, 0))
 
+def test_obs_ncobsplatform_xylocsa():
+
+    # Load platform
+    obs = NcObsPlatform(NCFILE_OBS_PROFILES, name='profiles')
+
+    # Orig
+    lons_orig = obs.lons.copy()
+    lats_orig = obs.lats.copy()
+    
+    # Init output
+    saout = obs.xylocsa_init_pert_output()
+    assert saout.shape == (4, len(lons_orig))
+    
+    # Loop on indices
+    for i in obs.xylocsa_get_pert_indices_iter():
+    
+        # X
+        # - activate
+        obs.xylocsa_activate_pert('+x', i)
+        assert abs(obs.lons - lons_orig).ptp() > 0.0001
+        # - deactivate
+        obs.xylocsa_deactivate_pert()
+        assert_allclose(obs.lons, lons_orig)
+    
+        # Y
+        # - activate
+        obs.xylocsa_activate_pert('+y', i)
+        assert abs(obs.lats - lats_orig).ptp() > 0.0001        
+        # - deactivate
+        obs.xylocsa_deactivate_pert()
+        assert_allclose(obs.lats, lats_orig)
+    
+
+    return 
 
 if __name__=='__main__':
     res = test_obs_ncobsplatform_surf()
@@ -223,3 +257,5 @@ if __name__=='__main__':
     res = test_obs_ncobsplatform_profiles_plot()
     res = test_obs_ncobsplatform_hfradars_plot()
     res = test_obs_obsmanager_plot()
+    res = test_obs_ncobsplatform_xylocsa()
+    
