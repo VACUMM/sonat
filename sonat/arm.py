@@ -129,16 +129,17 @@ class ARM(_Base_):
             self.ens.check_variables()
             self.obsmanager.check_variables()
 
+        # Inits
+        self._inputs = {} # indirect input matrices
+        self._results = {} # results
+
         # Check compatibility (names, norms, projection) and project
+        self._sync_norms = sync_norms
         self.project_ens_on_obs(sync_norms=sync_norms)
 
         # Norms
         if norms:
             self.set_named_norms(norms)
-
-        # Inits
-        self._inputs = {} # indirect input matrices
-        self._results = {} # results
 
         # Bathy
         if bathy is not None:
@@ -157,7 +158,7 @@ class ARM(_Base_):
     @property
     def nobs(self):
         """Size of the observational space"""
-        return self._final_packer.packed_data.shape[0]
+        return self._inputs['final_packer'].packed_data.shape[0]
 
     def set_missing_value(self, missing_value):
         if missing_value != self._missing_value:
@@ -187,42 +188,51 @@ class ARM(_Base_):
         self.ens.set_bathy(bathy2d)
         self.obsmanager.set_bathy(bathy2d)
 
-    def project_ens_on_obs(self, sync_norms=True, sync_missing_values=True):
+    def project_ens_on_obs(self, sync_norms=None, sync_missing_values=True):
         """Interpolate the variables of an :class:`~sonat.ens.Ensemble` onto
         observation locations
         """
+        if sync_norms is None:
+            sync_norms = self._sync_norms
         diags  = self.ens.assert_compatible_with_obs(self.obsmanager,
             sync_norms=sync_norms, sync_missing_values=sync_missing_values)
-        self._ens_on_obs = diags['ens_on_obs']
-        self._packed_ens_on_obs = diags['packed_ens_on_obs']
-        self._packed_ens_on_obs_valid = diags['packed_ens_on_obs_valid']
-        self._final_packer = Simple1DPacker(diags['packed_ens_on_obs'],
+        for att in ('ens_on_obs', 'packed_ens_on_obs', 'packed_ens_on_obs_valid'):
+            self._inputs[att] = diags[att]
+        self._inputs['final_packer'] = Simple1DPacker(diags['packed_ens_on_obs'],
             self.missing_value, valid=diags['packed_ens_on_obs_valid'])
-#        return self.ens.project_on_obs(self.obsmanager)
+
+
+    def _check_ens_on_obs_(self, **kwargs):
+        if 'ens_on_obs' not in self._inputs:
+            self.project_ens_on_obs(**kwargs)
+
 
     @property
     def Af(self):
-        """Ensemble state anaomalies"""
+        """Ensemble state anomalies"""
         return self.ens.stacked_data
 
     @property
     def Yf(self):
         """Ensemble state anomalies projected onto observations"""
-        return self._final_packer.packed_data
+        self._check_ens_on_obs_()
+        return self._inputs['final_packer'].packed_data
 
     @property
     def R(self):
         """Observation error covariances matrix (diagonal)"""
+        self._check_ens_on_obs_()
         if 'R' not in self._inputs:
-            err = self._final_packer.pack(self.obsmanager.stacked_data)
+            err = self._inputs['final_packer'].pack(self.obsmanager.stacked_data)
             self._inputs['R'] = N.asfortranarray(N.diag(err**2))
         return self._inputs['R']
 
     @property
     def S(self):
         """Scaled ensemble state anomalies projected onto observations"""
+        self._check_ens_on_obs_()
         if 'S' not in self._inputs:
-            err = self._final_packer.pack(self.obsmanager.stacked_data)
+            err = self._inputs['final_packer'].pack(self.obsmanager.stacked_data)
             Rinv = N.diag(1/err**2)
             self._inputs['S'] = N.dot(N.sqrt(Rinv / (self.ndof-1)), self.Yf)
         return self._inputs['S']
@@ -274,13 +284,13 @@ class ARM(_Base_):
         # Check cache / truncate to ndof
         if (not force  and 'raw_spect' in self._results and
             ndof >= len(self._results['raw_spect'])):
-            self.clean_analysis(raw=False)
+            self.clean_results(raw=False)
             self._results['raw_spect'] = self._results['raw_spect'][:ndof]
             self._results['raw_arm'] = self._results['raw_arm'][:, :ndof]
             self._results['raw_rep'] = self._results['raw_rep'][:, :ndof]
             return
         else:
-            self.clean_analysis(raw=True)
+            self.clean_results(raw=True)
 
         # Call ARM
         spect, arm, rep, status = f_arm(ndof, self.Af, self.Yf, self.R)
@@ -297,8 +307,8 @@ class ARM(_Base_):
             raw_rep = rep,
         )
 
-    def clean_analysis(self, raw):
-        """Remove results from cache"""
+    def clean_results(self, raw=True):
+        """Remove ArM analysis results from cache"""
         keys = ['spect', 'arm', 'rep']
         if raw:
             keys.extend(['raw_spect', 'raw_arm', 'raw_rep'])
@@ -307,15 +317,46 @@ class ARM(_Base_):
                 del self._results[key]
 
     def clean_inputs(self):
+        """Clean inputs to ArM analysis results"""
         self._inputs = {}
 
     def clean(self):
-        self.clean_analysis(True)
+        """Clean inputs and ArM analysis results"""
+        self.clean_results(raw=True)
         self.clean_inputs()
 
     def _check_analysis_(self):
         if 'raw_spect' not in self._results:
             self.analyse()
+            
+    def _backup_(self, what):
+        if not hasattr(self, '_backup'):
+            self._backup = {}
+        self._backup[what] = getattr(self, '_'+what).copy()
+        
+    def backup_inputs(self):
+        self._backup_("inputs")
+            
+    def backup_results(self):
+        self._backup_("results")
+        
+    def backup(self):
+        self.backup_inputs()
+        self.backup_results()
+
+    def _restore_(self, what):
+        if hasattr(self, '_backup') and what in self._backup:
+            setattr(self, '_'+what, self._backup[what])
+            
+    def restore_inputs(self):
+        self._restore_('inputs')
+            
+    def restore_results(self):
+        self._restore_('results')
+            
+    def restore(self):
+        self.restore_inputs()
+        self.restore_results()
 
     @property
     def raw_spect(self):
@@ -362,7 +403,7 @@ class ARM(_Base_):
         self._check_analysis_()
 
         # Unstack/pack/format
-        uarm = self._final_packer.unpack(self.raw_arm)
+        uarm = self._inputs['final_packer'].unpack(self.raw_arm)
         self._results['arm'] = self.obsmanager.unstack(uarm, rescale=False,
             format=1, id='arm_{id}', firstdims=self.mode_axis)
         def set_long_name(long_name):
@@ -918,16 +959,10 @@ class XYLocARMSA(ARMSA):
         for obs in self.arm.obs:
             obs.xylocsa_backup()
         # - ARM
-        self.backups = {}
-        for att in ('_ens_on_obs', '_packed_ens_on_obs',
-                    '_packed_ens_on_obs_valid', '_final_packer'):
-            if hasattr(self.arm, att):
-                self.backups[att] = getattr(self.arm, att)
-
+        self.arm.backup()
 
     def restore_arm(self):
-        for att, val in self.backups.items():
-            setattr(self.arm, att, val)
+        self.arm.restore()
 
     def restore_platform(self, obs):
         obs.xylocsa_restore()
@@ -1012,6 +1047,9 @@ class XYLocARMSA(ARMSA):
                     # Change location
                     dpert = obs.xylocsa_activate_pert(pdir, idx, pert=pert)
 
+                    # Clean inputs only
+                    self.arm.clean_inputs()
+
                     # Project ensemble on obs
                     self.arm.project_ens_on_obs(sync_norms=False,
                                                 sync_missing_values=False)
@@ -1021,15 +1059,15 @@ class XYLocARMSA(ARMSA):
                     if direct:
 
                         # Reset ARM analysis
-                        self.arm.clean()
+                        self.arm.clean_results()
 
                         # Analyse and get score
                         score1 = self.arm.get_score(score_type)
+                        
+                        # Restore
+                        self.arm.restore_results()
 
                     else:
-
-                        # Clean inputs only
-                        self.arm.clean_inputs()
 
                         # Prevent change of size errors due to change of locations
                         try:
@@ -1049,12 +1087,13 @@ class XYLocARMSA(ARMSA):
                             score1 = N.ma.masked
                             self.warning('Indirect method failed at loc: {}'.format(idx))
 
+                    # Restore inputs
+                    self.arm.restore_inputs()
 
                     # Fill array
                     ds[idir, idx] = (score1 - score0) / dpert
                     if pdir.startswith('-'): # same sign with respect to direction
                         ds[idir, idx] *= -1
-
         self.restore()
 
         return results
@@ -1090,6 +1129,8 @@ class XYLocARMSA(ARMSA):
         vmin, vmax = vminmax(results)
         vmax = max(abs(vmin), abs(vmax))
         quiver_scale = vmax / max_quiver_length
+        if quiver_scale==0:
+            quiver_scale = 1
 
 
         # Loop on platforms
@@ -1147,7 +1188,7 @@ class XYLocARMSA(ARMSA):
                 pobj = get_registered_scatters(plotter, obs.name)
                 P.setp(pobj, alpha=alpha_static)
 
-        # Finalise
+        # Finalize
         plotter.legend(**kwleg)
         params = dict(score_type=score_type, direct=direct, pert=pert)
         kwpar.update(transform=plotter.axes.transAxes, fig=plotter.axes)

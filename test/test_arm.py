@@ -185,7 +185,7 @@ def test_arm_xylocarmsa():
     # Sensitivity analysis
     resd = armsa.analyse(direct=True, score_type='relvar')
     resi = armsa.analyse(direct=False, score_type='relvar')
-    pass
+    assert not N.ma.allclose(resd.values()[0], resi.values()[0])
 
 def test_arm_xylocarmsa_plot():
 
@@ -196,10 +196,10 @@ def test_arm_xylocarmsa_plot():
     armsa = XYLocARMSA(arm)
 
     # Plot
-    armsa.plot(score_type='fnev', direct=True)
     armsa.plot(score_type='fnev', direct=False)
-    armsa.plot(score_type='relvar', direct=True)
+    armsa.plot(score_type='fnev', direct=True)
     armsa.plot(score_type='relvar', direct=False)
+    armsa.plot(score_type='relvar', direct=True)
 
 def test_arm_xylocarmsa_export_html():
 
@@ -214,20 +214,20 @@ def test_arm_xylocarmsa_export_html():
 
 
 if __name__=='__main__':
-#    res = test_arm_arm_init()
-#    res = test_arm_arm_project_ens_on_obs()
-#    res = test_arm_arm_inputs()
-#    res = test_arm_arm_analyse()
-#    res = test_arm_arm_results()
-#    res = test_arm_arm_indirect_spectrum()
-#    res = test_arm_register_arm_score_function()
-#    res = test_arm_get_arm_score_function()
+    res = test_arm_arm_init()
+    res = test_arm_arm_project_ens_on_obs()
+    res = test_arm_arm_inputs()
+    res = test_arm_arm_analyse()
+    res = test_arm_arm_results()
+    res = test_arm_arm_indirect_spectrum()
+    res = test_arm_register_arm_score_function()
+    res = test_arm_get_arm_score_function()
     res = test_arm_scores()
-#    res = test_arm_arm_plot_spect()
-#    res = test_arm_arm_plot_arm()
-#    res = test_arm_arm_plot_rep()
-#    res = test_arm_arm_export_html()
-#    res = test_arm_xylocarmsa()
-#    res = test_arm_xylocarmsa_plot()
-#    res = test_arm_xylocarmsa_export_html()
+    res = test_arm_arm_plot_spect()
+    res = test_arm_arm_plot_arm()
+    res = test_arm_arm_plot_rep()
+    res = test_arm_arm_export_html()
+    res = test_arm_xylocarmsa()
+    res = test_arm_xylocarmsa_plot()
+    res = test_arm_xylocarmsa_export_html()
 
