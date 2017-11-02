@@ -36,11 +36,11 @@ the :attr:`standard_name` attributes  for model variables.
 
 You can register you own variables in two ways.
 
-- By calling :func:`vacumm.data.cd.register_cf_variable`:
+- By calling :func:`vacumm.data.cf.register_cf_variable`:
 
     >>> register_cf_variable('ssb', standard_name='sea_surface_banana')
 
-- By calling func:`vacumm.data.cd.register_cf_variable_from_cfg`
+- By calling :func:`vacumm.data.cf.register_cf_variable_from_cfg`
   with a config file name  (:file:`cf.cfg` for instance) as argument.
 
   .. code-block:: ini
@@ -62,7 +62,7 @@ You can register you own variables in two ways.
       >>> register_cf_variable_from_cfg(mycf)
 
   If you are using a user code file, your variables must be declared
-  in a format compatible with func:`~vacumm.data.cd.register_cf_variable_from_cfg`,
+  in a format compatible with :func:`~vacumm.data.cf.register_cf_variable_from_cfg`,
   with the name :attr:`vacumm_cf_variables`.
 
 
@@ -134,7 +134,7 @@ and modal representer matrix (:attr:`~sonat.arm.ARM.raw_rep`) as arguments.
 When scripting, you can register a new score function by calling
 :func:`~sonat.arm.register_arm_score_function`.
 When using a user code file, declared function whose name start
-with the are :mod:`~sonat.arm.ARM_SCORE_FUNCTIONS_PREFIX` prefix
+with the are :attr:`~sonat.arm.ARM_SCORE_FUNCTION_PREFIX` prefix
 are automatically registered.
 
 

@@ -94,7 +94,7 @@ the spatial axis is interpreted as a spatial index
 (:ref:`profiles <appendix.samples.obs.profiles>`).
 In this case, a longitude and a latitude variables must be found.
 
-The depths may be specified in several ways:
+The **depths** may be specified in several ways:
 
 - A depth axis: there is vertical dimension in addition
   the horizontal one(s) (:ref:`profiles <appendix.samples.obs.profiles>`).
@@ -105,13 +105,13 @@ The depths may be specified in several ways:
   special string value ``"surf"`` or ``"bottom"``.
 
 
-A mobility specification (see :ref:`core.sa`)
+A **mobility** specification (see :ref:`core.sa`)
 may be included to tell if the XY locations are
 mobile for adjustment of the network or not.
 It can take several forms:
 
-- An integer variable with the same horizontal dimensions as error variables.
-- An integer file attribute that applies to all locations.
+- An integer variable named ``mobility`` with the same horizontal dimensions as error variables.
+- An integer file attribute named ``mobility`` that applies to all locations.
 
 An integer value of 1 makes the location mobile.
 By default, a platform is not mobile.

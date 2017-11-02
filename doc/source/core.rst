@@ -264,9 +264,14 @@ You can easily test the sensitivity of the score to slight changes
 in observation positions in all directions.
 This may tell you whether you must change your configuration or not,
 and how to do it.
+
 The :class:`sonat.arm.XYLocARMSA` class is a sensitivity analyser
-that tests the effect of infinitesimal changes in the position
-of observations that are mobile.
+that tests the effect of infinitesimal changes in the 
+horizontal position of observations that are mobile.
+A platform can be fully, partially or not mobile, and is not mobile by default.
+This is specified by a ``mobility`` variable or global attribute
+in an observation file (see :ref:`conv.obs`).
+
 A ``score_type`` must be chosen, and tests may be performed
 either with a ``direct`` or ``indirect`` method:
 in the first case, a full ARM analysis is performed
