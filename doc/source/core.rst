@@ -309,7 +309,7 @@ no SVD decomposition is needed at each perturbation.
 .. figure:: ../../test/sonat.armsa.xyloc.relvar.indirect.png
     :align: center
 
-    Same as previous figure, but with an ``relvar`` method.
+    Same as previous figure, but with an ``relvar`` score type.
 
 In the examples of figures :numref:`fig_core_armsa_direct`
 and :numref:`fig_core_armsa_indirect`, the direct and
