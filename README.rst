@@ -19,11 +19,17 @@ Installation
 
 With `conda <https://conda.io/docs>`_::
 
-    $ conda install -c vacumm sonat
+    $ conda install -c vacumm -c conda-forge -c uvcdat sonat
 
 It will also install the `VACUMM <http://www.ifremer.fr/vacumm>`_
 and `SANGOMA <http://www.data-assimilation.net>`_ packages,
 and their respective dependencies.
+
+
+Documentation
+-------------
+
+SONAT comes with a full `documentation <http://relay.actimar.fr/~raynaud/sonat>`_.
 
 
 Sources and help
@@ -31,6 +37,12 @@ Sources and help
 
 Source are available on the SONAT `github page <https://github.com/VACUMM/sonat>`_.
 Here you can also post tickets for requests and issues.
+
+
+Release notes
+-------------
+Release notes for all tags and versions are available 
+`here <http://relay.actimar.fr/~raynaud/sonat/release_notes.html>`_.
 
 
 License
@@ -57,7 +69,3 @@ Contacts
 * Stéphane Raynaud <stephane.raynaud (at) actimar.fr>
 * Pierre De Mey <pierre.de-mey (at) legos.obs-mip.fr>
 
-Documentation
--------------
-
-SONAT comes with a full `documentation <http://relay.actimar.fr/~raynaud/sonat>`_.

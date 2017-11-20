@@ -16,6 +16,7 @@
    lib/index
    bib
    license
+   release_notes
    appendix
 
 
