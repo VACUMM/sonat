@@ -9,6 +9,7 @@ package:
 build:
     script: python setup.py install
     number: {{ pkg_buildnum }}
+    string: np{{ np }}py{{ py }}_{{ pkg_buildnum }}
 
 source:
   git_url: https://github.com/VACUMM/sonat.git
@@ -18,13 +19,13 @@ source:
 
 requirements:
   build:
-    - uvcdat ==2.8.0
-    - vacumm >=3.4.1
+    - uvcdat
+    - vacumm >=3.5.0
     - libsangoma_tools >=2.0.1
     - gcc >=4.7
   run:
-    - uvcdat ==2.8.0
-    - vacumm >=3.4.1
+    - uvcdat
+    - vacumm >=3.5.0
     - libsangoma_tools >=2.0.1
     - libgcc >=4.7
     - jinja2
