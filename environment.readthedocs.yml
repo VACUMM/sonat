@@ -2,8 +2,9 @@ name: sonat-rtd
 
 channels:
   - vacumm/label/test
-  - uvcdat
   - conda-forge
+  - uvcdat
+  - cdoutriaux1
   - omnia
 
 dependencies:
