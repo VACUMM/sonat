@@ -43,6 +43,7 @@ from vacumm.misc.cfgui.application import Application, Plugin
 from vacumm.misc.cfgui import QtObject
 from vacumm.misc.cfgui.utils.ui import info_dialog, warning_dialog, error_dialog, confirm_dialog
 
+from sonat import SONAT_LIB_DIR
 from sonat.cui import (
     ens_gen_pseudo_from_cfg,
     ens_plot_diags_from_cfg,
@@ -107,6 +108,8 @@ class SonatPlugin(Plugin):
         Plugin.enable(self)
         
         self.main_window = self.application.main_controller.main_window
+        
+        self.main_window.set_application_logo(os.path.join(SONAT_LIB_DIR, 'sonat-logo.png'))
         
         self.application.sessions_controller.sessions_dialog.line_specification.setEnabled(False)
         self.application.sessions_controller.sessions_dialog.button_specification.setEnabled(False)
