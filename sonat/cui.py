@@ -185,7 +185,7 @@ def ens_gen_pseudo_from_args(parser, args, cfg):
 
     # List of model files from args and config
     ncmodfiles = (args.ncmodfile if args.ncmodfile else
-        get_cfg_path(cfg, 'ens', 'ncmodfiles'))
+        get_cfg_path(cfg, ['ens', 'gen'], 'ncmodfiles'))
     cfg['ens']['gen']['ncmodfiles'] = ncmodfiles
     if not ncmodfiles:
         parser.error('No model file specified. Please specify it as arguments '
