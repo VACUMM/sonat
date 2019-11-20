@@ -1,28 +1,28 @@
 import os
-from StringIO import StringIO
 import contextlib
 from sphinx.util.console import bold
+from sphinx.util import status_iterator
 from vcmq import checkdir, opt2rst
 from sonat.cui import main as sonat_main
+
 
 @contextlib.contextmanager
 def capture():
     import sys
     from cStringIO import StringIO
-    oldout,olderr = sys.stdout, sys.stderr
+    oldout, olderr = sys.stdout, sys.stderr
     try:
-        out=[StringIO(), StringIO()]
-        sys.stdout,sys.stderr = out
+        out = [StringIO(), StringIO()]
+        sys.stdout, sys.stderr = out
         yield out
     finally:
-        sys.stdout,sys.stderr = oldout, olderr
+        sys.stdout, sys.stderr = oldout, olderr
         out[0] = out[0].getvalue()
         out[1] = out[1].getvalue()
 
 
-
 def write_usages(app):
-    for name in app.builder.status_iterator(
+    for name in status_iterator(
             app.config.sonathelps_commands,
             bold("generating helps... "),
             length=len(app.config.sonathelps_commands),
@@ -33,11 +33,11 @@ def write_usages(app):
         with capture() as out:
             try:
                 sonat_main(opts)
-            except:
+            except SystemExit:
                 pass
 
         # Write help as rst
-        help_file =app.config.sonathelps_help_pat.format(name)
+        help_file = app.config.sonathelps_help_pat.format(name)
         if help_file:
             help_file = os.path.join(app.builder.srcdir, help_file)
             checkdir(help_file, asfile=True)
@@ -56,8 +56,6 @@ def write_usages(app):
             f.close()
 
 
-
-
 def setup(app):
     app.add_config_value('sonathelps_commands', {}, '')
     app.add_config_value('sonathelps_help_pat', 'generated/help.{}.txt', '')
@@ -66,5 +64,4 @@ def setup(app):
     app.connect('builder-inited', write_usages)
 
     return {'version': '0.1'}
-
 

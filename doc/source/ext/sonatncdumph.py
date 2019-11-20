@@ -1,12 +1,11 @@
 import os
-from StringIO import StringIO
 from sphinx.util.console import bold
+from sphinx.util import status_iterator
 from vcmq import checkdir
 
 
-
 def write_ncdumps(app):
-    for name in app.builder.status_iterator(
+    for name in status_iterator(
             app.config.sonatncdumph_ncfiles,
             bold("generating list of ncdump -h... "),
             length=len(app.config.sonatncdumph_ncfiles),
@@ -20,7 +19,6 @@ def write_ncdumps(app):
         os.system('ncdump -h {ncfile} > {txtfile}'.format(**locals()))
 
 
-
 def setup(app):
     app.add_config_value('sonatncdumph_ncfiles', {}, '')
     app.add_config_value('sonatncdumph_filepat', 'generated/ncdump.{}.txt', '')
@@ -28,5 +26,3 @@ def setup(app):
     app.connect('builder-inited', write_ncdumps)
 
     return {'version': '0.1'}
-
-
