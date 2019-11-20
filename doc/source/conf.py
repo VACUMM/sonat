@@ -50,7 +50,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.extlinks',
     'sphinx.ext.coverage',
-    'sphinx.ext.pngmath',
+    'sphinx.ext.imgmath',
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
@@ -324,7 +324,6 @@ texinfo_documents = [
 #texinfo_no_detailmenu = False
 
 vacumm_site = "http://www.ifremer.fr/vacumm"
-vacumm_site = "http://relay.actimar.fr/~raynaud/vacumm"
 
 
 # Intersphinx
@@ -372,7 +371,7 @@ numfig = True
 sonatncdumph_filepat = 'generated/ncdump.{}.txt'
 sonatncdumph_ncfiles = {'ens': '../../test/test_ens_generate_pseudo_ensemble.nc',
                         'obs.hfradars': '../../data/obs.hfradars.nc',
-                        'obs.profile': '../../data/obs.profiles.nc',
+                        'obs.profiles': '../../data/obs.profiles.nc',
                         'obs.satsst': '../../data/obs.satsst.nc',
                         }
 

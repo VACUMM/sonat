@@ -34,7 +34,7 @@ and in a zonal sections, with a marker size of 40.
     :align: center
 
     Surface view of locations only
-    
+
 .. figure:: ../../test/sonat.obs.generic_profiles_temp_map_3d.png
     :align: center
 
@@ -42,7 +42,7 @@ and in a zonal sections, with a marker size of 40.
 
 .. figure:: ../../test/sonat.obs.generic_profiles_temp_zonal_47.40.png
     :align: center
-    
+
     Temperature errors in a zonal view at 47.4°N.
 
 Print some info that are useful for model read,
@@ -143,13 +143,13 @@ The tree branch types are the following:
 - Type of slice
 - Location of slice
 
-.. figure:: ../../test/sonat.ens.skew_temp_map_surf.png
+.. figure:: ../../test/sonat.ens.skew_temp_surf_map_surf.png
     :align: center
 
     Ensemble temperature skewness
 
 If you pass the ``obs=obs`` argument, observation locations
-will be added to the plot. 
+will be added to the plot.
 
 Export as html
 
@@ -186,7 +186,7 @@ Make plots like with a single :class:`~sonat.obs.NcObsPlatform`
     :align: center
 
     Locations of observation platforms near the surface
-    
+
 
 Perform an ARM analysis
 =======================
@@ -275,7 +275,7 @@ To perform such sensitivity analysis, use a :class:`sonat.arm.XYLocARMSA` instan
 This works only if a platform is mobile.
 
 Setup the sensitivity analyser
- 
+
 >>> armsa = XYLocARMSA(arm)
 
 Analyse with direct and indirect estimate
@@ -292,7 +292,7 @@ Plot results with two sort of scores
     :align: center
 
     Sensitivity analysis with a ``fnev`` score type.
-    
+
 .. figure:: ../../test/sonat.armsa.xyloc.relvar.direct.png
     :align: center
 

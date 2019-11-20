@@ -13,7 +13,7 @@ same model, that differ for instance by their initial
 and/or boundary conditions, by their forcing, or by the value
 of their internal parameters.
 Such ensemble simulate the model errors and is used
-by stochastic assimilation schemes such as the Enkf [#enkf]_ 
+by stochastic assimilation schemes such as the Enkf [#enkf]_
 :cite:`even94`.
 
 A pseudo-ensemble is static and generated from
@@ -92,17 +92,17 @@ the :func:`~scipy.stats.kurtosistest` and the :func:`~scipy.stats.normaltest`.
 Some other stats are related to the generation of the pseudo-ensemble:
 the relative spectrum and the local variance.
 
-.. figure:: ../../test/CUI/ENS/sonat.ens.variance_u_map_surf.png
+.. figure:: ../../test/CUI/ENS/sonat.ens.variance_v_surf_map_surf.png
     :align: center
 
     Ensemble variance of meridional velocity.
-    
-.. figure:: ../../test/CUI/ENS/sonat.ens.variance_sal_merid_5W.png
+
+.. figure:: ../../test/CUI/ENS/sonat.ens.variance_sal_merid_4.55W.png
     :align: center
 
-    Ensemble variance of salinity at 5°W.
-    
-.. figure:: ../../test/CUI/ENS/sonat.ens.skew_u_map_surf.png
+    Ensemble variance of salinity at 4.55°W.
+
+.. figure:: ../../test/CUI/ENS/sonat.ens.skew_u_surf_map_surf.png
     :align: center
 
     Skewness of the ensemble of zonal velocity.
@@ -128,7 +128,7 @@ Since pseudo-ensemble are used in the ARM analysis,
 a **platform-specific weight** :math:`W` may be set to take into account
 the time sampling of processes.
 A low weight must be defined for a platform that has
-a measurement time step :math:`\tau_{obs}` 
+a measurement time step :math:`\tau_{obs}`
 significantly greater than the processes
 it is designed to observe :math:`\tau_{proc}`.
 Conversely, this weight saturates (to ``1``) when the time step becomes
@@ -217,7 +217,7 @@ also available.
 
     Example of a surface view of the first array mode for zonal velocity.
 
-    
+
 .. _fig_core_arm_rep_temp:
 
 .. figure:: ../../test/CUI/ARM/sonat.arm.rep.mode01_temp_map_surf.png
@@ -266,7 +266,7 @@ This may tell you whether you must change your configuration or not,
 and how to do it.
 
 The :class:`sonat.arm.XYLocARMSA` class is a sensitivity analyser
-that tests the effect of infinitesimal changes in the 
+that tests the effect of infinitesimal changes in the
 horizontal position of observations that are mobile.
 A platform can be fully, partially or not mobile, and is not mobile by default.
 This is specified by a ``mobility`` variable or global attribute
@@ -316,7 +316,7 @@ and :numref:`fig_core_armsa_indirect`, the direct and
 indirect methods show similar results.
 They suggest to move the most eastern profile to the
 south.
-    
+
 New sensitivity analysers can be implemented by inheriting
 from :class:`sonat.arm.ARMSA` and registered by
 :func:`sonat.arm.register_arm_sensitivity_analyser`.
@@ -341,7 +341,7 @@ applied to :math:`r = \sqrt{R}`.
 .. math:: \sigma = \sqrt{\frac{1}{N}\sum r^{2}_{i}}
 
 Note that, normalisation factors can provided per variable type,
-like temperature or salinity. 
+like temperature or salinity.
 
 
 .. _core.obsoper:
