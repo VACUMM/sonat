@@ -38,6 +38,7 @@ import sys
 import os
 from collections import OrderedDict
 from argparse import ArgumentParser
+import warnings
 
 import matplotlib
 from pylab import register_cmap
@@ -151,11 +152,14 @@ def main(args=None):
     asparser.set_defaults(func=arm_sa_from_args)
 
     # GUI
-    import sonat.gui
-    shelp = 'Graphical User Interface'
-    gparser = subparsers.add_parser('gui', description=shelp, help=shelp)
-    sonat.gui.populate_argparser(gparser)
-    gparser.set_defaults(func=sonat.gui.run_from_args)
+    try:
+        import sonat.gui
+        shelp = 'Graphical User Interface'
+        gparser = subparsers.add_parser('gui', description=shelp, help=shelp)
+        sonat.gui.populate_argparser(gparser)
+        gparser.set_defaults(func=sonat.gui.run_from_args)
+    except ImportError:
+        warnings.warn("Can't load the graphical user interface")
 
     # Test
     shelp = 'launch the test suite'
