@@ -1,5 +1,5 @@
 {% set sangoma_version = environ.get('CONDA_SANGOMA_VERSION',"2.0.1") %}
-{% set pkg_buildnum = environ.get('CONDA_SANGOMA_BUILDNUM',"0") %}
+{% set pkg_buildnum = environ.get('CONDA_SANGOMA_BUILDNUM',"4") %}
 
 package:
   name: libsangoma_tools
@@ -9,18 +9,20 @@ build:
   number: {{ pkg_buildnum }}
 
 source:
-  svn_url: http://svn.code.sf.net/p/sangoma/code/tools/tags/V{{ sangoma_version }}/Fortran
-  svn_ignore_externals: True # (defaults to False)
+  url: https://downloads.sourceforge.net/project/sangoma/sangoma-{{ sangoma_version }}.tar.gz
   patches: all.patch
 
 requirements:
   build:
-    - gcc >=4.7
+    - {{ compiler('gfortran') }}
+  host:
     - fftw
+    - lapack
+    - libgfortran
   run:
     - fftw
-    - libgcc >=4.7
     - lapack
+    - libgfortran
 
 about:
   home: http://www.data-assimilation.net
