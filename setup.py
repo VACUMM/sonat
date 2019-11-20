@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright IFREMER (2016-2017)
+# Copyright IFREMER (2016-2019)
 #
 # This software is a computer program whose purpose is to provide
 # utilities for handling oceanographic and atmospheric data,
@@ -33,8 +33,6 @@
 # knowledge of the CeCILL license and that you accept its terms.
 #
 import os
-import sys
-import re
 import shutil
 from numpy.distutils.core import setup, Extension
 from numpy.distutils.misc_util import Configuration
@@ -61,9 +59,20 @@ author_email = __email__
 url = __url__
 license = "CeCILL"
 long_description = open('README.rst').read()
+classifiers = ["Intended Audience :: Science/Research",
+               ("License :: OSI Approved :: CEA CNRS Inria Logiciel "
+                "Libre License, version 2.1 (CeCILL-2.1)"),
+               "Programming Language :: Python :: 2.7",
+               "Topic :: Scientific/Engineering :: Physics",
+               "Topic :: Scientific/Engineering :: Mathematics",
+               "Topic :: Scientific/Engineering :: Atmospheric Science",
+               "Topic :: Software Development :: Libraries :: Python Modules",
+               "Operating System :: POSIX",
+               "Operating System :: MacOS :: MacOS X",
+               ]
 
 # Special setups
-if __name__=='__main__':
+if __name__ == '__main__':
 
     # Config file
     cfg_file = os.path.join(rootdir, 'setup.cfg')
@@ -72,33 +81,33 @@ if __name__=='__main__':
         shutil.copy(default_cfg_file, cfg_file)
 
     # Distutils config
-    def configuration(parent_package='',top_path=None):
+    def configuration(parent_package='', top_path=None):
         config = Configuration()
-        config.add_scripts('bin/sonat') # main executable
-        config.add_data_dir(('sonat/data', 'data')) # all data files
+        config.add_scripts('bin/sonat')  # main executable
+        config.add_data_dir(('sonat/data', 'data'))  # all data files
         return config
 
     # Setup the python module
     s = setup(name="sonat",
-        version = version,
-        description = description,
-        long_description = long_description,
-        author = author,
-        author_email=author_email,
-        maintainer = author,
-        maintainer_email=author_email,
-        license = license,
-        ext_modules = [
-            Extension('sonat._fcore', ['sonat/fcore.f90'])
-        ],
-        packages = ["sonat", "sonat.test"],
-        package_dir = {"sonat.test": "test"},
-        package_data = {"sonat": ["matplotlibrc", "sonat.ini",
-                                  "CollapsibleLists.compressed.js",
-                                  "sonat.css", "runOnLoad.js",
-                                  "button*.png", "list-item*.png"],
-            "sonat.test": ["sonat.cfg", "sangoma*", "inputs/*.txt"]},
-        configuration = configuration,
-
-    )
-
+              version=version,
+              description=description,
+              long_description=long_description,
+              author=author,
+              author_email=author_email,
+              maintainer=author,
+              maintainer_email=author_email,
+              license=license,
+              ext_modules=[
+                      Extension('sonat._fcore', ['sonat/fcore.f90'])
+              ],
+              packages=["sonat", "sonat.test"],
+              package_dir={"sonat.test": "test"},
+              package_data={"sonat": ["matplotlibrc", "sonat.ini",
+                                      "CollapsibleLists.compressed.js",
+                                      "sonat.css", "runOnLoad.js",
+                                      "button*.png", "list-item*.png"],
+                            "sonat.test": ["sonat.cfg", "sangoma*",
+                                           "inputs/*.txt"]},
+              classifiers=classifiers,
+              configuration=configuration
+              )
