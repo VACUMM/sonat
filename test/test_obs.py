@@ -53,7 +53,7 @@ def test_obs_ncobsplatform_surf():
     otemp = obs.project_model(temp)
     osal = obs.project_model(sal)
     otem_true = [12.97311556, 12.91558515, 10.58179214]
-    assert_allclose(otemp[0], otem_true)
+    assert_allclose(otemp[0].filled(), otem_true)
 
     # Stack model
     otemp[:] -= 11.5
@@ -124,7 +124,7 @@ def test_obs_obsmanager_project_model():
 
     # Interpolate model
     otemp = manager.project_model(temp)
-    assert_allclose(otemp[1][0], [12.91558515, 10.58179214])
+    assert_allclose(otemp[1][0].filled(), [12.91558515, 10.58179214])
 
     return manager
 
@@ -218,14 +218,14 @@ def test_obs_ncobsplatform_xylocsa():
     # Orig
     lons_orig = obs.lons.copy()
     lats_orig = obs.lats.copy()
-    
+
     # Init output
     saout = obs.xylocsa_init_pert_output()
     assert saout.shape == (4, len(lons_orig))
-    
+
     # Loop on indices
     for i in obs.xylocsa_get_pert_indices_iter():
-    
+
         # X
         # - activate
         obs.xylocsa_activate_pert('+x', i)
@@ -233,17 +233,17 @@ def test_obs_ncobsplatform_xylocsa():
         # - deactivate
         obs.xylocsa_deactivate_pert()
         assert_allclose(obs.lons, lons_orig)
-    
+
         # Y
         # - activate
         obs.xylocsa_activate_pert('+y', i)
-        assert abs(obs.lats - lats_orig).ptp() > 0.0001        
+        assert abs(obs.lats - lats_orig).ptp() > 0.0001
         # - deactivate
         obs.xylocsa_deactivate_pert()
         assert_allclose(obs.lats, lats_orig)
-    
 
-    return 
+
+    return
 
 if __name__=='__main__':
     res = test_obs_ncobsplatform_surf()
@@ -258,4 +258,4 @@ if __name__=='__main__':
     res = test_obs_ncobsplatform_hfradars_plot()
     res = test_obs_obsmanager_plot()
     res = test_obs_ncobsplatform_xylocsa()
-    
+
