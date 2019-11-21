@@ -14,7 +14,7 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - conda create -q -n test-environment -c conda-forge -c defaults -c vacumm --override-channels python=$TRAVIS_PYTHON_VERSION vacumm>=3.5.0 libsangoma_tools>=2.0.1 nose jinja2 basemap-data-hires
+  - conda create -q -n test-environment -c conda-forge -c defaults -c vacumm --override-channels python=$TRAVIS_PYTHON_VERSION vacumm>=3.5.0 libsangoma_tools>=2.0.1 nose jinja2 basemap-data-hires libnetcdf<=4.7
   - source activate test-environment
   - python setup.py install
   - python setup.py build_ext --inplace
@@ -23,4 +23,4 @@ install:
 
 
 
-script: cd test && make
+script: cd test && make first_failed
