@@ -1,6 +1,14 @@
 Release notes
 #############
 
+Version 1.1.1
+=============
+
+- Add first_failed target for tests
+- Fix doc and its generation
+- Fix tests
+- Fix conda-build recipe
+
 Version 1.1.0
 =============
 

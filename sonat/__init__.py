@@ -18,7 +18,7 @@ The following environment variables are declared
 
 """
 #
-# Copyright IFREMER (2016-2017)
+# Copyright IFREMER (2016-2019)
 #
 # This software is a computer program whose purpose is to provide
 # utilities for handling oceanographic and atmospheric data,
@@ -54,10 +54,10 @@ The following environment variables are declared
 
 __author__ = 'Stephane Raynaud, Guillaume Charria, Pierre De Mey'
 __email__ = "raynaud@actimar.fr, charria@actimar.fr"
-__version__ = '1.1.0'
-__date__ = '2017-11-20'
+__version__ = '1.1.1'
+__date__ = '2019-11-21'
 __url__ = 'http://relay.actimar.fr/~raynaud/sonat'
-__copyright__ = 'IFREMER'
+__copyright__ = 'IFREMER 2016-2019'
 
 import os
 from collections import OrderedDict
@@ -135,7 +135,7 @@ def get_logger(name=None, cfg=None, **kwargs):
     else:
 
         # Existing logger
-        if sonat.LOGGER: 
+        if sonat.LOGGER:
 
             if sonat.LOGGER.name != name: # Create a child
 
