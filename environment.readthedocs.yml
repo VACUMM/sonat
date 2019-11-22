@@ -1,12 +1,13 @@
 name: sonat-rtd
 
 channels:
+  - vacumm
   - vacumm/label/test
   - conda-forge
   - cdat
   - omnia
 
 dependencies:
-        #- sonat
+  - sonat
   - sphinx-fortran >=1.1.0
   - sphinxcontrib-bibtex
